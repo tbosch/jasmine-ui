@@ -56,8 +56,8 @@ Usage from js-test-driver
 * configure a js-test-driver proxy that delegates all requests to the webserver that contains
   the pages that should be tests. This is important so that the pages to be tested are
   from the same domain as the test code.
-* Example configuration:
 
+Example configuration:
 
 
     server: http://localhost:42442
