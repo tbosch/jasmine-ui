@@ -38,11 +38,6 @@ var frame = function() {
             arguments);
 };
 
-var instrumentHtml = function() {
-    return jasmine.getEnv().currentSpec.instrumentHtml.apply(jasmine.getEnv().currentSpec,
-            arguments);
-};
-
 jasmine.ui = {};
 
 /**
@@ -73,10 +68,6 @@ jasmine.ui.wait = {};
     }
 
     jasmine.Spec.prototype.frame = frame;
-
-    jasmine.Spec.prototype.instrumentHtml = function(callback) {
-        this.instrumentHtmlCallback = callback;
-    };
 
     function getLoadUrl(pageUrl, username, password) {
         var lastSlash = pageUrl.lastIndexOf('/');
@@ -116,7 +107,7 @@ jasmine.ui.wait = {};
         body.appendChild(frameElement);
     }
 
-    jasmine.Spec.prototype.loadHtml = function(url, username, password) {
+    jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback, username, password) {
         finishedFunctions = [];
         var spec = this;
         var error = null;
@@ -147,10 +138,9 @@ jasmine.ui.wait = {};
             try {
                 jasmine.ui.log('instrument after content');
                 initAsyncWait("afterContent");
-                // if the test defines an instrument function, use it...
-                var userCallback = spec.instrumentHtmlCallback;
-                if (userCallback) {
-                    userCallback(frameObject.window);
+                // if we have an instrument function, use it...
+                if (instrumentCallback) {
+                    instrumentCallback(frameObject.window);
                 }
             } catch (ex) {
                 error = ex;
@@ -510,46 +500,6 @@ jasmine.ui.wait = {};
 
 
 })(jasmine);
-
-(function() {
-    /**
-     * Instruments the jquery ajax function, and returns a
-     * function that returns whether there are currently pending ajax requests
-     * waiting. If jquery is not available, this returns null.
-     */
-/*
-    jasmine.ui.wait.instrumentJQueryAjax = function(window, callTime) {
-        if (callTime != 'afterContent') {
-            return null;
-        }
-        // check for jQuery
-        var jQuery = window.jQuery;
-        if (!jQuery) {
-            return null;
-        }
-        var jQueryAjaxCalls = 0;
-        var origAjax = jQuery.ajax;
-        jQuery.ajax = function(url, options) {
-            jasmine.ui.log("start jquery ajax ");
-            jQueryAjaxCalls++;
-            options = options || {};
-            var oldComplete = options.complete;
-            options.complete = function() {
-                jasmine.ui.log("End jquery ajax ");
-                jQueryAjaxCalls--;
-                if (oldComplete) {
-                    oldComplete.apply(this, arguments);
-                }
-            };
-            origAjax.apply(this, [ url, options ]);
-        };
-        return function() {
-            return jQueryAjaxCalls == 0;
-        };
-    };
-    */
-
-})();
 
 (function() {
     /**

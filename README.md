@@ -26,16 +26,13 @@ of pages.
 Functions
 -----------
 
-#### loadHtml(<your-html-file>)
+#### loadHtml(<your-html-file>,<instrumentCallback>)
 Loads the given html file and waits until it is fully loaded (e.g. it's document is ready).
+The second argument is a callback function that will be called right before the document receives it's ready
+event, and may be used to mock functions in libraries loaded in the document. The callback gets
+the frame as parameter.
+
 To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
-
-#### instrumentHtml
-`instrumentHtml(function(frameWindow) {...});`
-
-* Is called when the document in loadHtml was fully loaded in a frame
-* Can be used to instrument the loaded document e.g. with proxies for the XHR, ...
-* To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 
 #### waitsForAsync()
 * Waits until the end of all asynchronous work in the loaded frame:

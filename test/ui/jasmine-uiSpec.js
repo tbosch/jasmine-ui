@@ -13,15 +13,15 @@ describe("jasmine-ui", function() {
 	
 	it('should be able to instrument the page before onload is called', function() {
 		var docReadyInInstrument;
-		instrumentHtml(function(window) {
+		function instrumentHtml(window) {
 			var jQuery = window.jQuery;
 			docReadyInInstrument = jQuery.isReady; 
 			spyOn(jQuery, 'ajax').andCallFake(function(url, options) {
 				options.success([{name:'entry1'},{name:'entry2'}]);
 			});			
-		});
+        };
 
-		loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+		loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", instrumentHtml);
 		
 		runs(function() {
 			var fr = frame();
