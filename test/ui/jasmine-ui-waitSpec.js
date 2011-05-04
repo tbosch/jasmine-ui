@@ -9,8 +9,8 @@ describe(
                 try {
                     delete window.myframe;
                 } catch (_) {
+                  // catch needed for IE only
                 }
-                ; // catch needed for IE only
                 $("#myframe").remove();
                 $("body").append('<iframe id="myframe" name="myframe"></iframe>');
                 var doc = myframe.document;
