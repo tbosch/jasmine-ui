@@ -41,7 +41,7 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 * Waits until the end of all asynchronous work in the loaded frame:
     * end of all timeouts
     * end of all intervals
-    * end of all jquery ajax calls
+    * end of all xhr calls (independent of a framework like jquery, ...)
     * end of all css3 animations
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 * Note that this can be extended by custom plugins.
@@ -106,3 +106,5 @@ instruments it and creates a dynamic iframe with the page content:
 - Assigns a base tag so all relative links will still work. Note that this
   leads to the problem, that links that only contain hashes trigger a complete
   page reload. However, this is prevented by special onclick handlers.
+- Creates a proxy XMLHttpRequest prototype to wait for XHR requests, no matter
+  which AJAX framework is being used!

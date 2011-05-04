@@ -136,57 +136,40 @@ describe(
                 });
             });
 
-            it('should instrument jQuery only afterContent', function() {
+            it('should instrument xhr only beforeContent', function() {
                 expect(window.myframe).toBeTruthy();
                 waitsFor(isFrameLoaded);
                 runs(function() {
-                    var finished = jasmine.ui.wait.instrumentJQueryAjax(myframe,
+                    var finished = jasmine.ui.wait.instrumentXhr(myframe,
                             "beforeContent");
-                    expect(finished).toEqual(null);
-                    var finished = jasmine.ui.wait.instrumentJQueryAjax(myframe,
-                            "afterContent");
                     expect(finished).toBeTruthy();
-                });
-            });
-
-            it('should detect jquery ajax waiting', function() {
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
-                runs(function() {
-                    var callback = null;
-                    var mockAjax = spyOn(myframe.jQuery, 'ajax').andCallFake(
-                            function(url, options) {
-                                callback = options.complete;
-                            });
-                    var finished = jasmine.ui.wait.instrumentJQueryAjax(window.myframe,
+                    var finished = jasmine.ui.wait.instrumentXhr(myframe,
                             "afterContent");
-                    expect(finished()).toEqual(true);
-                    myframe.jQuery.ajax("http://myurl");
-                    expect(finished()).toEqual(false);
-                    callback();
-                    expect(finished()).toEqual(true);
+                    expect(finished).toEqual(null);
                 });
             });
 
-            it('should allow jquery ajax complete callback', function() {
+            it('should detect ajax waiting', function() {
+                var loaded = false;
+                var finished;
                 expect(window.myframe).toBeTruthy();
                 waitsFor(isFrameLoaded);
                 runs(function() {
-                    var callback = null;
-                    var mockAjax = spyOn(myframe.jQuery, 'ajax').andCallFake(
-                            function(url, options) {
-                                callback = options.complete;
-                            });
-                    var finished = jasmine.ui.wait.instrumentJQueryAjax(myframe);
-                    var completeCalled = false;
-                    myframe.jQuery.ajax("http://myurl", {
-                        complete : function() {
-                            completeCalled = true;
+                    finished = jasmine.ui.wait.instrumentXhr(window.myframe,
+                            "beforeContent");
+                    expect(finished()).toEqual(true);
+                    myframe.jQuery.ajax("/jasmine-ui/test/lib/jquery-1.5.1.js", {
+                        complete: function() {
+                            loaded = true;
                         }
                     });
-                    expect(completeCalled).toEqual(false);
-                    callback();
-                    expect(completeCalled).toEqual(true);
+                    expect(finished()).toEqual(false);
+                });
+                waitsFor(function() {
+                    return loaded;
+                }, 3000);
+                runs(function() {
+                    expect(finished()).toEqual(true);
                 });
             });
 

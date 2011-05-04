@@ -448,12 +448,76 @@ jasmine.ui.wait = {};
     };
 })();
 
+/**
+ * Instruments the XMLHttpRequest prototype, and returns a
+ * function that returns whether there are currently pending ajax requests
+ * waiting.
+ */
+(function(jasmine) {
+    jasmine.ui.wait.instrumentXhr = function(window, callTime) {
+        if (callTime != 'beforeContent') {
+            return null;
+        }
+        var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
+        var proxyMethods = ['abort','getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
+        var oldXHR = window.XMLHttpRequest;
+        var openCallCount = 0;
+        var DONE = 4;
+        window.XMLHttpRequest = function() {
+            this.origin = new oldXHR();
+            var self = this;
+
+            function copyState() {
+                for (var i = 0; i < copyStateFields.length; i++) {
+                    var field = copyStateFields[i];
+                    try {
+                        self[field] = self.origin[field];
+                    } catch (_) {
+                    }
+                }
+            }
+
+            function proxyMethod(name) {
+                self[name] = function() {
+                    if (name=='send') {
+                        openCallCount++;
+                    }
+                    var res = self.origin[name].apply(self.origin, arguments);
+                    copyState();
+                    return res;
+                }
+            }
+
+            for (var i = 0; i < proxyMethods.length; i++) {
+                proxyMethod(proxyMethods[i]);
+            }
+            this.origin.onreadystatechange = function() {
+                if (self.origin.readyState==DONE) {
+                    openCallCount--;
+                }
+                copyState();
+                if (self.onreadystatechange) {
+                    self.onreadystatechange.apply(self, arguments);
+                }
+            };
+            copyState();
+        };
+        return function() {
+            return openCallCount==0;
+        }
+
+    }
+
+
+})(jasmine);
+
 (function() {
     /**
      * Instruments the jquery ajax function, and returns a
      * function that returns whether there are currently pending ajax requests
      * waiting. If jquery is not available, this returns null.
      */
+/*
     jasmine.ui.wait.instrumentJQueryAjax = function(window, callTime) {
         if (callTime != 'afterContent') {
             return null;
@@ -483,6 +547,7 @@ jasmine.ui.wait = {};
             return jQueryAjaxCalls == 0;
         };
     };
+    */
 
 })();
 
