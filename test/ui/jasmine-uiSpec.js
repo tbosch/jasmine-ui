@@ -1,10 +1,11 @@
 describe("jasmine-ui", function() {
 	it('should load the page and save it in the frame variable', function() {
 		loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
-		
+
 		runs(function() {
 			var fr = frame();
 			var jQuery = fr.jQuery;
+
 			expect(fr).toBeDefined();
 			expect(fr.$("#div1").length).toEqual(1);
 		});

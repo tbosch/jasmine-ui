@@ -11,12 +11,17 @@ By this, a test is able to test the ui functionality of a html page.
 
 Usage:
 
-1. put the jasmine-ui-loader.html into every folder with html files that you want to test.
-2. include jasmine-ui.js as library into your test-code.
-3. write asynchronous jasmine tests, using the functions below.
+1. include jasmine-ui.js as library into your test-code.
+2. write asynchronous jasmine tests, using the functions below.
 
 Preconditions:
 The page to be tested must be loaded from the same domain as the test code.
+
+Restrictions:
+This framework can only test one html page in one test. If the html page is changed,
+the test needs to end. This is due to the fact that the instrumentation of html pages
+is done on the client, and html does not allow to change the location during the unload
+of pages.
 
 Functions
 -----------
@@ -37,7 +42,7 @@ To be placed where the run and waits functions can be placed in asynchronous jas
     * end of all timeouts
     * end of all intervals
     * end of all jquery ajax calls
-    * end of all jquery mobile page transitions
+    * end of all css3 animations
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 * Note that this can be extended by custom plugins.
 
@@ -90,3 +95,14 @@ https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
 However, this does not work well for keyboard events (Firefox works well, Safari and Chrome not,
 see this bug: https://bugs.webkit.org/show_bug.cgi?id=16735; however, for Safari we could use a TextEvent...).
 
+
+Implementation Details
+-----------
+For the wait to work correctly, this loads the page to be tests via ajax,
+instruments it and creates a dynamic iframe with the page content:
+
+- Adds extra javascript code at the beginning of the page to
+  get all calls to window.setTimout, window.XMLHttpRequest, ...
+- Assigns a base tag so all relative links will still work. Note that this
+  leads to the problem, that links that only contain hashes trigger a complete
+  page reload. However, this is prevented by special onclick handlers.
