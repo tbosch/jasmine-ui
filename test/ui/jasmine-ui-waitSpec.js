@@ -229,4 +229,42 @@ describe(
                         });
                     });
 
+            it(
+                    'should ignore marked animations',
+                    function() {
+                        var finished, animationEnded;
+                        expect(window.myframe).toBeTruthy();
+                        if (!window.WebKitAnimationEvent) {
+                            // This depends on the browser features!
+                            return;
+                        }
+                        expect(window.myframe).toBeTruthy();
+                        waitsFor(isFrameLoaded);
+                        runs(function() {
+                            jasmine.ui.ignoreAnimation('fadein');
+                            finished = jasmine.ui.wait.instrumentAnimation(myframe, 'beforeContent');
+                            animationEnded = false;
+                            myframe.$("body")
+                                    .append(
+                                    '<style>@-webkit-keyframes fadein {from { opacity: 0; } to { opacity: 1; }}</style>');
+                            myframe.$("body")
+                                    .append(
+                                    '<div id="anim" style="-webkit-animation-name: \'fadein\';-webkit-animation-duration: 500ms;">hello</div>');
+                            var to = myframe.$("#anim");
+                            expect(finished()).toEqual(true);
+                            myframe.document.addEventListener("webkitAnimationEnd", function() {
+                                animationEnded = true;
+                            }, false);
+                        });
+                        waits(50);
+                        runs(function() {
+                            expect(finished()).toEqual(true);
+                        });
+                        waitsFor(function() {
+                            return animationEnded;
+                        }, 2000);
+                        runs(function() {
+                            expect(finished()).toEqual(true);
+                        });
+                    });
         });

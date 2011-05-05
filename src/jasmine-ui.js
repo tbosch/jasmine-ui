@@ -44,7 +44,7 @@ jasmine.ui = {};
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    // console.log(msg);
+    //console.log(msg);
 };
 
 
@@ -60,7 +60,7 @@ jasmine.ui.wait = {};
 
 (function(jasmine, window) {
     var frameObject = null;
-    var finishedFunctions = [];
+    var finishedFunctions = {};
     var frameContainer = null;
 
     function frame() {
@@ -108,7 +108,7 @@ jasmine.ui.wait = {};
     }
 
     jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback, username, password) {
-        finishedFunctions = [];
+        finishedFunctions = {};
         var spec = this;
         var error = null;
         var ready = false;
@@ -118,7 +118,7 @@ jasmine.ui.wait = {};
                 var fn = jasmine.ui.wait[fnname];
                 var callback = fn(frameObject.window, callTime);
                 if (callback) {
-                    finishedFunctions.push(callback);
+                    finishedFunctions[fnname] = callback;
                 }
             }
         }
@@ -233,7 +233,10 @@ jasmine.ui.wait = {};
         }, "Loading url " + url, 20000);
         this.runs(function() {
             if (error) {
+                jasmine.ui.log("Error during loading url "+url+" "+error);
                 throw error;
+            } else {
+                jasmine.ui.log("Successfully loaded url "+url);
             }
         });
         this.waitsForAsync();
@@ -253,8 +256,9 @@ jasmine.ui.wait = {};
         this.waits(50);
         this.waitsFor(function() {
             var finished = true;
-            for (var i = 0; i < finishedFunctions.length; i++) {
-                if (!finishedFunctions[i]()) {
+            for (var name in finishedFunctions) {
+                if (!finishedFunctions[name]()) {
+                    jasmine.ui.log("async waiting for "+name);
                     return false;
                 }
             }
@@ -502,6 +506,18 @@ jasmine.ui.wait = {};
 })(jasmine);
 
 (function() {
+    var ignoredAnimations = {};
+    var animationCount = 0;
+
+    /*
+     * Defines that the animation with the given name should be ignored.
+     * Needed e.g. for infinite animations whose elements are
+     * only shown or hidden.
+     */
+    jasmine.ui.ignoreAnimation = function(animName) {
+        ignoredAnimations[animName] = true;
+    }
+
     /**
      * Listens for animation start and stop events.
      * Returns a function that returns whether there are currently pending
@@ -519,17 +535,32 @@ jasmine.ui.wait = {};
         if (!window.WebKitAnimationEvent) {
             return;
         }
-        var animationCount = 0;
+        var animationElements = {};
         // Note: the last argument needs to be set to true to always
         // get informed about the event, even if the event stops bubbeling up
         // the dom tree!
-        window.document.addEventListener('webkitAnimationStart', function() {
-            animationCount++;
+        window.document.addEventListener('webkitAnimationStart', function(event) {
+            var animName = event.animationName;
+            if (!ignoredAnimations[animName]) {
+                animationCount++;
+            }
+            jasmine.ui.log("Started animation "+animName);
         }, true);
-        window.document.addEventListener('webkitAnimationEnd', function() {
-            animationCount--;
+        window.document.addEventListener('webkitAnimationEnd', function(event) {
+            var animName = event.animationName;
+            if (!ignoredAnimations[animName]) {
+                animationCount--;
+            }
+            jasmine.ui.log("Stopped animation "+animName);
         }, true);
         return function() {
+            var elements = [];
+            for (var el in animationElements) {
+                elements.push(el);
+            }
+            // remove hidden animation elements,
+
+
             return animationCount == 0;
         };
     };
