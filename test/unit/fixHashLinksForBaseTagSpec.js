@@ -13,16 +13,10 @@ describe(
 
 
             function writeDocument(script, link) {
-                try {
-                    // throws an error in IE...
-                    delete window.myframe;
-                } catch (_) {
-                }
-                $("#myframe").remove();
-                $("body").append('<iframe id="myframe" name="myframe"></iframe>');
-                var doc = myframe.document;
+                var frame = testframe(true);
+                var doc = frame.document;
                 doc.open();
-                jasmine.ui.fixHashLinksForBaseTag(myframe, baseUrl);
+                jasmine.ui.fixHashLinksForBaseTag(frame, baseUrl);
                 doc.write('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">');
                 doc.write('<html>');
                 doc.write('<head>');
@@ -34,16 +28,17 @@ describe(
                 doc.write(script);
                 doc.write('</script></body></html>')
                 doc.close();
-
+                return frame;
             }
 
             function click(link) {
-                if (myframe.document.createEvent) {
-                    var evt = myframe.document.createEvent('MouseEvents');
+                var doc = link.ownerDocument;
+                if (doc.createEvent) {
+                    var evt = doc.createEvent('MouseEvents');
                     evt.initMouseEvent('click', true, true, null, 1, 0, 0, 0, 0, false, false, false, false, 0, null);
-                } else if (myframe.document.createEventObject) {
+                } else if (doc.createEventObject) {
                     // IE
-                    evt = myframe.document.createEventObject();
+                    evt = doc.createEventObject();
                     evt.type = 'click';
                     evt.button = 1;
                 }
@@ -62,10 +57,10 @@ describe(
             }
 
             it('should not change href of external links', function() {
-                writeDocument('', 'test.html');
-                expect(window.myframe).toBeTruthy();
-                var a = myframe.document.getElementById('testlink');
-                var loc = myframe.location;
+                var frame = writeDocument('', 'test.html');
+                expect(frame).toBeTruthy();
+                var a = frame.document.getElementById('testlink');
+                var loc = frame.location;
                 var path = loc.protocol + "//" + loc.host + document.location.pathname;
                 expect(a.href).toEqual(baseDir + "test.html");
                 click(a);
@@ -73,10 +68,10 @@ describe(
             });
 
             it('should change href of hash links when no listener is attached', function() {
-                writeDocument('', '#test');
-                expect(window.myframe).toBeTruthy();
-                var a = myframe.document.getElementById('testlink');
-                var loc = myframe.location;
+                var frame = writeDocument('', '#test');
+                expect(frame).toBeTruthy();
+                var a = frame.document.getElementById('testlink');
+                var loc = frame.location;
                 var path = loc.protocol + "//" + loc.host + document.location.pathname;
                 expect(a.href).toEqual(baseUrl + "#test");
                 click(a);
@@ -90,8 +85,8 @@ describe(
                     script += 'a.attachEvent("onclick", function(event) { window.called = true; event.cancelBubble = true; });';
                 }
 
-                writeDocument(script, '#test');
-                expect(window.myframe).toBeTruthy();
+                var myframe = writeDocument(script, '#test');
+                expect(myframe).toBeTruthy();
                 var a = myframe.document.getElementById('testlink');
                 var loc = myframe.location;
                 var path = loc.protocol + "//" + loc.host + document.location.pathname;

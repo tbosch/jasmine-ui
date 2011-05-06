@@ -13,6 +13,8 @@ Usage:
 
 1. include jasmine-ui.js as library into your test-code.
 2. write asynchronous jasmine tests, using the functions below.
+3. For debugging run the tests with the standalone html runner,
+   and for continous integration use the js-test-driver runner.
 
 Preconditions:
 The page to be tested must be loaded from the same domain as the test code.
@@ -47,12 +49,16 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 * Returns the loaded frame
 * May be used anywhere after loadHtml was called.
 
-Usage from Jasmine HTML SpecRunner
+Standalone Jasmine HTML SpecRunner for Test-Debugging
 ------------
-* Include jasmine-ui.js in the SpecRunner.html, after jasmine.js
-* Everything should work as expected
+* The File `SpecRunnerStandalone.html` contains the jasmine html runner, including
+  all dependencies (css and javascript) in one file.
+* Add your tests to the end of that file and load it in a browser to run the tests.
+* This approach is good for debugging your test cases with browser debuggers, as
+  you do not have to switch between tools to run and debug the tests.
 
-Usage from js-test-driver
+
+Integration with js-test-driver for Continuous Integration
 --------------
 * Be sure to use the jstd-jasmine-async-adapter
 * configure a js-test-driver proxy that delegates all requests to the webserver that contains

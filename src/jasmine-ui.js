@@ -33,10 +33,6 @@ var waitsForAsync = function(timeout) {
             arguments);
 };
 
-var frame = function() {
-    return jasmine.getEnv().currentSpec.frame.apply(jasmine.getEnv().currentSpec,
-            arguments);
-};
 
 jasmine.ui = {};
 
@@ -46,6 +42,52 @@ jasmine.ui = {};
 jasmine.ui.log = function(msg) {
     //console.log(msg);
 };
+
+
+/**
+ * Jasmine UI Plugin that cares for creating a testframe.
+ */
+(function(window) {
+    var frameObject = null;
+    var lastFrameId = 0;
+
+    function newFrameId() {
+        return "jasmineui"+(lastFrameId++);
+    }
+
+    function hideElement(id) {
+        var element = document.getElementById(id);
+        if (element) {
+            element.style.display = 'none';
+        }
+    }
+
+    function createFrameElementInBody(id) {
+        var frameElement = document.createElement('iframe');
+        frameElement.id = id;
+        frameElement.name = id;
+        frameElement.style.width = '100%';
+        frameElement.style.height = '100%';
+        var body = document.getElementsByTagName('body')[0];
+        body.appendChild(frameElement);
+    }
+
+    window.testframe = function(reset) {
+        if (reset) {
+            // Note: Do NOT delete the old iframe,
+            // as this leads to debugging problems the scripts
+            // that are included by the iframe with firebug etc
+            if (frameObject) {
+                hideElement(frameObject.name);
+            }
+            var frameId = newFrameId();
+            createFrameElementInBody(frameId);
+            frameObject = window[frameId];
+        }
+        return frameObject;
+    };
+
+})(window);
 
 
 /**
@@ -59,15 +101,7 @@ jasmine.ui.log = function(msg) {
 jasmine.ui.wait = {};
 
 (function(jasmine, window) {
-    var frameObject = null;
     var finishedFunctions = {};
-    var frameContainer = null;
-
-    function frame() {
-        return frameObject;
-    }
-
-    jasmine.Spec.prototype.frame = frame;
 
     function getLoadUrl(pageUrl, username, password) {
         var lastSlash = pageUrl.lastIndexOf('/');
@@ -89,24 +123,6 @@ jasmine.ui.wait = {};
         return startPath + "jasmine-ui-loader.html?url=" + page + "&username=" + username + "&password=" + password;
     }
 
-    function deleteElement(id) {
-        var element = document.getElementById(id);
-        if (element) {
-            var parent = element.parentNode;
-            parent.removeChild(element);
-        }
-    }
-
-    function createFrameElementInBody(id) {
-        var frameElement = document.createElement('iframe');
-        frameElement.id = id;
-        frameElement.name = id;
-        frameElement.style.width = '100%';
-        frameElement.style.height = '100%';
-        var body = document.getElementsByTagName('body')[0];
-        body.appendChild(frameElement);
-    }
-
     jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback, username, password) {
         finishedFunctions = {};
         var spec = this;
@@ -116,7 +132,7 @@ jasmine.ui.wait = {};
         function initAsyncWait(callTime) {
             for (var fnname in jasmine.ui.wait) {
                 var fn = jasmine.ui.wait[fnname];
-                var callback = fn(frameObject.window, callTime);
+                var callback = fn(testframe(), callTime);
                 if (callback) {
                     finishedFunctions[fnname] = callback;
                 }
@@ -127,7 +143,7 @@ jasmine.ui.wait = {};
         window.beforeFramecontent = function() {
             try {
                 jasmine.ui.log('instrument before content');
-                jasmine.ui.fixHashLinksForBaseTag(frameObject);
+                jasmine.ui.fixHashLinksForBaseTag(testframe());
                 initAsyncWait("beforeContent");
             } catch (ex) {
                 error = ex;
@@ -140,7 +156,7 @@ jasmine.ui.wait = {};
                 initAsyncWait("afterContent");
                 // if we have an instrument function, use it...
                 if (instrumentCallback) {
-                    instrumentCallback(frameObject.window);
+                    instrumentCallback(testframe());
                 }
             } catch (ex) {
                 error = ex;
@@ -154,13 +170,6 @@ jasmine.ui.wait = {};
 
 
         jasmine.ui.log(url);
-
-        deleteElement('jasmineui');
-        if (window.jasmineui) {
-            delete window.jasmineui;
-        }
-        createFrameElementInBody('jasmineui');
-        frameObject = jasmineui;
 
         var pageText, pageHead, pageBody;
 
@@ -199,7 +208,7 @@ jasmine.ui.wait = {};
         }
 
         function writeFrame() {
-            var doc = frameObject.document;
+            var doc = testframe(true).document;
             doc.open();
             doc.write('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">');
             doc.write('<html>');

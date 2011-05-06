@@ -1,28 +1,21 @@
 describe(
         "jasmine.ui.wait",
         function() {
-            window.isFrameLoaded = function() {
-                return true;
-            };
+            var myframe = null;
 
             beforeEach(function() {
-                try {
-                    delete window.myframe;
-                } catch (_) {
-                  // catch needed for IE only
-                }
-                $("#myframe").remove();
-                $("body").append('<iframe id="myframe" name="myframe"></iframe>');
+                myframe = testframe(true);
                 var doc = myframe.document;
                 doc.open();
-                doc.write('<html><head><script src="/jasmine-ui/test/lib/jquery-1.5.1.js"></script></head><body onload="parent.frameloaded = 1;"></body></html>');
+                doc.write('<html><head>');
+                doc.writeln('<style>@-webkit-keyframes fadein {from { opacity: 0; } to { opacity: 1; }}');
+                doc.writeln('.fadein {-webkit-animation-name: \'fadein\';-webkit-animation-duration: 500ms;}</style>');
+                doc.write('</script></head><body><div id="anim"></div></body></html>');
                 doc.close();
-                window.frameloaded = 0;
             });
 
             it('should instrument timeout only beforeContent', function() {
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     var mywindow = myframe.window;
                     var finished = jasmine.ui.wait.instrumentTimeout(mywindow,
@@ -36,8 +29,7 @@ describe(
 
             it('should detect timeout waiting', function() {
                 var mywindow, finished, called;
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     mywindow = myframe.window;
                     finished = jasmine.ui.wait.instrumentTimeout(mywindow,
@@ -60,8 +52,7 @@ describe(
             });
 
             it('should detect timeout clearance', function() {
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     var mywindow = myframe.window;
                     var finished = jasmine.ui.wait.instrumentTimeout(mywindow,
@@ -78,8 +69,7 @@ describe(
             });
 
             it('should instrument interval only beforeContent', function() {
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     var mywindow = myframe.window;
                     var finished = jasmine.ui.wait.instrumentInterval(mywindow,
@@ -92,8 +82,7 @@ describe(
             });
 
             it('should detect interval waiting', function() {
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     var mywindow = myframe.window;
                     var finished = jasmine.ui.wait.instrumentInterval(mywindow,
@@ -110,8 +99,7 @@ describe(
 
             it('should allow intervals to work', function() {
                 var mywindow, finished, called;
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     mywindow = myframe.window;
                     finished = jasmine.ui.wait.instrumentInterval(mywindow,
@@ -137,8 +125,7 @@ describe(
             });
 
             it('should instrument xhr only beforeContent', function() {
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     var finished = jasmine.ui.wait.instrumentXhr(myframe,
                             "beforeContent");
@@ -152,17 +139,18 @@ describe(
             it('should detect ajax waiting', function() {
                 var loaded = false;
                 var finished;
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
-                    finished = jasmine.ui.wait.instrumentXhr(window.myframe,
+                    finished = jasmine.ui.wait.instrumentXhr(myframe,
                             "beforeContent");
                     expect(finished()).toEqual(true);
-                    myframe.jQuery.ajax("/jasmine-ui/test/lib/jquery-1.5.1.js", {
-                        complete: function() {
-                            loaded = true;
-                        }
-                    });
+                    var xhr = new myframe.XMLHttpRequest();
+                    xhr.onreadystatechange = function() {
+                        loaded = xhr.readyState==4;
+                    }
+                    xhr.open('GET', 'http://localhost/dummyfile');
+                    xhr.send();
+
                     expect(finished()).toEqual(false);
                 });
                 waitsFor(function() {
@@ -174,13 +162,12 @@ describe(
             });
 
             it('should instrument animation waiting only beforeContent', function() {
-                expect(window.myframe).toBeTruthy();
+                expect(myframe).toBeTruthy();
                 if (!window.WebKitAnimationEvent) {
                     // This depends on the browser features!
                     return;
                 }
-                expect(window.myframe).toBeTruthy();
-                waitsFor(isFrameLoaded);
+                expect(myframe).toBeTruthy();
                 runs(function() {
                     var finished = jasmine.ui.wait.instrumentAnimation(myframe,
                             "beforeContent");
@@ -195,23 +182,17 @@ describe(
                     'should detect animation waiting',
                     function() {
                         var finished, animationEnded;
-                        expect(window.myframe).toBeTruthy();
+                        expect(myframe).toBeTruthy();
                         if (!window.WebKitAnimationEvent) {
                             // This depends on the browser features!
                             return;
                         }
-                        expect(window.myframe).toBeTruthy();
-                        waitsFor(isFrameLoaded);
+                        expect(myframe).toBeTruthy();
                         runs(function() {
                             finished = jasmine.ui.wait.instrumentAnimation(myframe, 'beforeContent');
                             animationEnded = false;
-                            myframe.$("body")
-                                    .append(
-                                    '<style>@-webkit-keyframes fadein {from { opacity: 0; } to { opacity: 1; }}</style>');
-                            myframe.$("body")
-                                    .append(
-                                    '<div id="anim" style="-webkit-animation-name: \'fadein\';-webkit-animation-duration: 500ms;">hello</div>');
-                            var to = myframe.$("#anim");
+                            var el = myframe.document.getElementById('anim');
+                            el.setAttribute("class", 'fadein');
                             expect(finished()).toEqual(true);
                             myframe.document.addEventListener("webkitAnimationEnd", function() {
                                 animationEnded = true;
@@ -223,7 +204,7 @@ describe(
                         });
                         waitsFor(function() {
                             return animationEnded;
-                        }, 2000);
+                        }, 3000);
                         runs(function() {
                             expect(finished()).toEqual(true);
                         });
@@ -233,24 +214,18 @@ describe(
                     'should ignore marked animations',
                     function() {
                         var finished, animationEnded;
-                        expect(window.myframe).toBeTruthy();
+                        expect(myframe).toBeTruthy();
                         if (!window.WebKitAnimationEvent) {
                             // This depends on the browser features!
                             return;
                         }
-                        expect(window.myframe).toBeTruthy();
-                        waitsFor(isFrameLoaded);
+                        expect(myframe).toBeTruthy();
                         runs(function() {
                             jasmine.ui.ignoreAnimation('fadein');
                             finished = jasmine.ui.wait.instrumentAnimation(myframe, 'beforeContent');
                             animationEnded = false;
-                            myframe.$("body")
-                                    .append(
-                                    '<style>@-webkit-keyframes fadein {from { opacity: 0; } to { opacity: 1; }}</style>');
-                            myframe.$("body")
-                                    .append(
-                                    '<div id="anim" style="-webkit-animation-name: \'fadein\';-webkit-animation-duration: 500ms;">hello</div>');
-                            var to = myframe.$("#anim");
+                            var el = myframe.document.getElementById('anim');
+                            el.setAttribute("class", 'fadein');
                             expect(finished()).toEqual(true);
                             myframe.document.addEventListener("webkitAnimationEnd", function() {
                                 animationEnded = true;

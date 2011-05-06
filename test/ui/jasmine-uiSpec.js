@@ -3,14 +3,14 @@ describe("jasmine-ui", function() {
 		loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
 
 		runs(function() {
-			var fr = frame();
+			var fr = testframe();
 			var jQuery = fr.jQuery;
 
 			expect(fr).toBeDefined();
 			expect(fr.$("#div1").length).toEqual(1);
 		});
 	});
-	
+
 	it('should be able to instrument the page before onload is called', function() {
 		var docReadyInInstrument;
 		function instrumentHtml(window) {
@@ -24,7 +24,7 @@ describe("jasmine-ui", function() {
 		loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", instrumentHtml);
 		
 		runs(function() {
-			var fr = frame();
+			var fr = testframe();
 			expect(docReadyInInstrument).toEqual(false);
 			var jQuery = fr.jQuery;
 			expect(jQuery.isReady);
@@ -40,7 +40,7 @@ describe("jasmine-ui", function() {
 		loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
 		var timedOut;
 		runs(function() {
-			var fr = frame();
+			var fr = testframe();
 			fr.setTimeout(function() {
 				timedOut = true;
 			}, 500);
@@ -51,6 +51,6 @@ describe("jasmine-ui", function() {
 		});
 		
 	});
-	
+
 	
 });
