@@ -22,7 +22,7 @@
  * THE SOFTWARE.
  */
 
-var loadHtml = function(url, username, password) {
+var loadHtml = function(url, instrumentCallback) {
     jasmine.getEnv().currentSpec.loadHtml.apply(jasmine.getEnv().currentSpec,
             arguments);
 };
@@ -36,11 +36,12 @@ var waitsForAsync = function(timeout) {
 
 jasmine.ui = {};
 
+
 /**
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    //console.log(msg);
+    console.log(msg);
 };
 
 
@@ -52,7 +53,7 @@ jasmine.ui.log = function(msg) {
     var lastFrameId = 0;
 
     function newFrameId() {
-        return "jasmineui"+(lastFrameId++);
+        return "jasmineui" + (lastFrameId++);
     }
 
     function hideElement(id) {
@@ -91,51 +92,107 @@ jasmine.ui.log = function(msg) {
 
 
 /**
- * Container for functions that
- * return a function that returns false as long as
- * the waitsForAsync-function should wait.
- * <p>
- * Signature of those functions: fn(window, callTime) where callTime is either
- * "beforeContent" or "afterContent".
+ * Jasmine UI Plugin for waiting for the end of asynchronous actions.
+ * Uses handlers that can be installed into a testframe to determine
+ * the end of the wait cycle.
  */
-jasmine.ui.wait = {};
-
 (function(jasmine, window) {
-    var finishedFunctions = {};
-
-    function getLoadUrl(pageUrl, username, password) {
-        var lastSlash = pageUrl.lastIndexOf('/');
-        var startPath = '';
-        var page = '';
-        if (lastSlash != -1) {
-            startPath = pageUrl.substring(0, lastSlash + 1);
-            page = pageUrl.substring(lastSlash + 1);
+    var allFramesWaitHandlers = {};
+    /**
+     * Adds a handler to the async wait functionality for the given testframe.
+     * A handler is a function that returns whether asynchronous work is going on.
+     *
+     * @param frame If null, the handler is responsible for all testframes.
+     * @param name
+     * @param handler Function that returns true/false.
+     */
+    jasmine.ui.addAsyncWaitHandler = function(frame, name, handler) {
+        if (!frame) {
+            allFramesWaitHandlers[name] = handler;
         } else {
-            startPath = '';
-            page = pageUrl;
+            frame.asyncWaitHandlers = frame.asyncWaitHandlers || {};
+            frame.asyncWaitHandlers[name] = handler;
         }
-        if (!username) {
-            username = '';
-        }
-        if (!password) {
-            password = '';
-        }
-        return startPath + "jasmine-ui-loader.html?url=" + page + "&username=" + username + "&password=" + password;
     }
 
-    jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback, username, password) {
-        finishedFunctions = {};
+    jasmine.ui.isWaitForAsync = function() {
+        var handlers = allFramesWaitHandlers;
+        for (var name in handlers) {
+            if (handlers[name]()) {
+                jasmine.ui.log("async waiting for " + name);
+                return true;
+            }
+        }
+        var handlers = testframe().asyncWaitHandlers || {};
+        for (var name in handlers) {
+            if (handlers[name]()) {
+                jasmine.ui.log("async waiting for " + name);
+                return true;
+            }
+        }
+        jasmine.ui.log("end waiting for async");
+        return false;
+    };
+
+    jasmine.Spec.prototype.waitsForAsync = function(timeout) {
         var spec = this;
+        if (!timeout) {
+            timeout = 5000;
+        }
+        jasmine.ui.log("begin waiting for async");
+        // Wait at least 50 ms. Needed e.g.
+        // for animations, as the animation start event is
+        // not fired directly after the animation css is added.
+        // There may also be a gap between changing the location hash
+        // and the hashchange event (almost none however...)
+        spec.waits(50);
+        spec.waitsFor(
+                function() {
+                    return !jasmine.ui.isWaitForAsync()
+                }, "end of async work", timeout);
+    };
+})(jasmine, window);
+
+
+/**
+ * Jasmine UI Plugin for loading and instrumenting a page into a testframe().
+ */
+(function(jasmine, window) {
+    var instrumentListeners = {};
+
+    /**
+     * Adds a listener to the instrumentation done by #loadHtml. All listeners
+     * will be called when the frame is loaded by loadHtml.
+     * @param name
+     * @param listener A function with the signature fn(window, callTime) where callTime is either
+     * "beforeContent" or "afterContent".
+     */
+    jasmine.ui.addLoadHtmlListener = function(name, listener) {
+        instrumentListeners[name] = listener;
+    }
+
+    /**
+     * Loads the given url into the testframe and waits
+     * until the page is fully loaded.
+     * @param url
+     * @param instrumentCallback
+     */
+    jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback) {
+        var spec = this;
+        spec.runs(function() {
+            jasmine.ui.internalLoadHtml(url, false, instrumentCallback);
+        });
+        spec.waitsForAsync();
+    }
+
+    jasmine.ui.internalLoadHtml = function(url, sameFrame, instrumentCallback) {
         var error = null;
         var ready = false;
 
-        function initAsyncWait(callTime) {
-            for (var fnname in jasmine.ui.wait) {
-                var fn = jasmine.ui.wait[fnname];
-                var callback = fn(testframe(), callTime);
-                if (callback) {
-                    finishedFunctions[fnname] = callback;
-                }
+        function callInstrumentListeners(callTime) {
+            for (var name in instrumentListeners) {
+                var fn = instrumentListeners[name];
+                fn(testframe(), callTime);
             }
         }
 
@@ -143,8 +200,14 @@ jasmine.ui.wait = {};
         window.beforeFramecontent = function() {
             try {
                 jasmine.ui.log('instrument before content');
-                jasmine.ui.fixHashLinksForBaseTag(testframe());
-                initAsyncWait("beforeContent");
+                jasmine.ui.addAsyncWaitHandler(testframe(), 'loading', function() {
+                    if (error) {
+                       jasmine.ui.log("Error during loading url " + url + " " + error);
+                       throw error;
+                   }
+                   return !ready;
+                });
+                callInstrumentListeners("beforeContent");
             } catch (ex) {
                 error = ex;
             }
@@ -153,7 +216,7 @@ jasmine.ui.wait = {};
         window.afterFramecontent = function() {
             try {
                 jasmine.ui.log('instrument after content');
-                initAsyncWait("afterContent");
+                callInstrumentListeners("afterContent");
                 // if we have an instrument function, use it...
                 if (instrumentCallback) {
                     instrumentCallback(testframe());
@@ -164,24 +227,16 @@ jasmine.ui.wait = {};
         };
 
         window.frameReady = function() {
-            jasmine.ui.log("ready");
+            jasmine.ui.log("Successfully loaded url " + url);
             ready = true;
         };
 
-
-        jasmine.ui.log(url);
 
         var pageText, pageHead, pageBody;
 
         function loadPage(pageUrl) {
             var xmlhttp = new XMLHttpRequest();
-            // TODO use an async XHR here!
-            if (username) {
-                jasmine.ui.log("Authentication: " + username + " " + password);
-                xmlhttp.open("GET", pageUrl, false, username, password);
-            } else {
-                xmlhttp.open("GET", pageUrl, false);
-            }
+            xmlhttp.open("GET", pageUrl, false);
             xmlhttp.send();
             var status = xmlhttp.status;
             if (status != 200) {
@@ -198,23 +253,33 @@ jasmine.ui.wait = {};
             pageBody = match[2];
         }
 
+        function stripHashPath(href) {
+            var hashPos = href.indexOf('#');
+            if (hashPos!=-1) {
+                return href.substring(0, hashPos);
+            } else {
+                return href;
+            }
+        }
+
         function getBaseUrl(url) {
             // add the host and protocol if needed
             var protocolIndex = url.indexOf("://");
             if (protocolIndex == -1) {
                 url = document.location.protocol + "//" + document.location.host + url;
             }
-            return url;
+            return stripHashPath(url);
         }
 
         function writeFrame() {
-            var doc = testframe(true).document;
+            var doc = testframe(!sameFrame).document;
+            var baseUrl = getBaseUrl(url);
             doc.open();
             doc.write('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">');
             doc.write('<html>');
             doc.write('<head>');
             doc.write('<base href="');
-            doc.write(getBaseUrl(url));
+            doc.write(baseUrl);
             doc.write('">');
             doc.write('<script type="text/javascript">parent.beforeFramecontent();</script>');
             doc.write(pageHead);
@@ -237,126 +302,145 @@ jasmine.ui.wait = {};
             parsePage();
             writeFrame();
         }
-        this.waitsFor(function() {
-            return ready || error;
-        }, "Loading url " + url, 20000);
-        this.runs(function() {
-            if (error) {
-                jasmine.ui.log("Error during loading url "+url+" "+error);
-                throw error;
-            } else {
-                jasmine.ui.log("Successfully loaded url "+url);
-            }
-        });
-        this.waitsForAsync();
-    };
-
-
-    jasmine.Spec.prototype.waitsForAsync = function(timeout) {
-        if (!timeout) {
-            timeout = 5000;
-        }
-        jasmine.ui.log("begin waiting for async");
-        // Wait at least 50 ms. Needed e.g.
-        // for animations, as the animation start event is
-        // not fired directly after the animation css is added.
-        // There may also be a gap between changing the location hash
-        // and the hashchange event (almost none however...)
-        this.waits(50);
-        this.waitsFor(function() {
-            var finished = true;
-            for (var name in finishedFunctions) {
-                if (!finishedFunctions[name]()) {
-                    jasmine.ui.log("async waiting for "+name);
-                    return false;
-                }
-            }
-            jasmine.ui.log("end waiting for async");
-            return true;
-        }, "Waiting for end of async work", timeout);
     };
 })(jasmine, window);
 
-/*
- * Instrumentation of pages, so that the default action on
- * anchors with hashes work if a base tag is used on the page.
- * See here for details about the problem: http://www.ilikespam.com/jsf/using-base-href-with-anchors
+
+/**
+ * Jasmine UI Multi-Page Plugin.
+ * Listens for unload events and waits until the new url is known. Then aborts
+ * the loading of the page and reloads the page via the instrumentation mechanism.
+ * <p>
+ * Note that this double loading of the target page
+ * is needed as an unload cannot be prevented, neither is
+ * the target url known in the unload event. The first load
+ * is quickly aborted, so it should not result in a large performance overhead.
+ * <p>
+ * Attention: This assumes that the loading of the target page does not
+ * trigger a non repeatable server action!
+ *
  */
 (function(jasmine) {
-    jasmine.ui.fixHashLinksForBaseTag = function(window, baseUrl) {
-        if (window.addEventListener) {
-            // Add a capturing event listener
-            window.document.addEventListener('click', function(event) {
-                correctAnchorHref(event);
-            }, true);
-        }
+    var inUnload = false;
 
-        if (window.Element.prototype.attachEvent) {
-            // IE does not support capturing event listeners...
-            var oldAttachEvent = window.Element.prototype.attachEvent;
-            window.Element.prototype.attachEvent = function(eventName, fn) {
-                var wrappedFn = function(event) {
-                    correctAnchorHref(event);
-                    return fn.apply(this, arguments);
-                };
-                return oldAttachEvent.call(this, eventName, wrappedFn);
-            }
-            // Add at least one event listener at the document level
-            window.document.attachEvent('onclick', function(event) {
-                correctAnchorHref(event);
+    /**
+     * Use the asyncWait function to wait while in an unload cycle.
+     */
+    jasmine.ui.addAsyncWaitHandler(null, 'unload', function() {
+        return inUnload;
+    });
+
+    // TODO add a maximum wait time for the unload to happen!
+    function reloadCheck(frame, oldHref) {
+        var curHref = frame.location.href;
+        if (curHref==oldHref) {
+            inUnload = true;
+            window.setTimeout(function() {
+                reloadCheck(frame, oldHref);
+            },0);
+        } else {
+            // a new location has been loaded.
+            inUnload = false;
+            jasmine.ui.internalLoadHtml(curHref, true, null);
+        }
+    }
+
+    // instrument the unload function of all testframes
+    jasmine.ui.addLoadHtmlListener('instrumentUnload',  function(window, callTime) {
+        if (callTime!='beforeContent') {
+            return;
+        }
+        // Note: We cannot stop the unload, and we don't know where the user
+        // navigates to. But as soon as we know that,
+        // we rewrite the document.
+        var oldHref;
+        var waitingForUnload = false;
+        if (window.addEventListener) {
+            window.addEventListener("unload", function() {
+                oldHref = window.document.location.href;
+                reloadCheck(window, oldHref);
+            }, false);
+        } else {
+            // IE support
+            window.attachEvent('onunload', function() {
+                oldHref = window.document.location.href;
+                reloadCheck(window, oldHref);
             });
         }
+    });
+})(jasmine);
 
-        function correctAnchorHref(event) {
-            var element = event.target;
-            if (!element) {
-                // IE
-                element = event.srcElement;
-            }
+/**
+ * Functions to simulate events.
+ * Also cares for the correct handling of document loading if the page changes.
+ */
+(function(jasmine) {
+    function findAnchorInParents(element) {
+        if (element == null) {
+            return null;
+        } else if (element.nodeName.toUpperCase() == 'A') {
+            return element;
+        } else {
+            return findAnchorInParents(element.parentNode);
+        }
+    }
+
+    function stripHashPath(href) {
+        var hashPos = href.indexOf('#');
+        if (hashPos!=-1) {
+            return href.substring(0, hashPos);
+        } else {
+            return href;
+        }
+    }
+
+    function baseHref(document) {
+        var baseTags = document.getElementsByTagName('base');
+        if (baseTags.length>0) {
+            return baseTags[0].href;
+        } else {
+            return null;
+        }
+    }
+
+    function simulateAnchorClick(anchor) {
+        var doc = anchor.ownerDocument;
+        var href = anchor.href;
+        var hrefWithoutHash = stripHashPath(href);
+        var baseHref = baseHref(doc);
+        if (baseHref && baseHref == hrefWithoutHash) {
+            doc.location.hashPath = anchor.hashPath;
+        } else {
+            doc.location.href = href;
+        }
+    }
+
+    window.trigger$ = function(element, eventType, options) {
+        var frame = testframe();
+        if (!frame.$) {
+            throw "jQuery is not included as library in the testframe!";
+        }
+        var event = frame.$.Event(eventType);
+        frame.$.extend(event, options);
+        try {
+            return frame.$(element).trigger(event);
+        } finally {
             var anchor = findAnchorInParents(element);
-            if (anchor) {
-                mapHrefToDocumentLocation(anchor);
+            if (anchor && !event.isDefaultPrevented()) {
+                simulateAnchorClick(anchor);
             }
         }
-
-        function findAnchorInParents(element) {
-            if (element == null) {
-                return null;
-            } else if (element.nodeName.toUpperCase() == 'A') {
-                return element;
-            } else {
-                return findAnchorInParents(element.parentNode);
-            }
-        }
-
-        function mapHrefToDocumentLocation(anchor) {
-            var href = anchor.href;
-            var hashPos = href.indexOf('#');
-            if (hashPos != -1) {
-                var path = href.substring(0, hashPos);
-                if (path == baseUrl) {
-                    var hash = href.substring(hashPos);
-                    var loc = document.location;
-                    var docPath = loc.protocol + "//" + loc.host + loc.pathname;
-                    anchor.href = docPath + hash;
-                }
-            }
-        }
-    };
+    }
 })(jasmine);
 
 
-// -----------
-// async wait plugins...
-
 /**
- * Instruments the given window, and returns a function
- * that returns whether there are currently pending timeouts waiting.
+ * Adds a loadHtmlListener that adds an async wait handler for the window.setTimeout function.
  */
 (function() {
-    jasmine.ui.wait.instrumentTimeout = function(window, callTime) {
+    jasmine.ui.addLoadHtmlListener('instrumentTimeout', function(window, callTime) {
         if (callTime != 'beforeContent') {
-            return null;
+            return;
         }
         var timeouts = {};
         // Note: Do NOT use function.apply here,
@@ -389,27 +473,23 @@ jasmine.ui.wait = {};
             window.oldClearTimeout(code);
             delete timeouts[code];
         };
-
-        // return a function that allows to check
-        // if a timeout is running...
-        return function() {
+        jasmine.ui.addAsyncWaitHandler(window, 'timeout', function() {
             var count = 0;
             for (var x in timeouts) {
                 count++;
             }
-            return count == 0;
-        };
-    };
+            return count != 0;
+        });
+    });
 })();
 
+/**
+ * Adds a loadHtmlListener that adds an async wait handler for the window.setInterval function.
+ */
 (function() {
-    /**
-     * Instruments the given window, and returns a function
-     * that returns whether there are currently pending intervals waiting.
-     */
-    jasmine.ui.wait.instrumentInterval = function(window, callTime) {
+    jasmine.ui.addLoadHtmlListener('instrumentInterval', function(window, callTime) {
         if (callTime != 'beforeContent') {
-            return null;
+            return;
         }
         var intervals = {};
         // Note: Do NOT use function.apply here,
@@ -441,23 +521,21 @@ jasmine.ui.wait = {};
         };
         // return a function that allows to check
         // if an interval is running...
-        return function() {
+        jasmine.ui.addAsyncWaitHandler(window, 'interval', function() {
             var count = 0;
             for (var x in intervals) {
                 count++;
             }
-            return count == 0;
-        };
-    };
+            return count != 0;
+        });
+    });
 })();
 
 /**
- * Instruments the XMLHttpRequest prototype, and returns a
- * function that returns whether there are currently pending ajax requests
- * waiting.
+ * Adds a loadHtmlListener that adds an async wait handler for the window.XMLHttpRequest.
  */
 (function(jasmine) {
-    jasmine.ui.wait.instrumentXhr = function(window, callTime) {
+    jasmine.ui.addLoadHtmlListener('instrumentXhr', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return null;
         }
@@ -482,7 +560,7 @@ jasmine.ui.wait = {};
 
             function proxyMethod(name) {
                 self[name] = function() {
-                    if (name=='send') {
+                    if (name == 'send') {
                         openCallCount++;
                     }
                     var res = self.origin[name].apply(self.origin, arguments);
@@ -495,7 +573,7 @@ jasmine.ui.wait = {};
                 proxyMethod(proxyMethods[i]);
             }
             this.origin.onreadystatechange = function() {
-                if (self.origin.readyState==DONE) {
+                if (self.origin.readyState == DONE) {
                     openCallCount--;
                 }
                 copyState();
@@ -505,15 +583,22 @@ jasmine.ui.wait = {};
             };
             copyState();
         };
-        return function() {
-            return openCallCount==0;
-        }
+        jasmine.ui.addAsyncWaitHandler(window, 'xhr',
+                function() {
+                    return openCallCount != 0;
+                });
 
-    }
+    });
 
 
 })(jasmine);
 
+/**
+ * Adds a loadHtmlListener that adds an async wait handler for the webkitAnimationStart and webkitAnimationEnd events.
+ * Note: The animationStart event is usually fired some time
+ * after the animation was added to the css of an element (approx 50ms).
+ * So be sure to always wait at least that time!
+ */
 (function() {
     var ignoredAnimations = {};
     var animationCount = 0;
@@ -527,16 +612,7 @@ jasmine.ui.wait = {};
         ignoredAnimations[animName] = true;
     }
 
-    /**
-     * Listens for animation start and stop events.
-     * Returns a function that returns whether there are currently pending
-     * animations going on. If the function is not available, this returns null.
-     * <p>
-     * Note: The animationStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
-     */
-    jasmine.ui.wait.instrumentAnimation = function(window, callTime) {
+    jasmine.ui.addLoadHtmlListener('instrumentWebkitAnimation', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return null;
         }
@@ -553,25 +629,88 @@ jasmine.ui.wait = {};
             if (!ignoredAnimations[animName]) {
                 animationCount++;
             }
-            jasmine.ui.log("Started animation "+animName);
+            jasmine.ui.log("Started animation " + animName);
         }, true);
         window.document.addEventListener('webkitAnimationEnd', function(event) {
             var animName = event.animationName;
             if (!ignoredAnimations[animName]) {
                 animationCount--;
             }
-            jasmine.ui.log("Stopped animation "+animName);
+            jasmine.ui.log("Stopped animation " + animName);
         }, true);
-        return function() {
-            var elements = [];
-            for (var el in animationElements) {
-                elements.push(el);
-            }
-            // remove hidden animation elements,
-
-
-            return animationCount == 0;
-        };
-    };
+        jasmine.ui.addAsyncWaitHandler(window, 'WebkitAnimation',
+                function() {
+                    var elements = [];
+                    for (var el in animationElements) {
+                        elements.push(el);
+                    }
+                    return animationCount != 0;
+                });
+    });
 })();
+
+
+/**
+ * Functions to simulate events.
+ * Also cares for the correct handling of hash links together with the base tag.
+ * See here for details about the problem: http://www.ilikespam.com/jsf/using-base-href-with-anchors
+ */
+(function(jasmine) {
+    function findAnchorInParents(element) {
+        if (element == null) {
+            return null;
+        } else if (element.nodeName.toUpperCase() == 'A') {
+            return element;
+        } else {
+            return findAnchorInParents(element.parentNode);
+        }
+    }
+
+    function stripHashPath(href) {
+        var hashPos = href.indexOf('#');
+        if (hashPos!=-1) {
+            return href.substring(0, hashPos);
+        } else {
+            return href;
+        }
+    }
+
+    function baseHref(document) {
+        var baseTags = document.getElementsByTagName('base');
+        if (baseTags.length>0) {
+            return baseTags[0].href;
+        } else {
+            return null;
+        }
+    }
+
+    function simulateAnchorClick(anchor) {
+        var doc = anchor.ownerDocument;
+        var href = anchor.href;
+        var hrefWithoutHash = stripHashPath(href);
+        var baseHref = baseHref(doc);
+        if (baseHref && baseHref == hrefWithoutHash) {
+            doc.location.hashPath = anchor.hashPath;
+        } else {
+            doc.location.href = href;
+        }
+    }
+
+    window.trigger$ = function(element, eventType, options) {
+        var frame = testframe();
+        if (!frame.$) {
+            throw "jQuery is not included as library in the testframe!";
+        }
+        var event = frame.$.Event(eventType);
+        frame.$.extend(event, options);
+        try {
+            return frame.$(element).trigger(event);
+        } finally {
+            var anchor = findAnchorInParents(element);
+            if (anchor && !event.isDefaultPrevented()) {
+                simulateAnchorClick(anchor);
+            }
+        }
+    }
+})(jasmine);
 
