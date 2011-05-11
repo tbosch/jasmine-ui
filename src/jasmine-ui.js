@@ -144,8 +144,10 @@ jasmine.ui.log = function(msg) {
         // for animations, as the animation start event is
         // not fired directly after the animation css is added.
         // There may also be a gap between changing the location hash
-        // and the hashchange event (almost none however...)
-        spec.waits(50);
+        // and the hashchange event (almost none however...).
+        // Also needed to wait for the beforeunload event when
+        // the page is changed.
+        spec.waits(100);
         spec.waitsFor(
                 function() {
                     return !jasmine.ui.isWaitForAsync()
@@ -200,12 +202,13 @@ jasmine.ui.log = function(msg) {
         window.beforeFramecontent = function() {
             try {
                 jasmine.ui.log('instrument before content');
+                testframe().testurl = url;
                 jasmine.ui.addAsyncWaitHandler(testframe(), 'loading', function() {
                     if (error) {
-                       jasmine.ui.log("Error during loading url " + url + " " + error);
-                       throw error;
-                   }
-                   return !ready;
+                        jasmine.ui.log("Error during loading url " + url + " " + error);
+                        throw error;
+                    }
+                    return !ready;
                 });
                 callInstrumentListeners("beforeContent");
             } catch (ex) {
@@ -255,7 +258,7 @@ jasmine.ui.log = function(msg) {
 
         function stripHashPath(href) {
             var hashPos = href.indexOf('#');
-            if (hashPos!=-1) {
+            if (hashPos != -1) {
                 return href.substring(0, hashPos);
             } else {
                 return href;
@@ -333,21 +336,23 @@ jasmine.ui.log = function(msg) {
     // TODO add a maximum wait time for the unload to happen!
     function reloadCheck(frame, oldHref) {
         var curHref = frame.location.href;
-        if (curHref==oldHref) {
+        if (curHref == oldHref) {
+            jasmine.ui.log('detected unload of url ' + oldHref + " waiting for new url");
             inUnload = true;
             window.setTimeout(function() {
                 reloadCheck(frame, oldHref);
-            },0);
+            }, 0);
         } else {
             // a new location has been loaded.
+            jasmine.ui.log('detected url change from ' + oldHref + " to " + curHref);
             inUnload = false;
             jasmine.ui.internalLoadHtml(curHref, true, null);
         }
     }
 
     // instrument the unload function of all testframes
-    jasmine.ui.addLoadHtmlListener('instrumentUnload',  function(window, callTime) {
-        if (callTime!='beforeContent') {
+    jasmine.ui.addLoadHtmlListener('instrumentUnload', function(window, callTime) {
+        if (callTime != 'beforeContent') {
             return;
         }
         // Note: We cannot stop the unload, and we don't know where the user
@@ -368,69 +373,81 @@ jasmine.ui.log = function(msg) {
             });
         }
     });
+
 })(jasmine);
 
 /**
- * Functions to simulate events.
- * Also cares for the correct handling of document loading if the page changes.
+ * Fake history to allow the history to play well with ui tests.
+ * Always needed for page reloads due to the instrumentation process of pages.
+ * This is also needed for hash changes to work correctly with the history,
+ * see the corresponding bugs in the browsers,
+ * e.g. http://code.google.com/p/chromium/issues/detail?id=8011
  */
 (function(jasmine) {
-    function findAnchorInParents(element) {
-        if (element == null) {
-            return null;
-        } else if (element.nodeName.toUpperCase() == 'A') {
-            return element;
-        } else {
-            return findAnchorInParents(element.parentNode);
-        }
-    }
 
-    function stripHashPath(href) {
-        var hashPos = href.indexOf('#');
-        if (hashPos!=-1) {
-            return href.substring(0, hashPos);
-        } else {
-            return href;
-        }
-    }
+    var historyNavigation = false;
+    var virtualHistoryByFrame = {};
+    jasmine.ui.addLoadHtmlListener('instrumentHistory', function(frame, callTime) {
 
-    function baseHref(document) {
-        var baseTags = document.getElementsByTagName('base');
-        if (baseTags.length>0) {
-            return baseTags[0].href;
+        if (callTime != 'beforeContent') {
+            return;
+        }
+        var name = frame.name;
+        var history = virtualHistoryByFrame[name] = virtualHistoryByFrame[name] || {list: [], index:-1};
+        var baseHref = frame.testurl;
+        if (!historyNavigation) {
+            history.list.push({
+                base: baseHref,
+                hash: frame.location.hash
+            });
+            history.index++;
+        }
+        historyNavigation = false;
+        var hashListener = function() {
+            if (!historyNavigation) {
+                history.list.push({
+                    base: baseHref,
+                    hash: frame.location.hash
+                });
+                history.index++;
+            }
+            historyNavigation = false;
+        };
+        if (frame.addEventListener) {
+            frame.addEventListener('hashchange', hashListener, false);
         } else {
-            return null;
+            // IE
+            frame.attachEvent('onhashchange', hashListener);
         }
-    }
 
-    function simulateAnchorClick(anchor) {
-        var doc = anchor.ownerDocument;
-        var href = anchor.href;
-        var hrefWithoutHash = stripHashPath(href);
-        var baseHref = baseHref(doc);
-        if (baseHref && baseHref == hrefWithoutHash) {
-            doc.location.hashPath = anchor.hashPath;
-        } else {
-            doc.location.href = href;
-        }
-    }
-
-    window.trigger$ = function(element, eventType, options) {
-        var frame = testframe();
-        if (!frame.$) {
-            throw "jQuery is not included as library in the testframe!";
-        }
-        var event = frame.$.Event(eventType);
-        frame.$.extend(event, options);
-        try {
-            return frame.$(element).trigger(event);
-        } finally {
-            var anchor = findAnchorInParents(element);
-            if (anchor && !event.isDefaultPrevented()) {
-                simulateAnchorClick(anchor);
+        frame.history.back = function() {
+            this.go(-1);
+        };
+        frame.history.forward = function() {
+            this.go(1);
+        };
+        frame.history.go = function(relPos) {
+            if (relPos == 0) {
+                return;
+            }
+            if (history.index + relPos < 0) {
+                return;
+            }
+            if (history.index + relPos >= history.list.length) {
+                return;
+            }
+            history.index += relPos;
+            historyNavigation = true;
+            var target = history.list[history.index];
+            if (target.base != baseHref) {
+                frame.location.href = target.base;
+            } else {
+                frame.location.hash = target.hash;
             }
         }
-    }
+    });
+
+
 })(jasmine);
 
 
@@ -668,7 +685,7 @@ jasmine.ui.log = function(msg) {
 
     function stripHashPath(href) {
         var hashPos = href.indexOf('#');
-        if (hashPos!=-1) {
+        if (hashPos != -1) {
             return href.substring(0, hashPos);
         } else {
             return href;
@@ -677,7 +694,7 @@ jasmine.ui.log = function(msg) {
 
     function baseHref(document) {
         var baseTags = document.getElementsByTagName('base');
-        if (baseTags.length>0) {
+        if (baseTags.length > 0) {
             return baseTags[0].href;
         } else {
             return null;
@@ -688,15 +705,15 @@ jasmine.ui.log = function(msg) {
         var doc = anchor.ownerDocument;
         var href = anchor.href;
         var hrefWithoutHash = stripHashPath(href);
-        var baseHref = baseHref(doc);
-        if (baseHref && baseHref == hrefWithoutHash) {
-            doc.location.hashPath = anchor.hashPath;
+        var base = baseHref(doc);
+        if (base && base == hrefWithoutHash) {
+            doc.location.hash = anchor.hash;
         } else {
             doc.location.href = href;
         }
     }
 
-    window.trigger$ = function(element, eventType, options) {
+    window.trigger = function(element, eventType, options) {
         var frame = testframe();
         if (!frame.$) {
             throw "jQuery is not included as library in the testframe!";
