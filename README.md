@@ -12,6 +12,8 @@ By this, a test is able to test the ui functionality of a html page.
 Usage:
 
 1. include jasmine-ui.js as library into your test-code.
+2. In the pages that should be tests, include the following line as first line in the header:
+   `<script>parent.instrument && parent.instrument(window);</script>`
 2. write asynchronous jasmine tests, using the functions below.
 3. For debugging run the tests with the standalone html runner,
    and for continous integration use the js-test-driver runner.
@@ -19,11 +21,14 @@ Usage:
 Preconditions:
 The page to be tested must be loaded from the same domain as the test code.
 
-Restrictions:
-This framework can only test one html page in one test. If the html page is changed,
-the test needs to end. This is due to the fact that the instrumentation of html pages
-is done on the client, and html does not allow to change the location during the unload
-of pages.
+
+Features
+----------
+
+* wait until end of asynchronous operations
+* works well with single and multi page applications
+* bugfixes history handling of some browsers in iframes. So the history object works as expected
+
 
 Functions
 -----------
@@ -45,14 +50,14 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 * Note that this can be extended by custom plugins.
 
-##### frame()
+##### testframe()
 * Returns the loaded frame
 * May be used anywhere after loadHtml was called.
 
 Standalone Jasmine HTML SpecRunner for Test-Debugging
 ------------
 * The File `SpecRunnerStandalone.html` contains the jasmine html runner, including
-  all dependencies (css and javascript) in one file.
+  all dependencies (css and javascript) in one file, but excluding the jasmine-ui.js library.
 * Add your tests to the end of that file and load it in a browser to run the tests.
 * This approach is good for debugging your test cases with browser debuggers, as
   you do not have to switch between tools to run and debug the tests.
@@ -98,16 +103,3 @@ https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
 However, this does not work well for keyboard events (Firefox works well, Safari and Chrome not,
 see this bug: https://bugs.webkit.org/show_bug.cgi?id=16735; however, for Safari we could use a TextEvent...).
 
-
-Implementation Details
------------
-For the wait to work correctly, this loads the page to be tests via ajax,
-instruments it and creates a dynamic iframe with the page content:
-
-- Adds extra javascript code at the beginning of the page to
-  get all calls to window.setTimout, window.XMLHttpRequest, ...
-- Assigns a base tag so all relative links will still work. Note that this
-  leads to the problem, that links that only contain hashes trigger a complete
-  page reload. However, this is prevented by special onclick handlers.
-- Creates a proxy XMLHttpRequest prototype to wait for XHR requests, no matter
-  which AJAX framework is being used!

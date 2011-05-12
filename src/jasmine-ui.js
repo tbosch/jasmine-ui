@@ -41,7 +41,7 @@ jasmine.ui = {};
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    console.log(msg);
+    //console.log(msg);
 };
 
 
@@ -49,43 +49,45 @@ jasmine.ui.log = function(msg) {
  * Jasmine UI Plugin that cares for creating a testframe.
  */
 (function(window) {
-    var frameObject = null;
     var lastFrameId = 0;
+    var lastFrameName;
 
-    function newFrameId() {
-        return "jasmineui" + (lastFrameId++);
+    function newFrameName() {
+        lastFrameName = "jasmineui" + (lastFrameId++);
     }
 
     function hideElement(id) {
         var element = document.getElementById(id);
         if (element) {
-            element.style.display = 'none';
+            // Do NOT set the hide the frame (e.g. by setting display to none), as this causes a reload in FF
+            element.style.width = "0px";
+            element.style.height = "0px";
         }
     }
 
-    function createFrameElementInBody(id) {
+    function createFrameElementInBody(id, url) {
         var frameElement = document.createElement('iframe');
         frameElement.id = id;
         frameElement.name = id;
         frameElement.style.width = '100%';
         frameElement.style.height = '100%';
+        frameElement.src = url;
         var body = document.getElementsByTagName('body')[0];
         body.appendChild(frameElement);
     }
 
-    window.testframe = function(reset) {
-        if (reset) {
+    window.testframe = function(reset, url) {
+        if (reset || !lastFrameName) {
             // Note: Do NOT delete the old iframe,
             // as this leads to debugging problems the scripts
             // that are included by the iframe with firebug etc
-            if (frameObject) {
-                hideElement(frameObject.name);
+            if (window[lastFrameName]) {
+                hideElement(lastFrameName);
             }
-            var frameId = newFrameId();
-            createFrameElementInBody(frameId);
-            frameObject = window[frameId];
+            newFrameName();
+            createFrameElementInBody(lastFrameName, url);
         }
-        return frameObject;
+        return window[lastFrameName];
     };
 
 })(window);
@@ -182,145 +184,92 @@ jasmine.ui.log = function(msg) {
     jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback) {
         var spec = this;
         spec.runs(function() {
-            jasmine.ui.internalLoadHtml(url, false, instrumentCallback);
+            jasmine.ui.internalLoadHtml(url, instrumentCallback);
         });
         spec.waitsForAsync();
     }
 
-    jasmine.ui.internalLoadHtml = function(url, sameFrame, instrumentCallback) {
+    jasmine.ui.internalLoadHtml = function(url, instrumentCallback) {
         var error = null;
         var ready = false;
 
         function callInstrumentListeners(callTime) {
+            jasmine.ui.log('instrumenting ' + callTime);
             for (var name in instrumentListeners) {
                 var fn = instrumentListeners[name];
                 fn(testframe(), callTime);
             }
         }
 
+        function addLoadEventListener(fr) {
+            var win = fr;
+            var doc = fr.document;
 
-        window.beforeFramecontent = function() {
+            function callback() {
+                if (!ready) {
+                    ready = true;
+                    callInstrumentListeners("afterContent");
+                    // if we have an instrument function, use it...
+                    if (instrumentCallback) {
+                        instrumentCallback(testframe());
+                    }
+                    jasmine.ui.log("Successfully loaded url " + url);
+                }
+
+            }
+
+            // Mozilla, Opera and webkit nightlies currently support this event
+            if (doc.addEventListener) {
+                // Use the handy event callback
+                doc.addEventListener("DOMContentLoaded", callback, false);
+
+                // A fallback to window.onload, that will always work
+                win.addEventListener("load", callback, false);
+
+                // If IE event model is used
+            } else if (doc.attachEvent) {
+                // ensure firing before onload,
+                // maybe late but safe also for iframes
+                doc.attachEvent("onreadystatechange", callback);
+
+                // A fallback to window.onload, that will always work
+                win.attachEvent("onload", callback);
+            }
+        }
+
+        window.instrument = function(fr) {
             try {
-                jasmine.ui.log('instrument before content');
-                testframe().testurl = url;
-                jasmine.ui.addAsyncWaitHandler(testframe(), 'loading', function() {
+                if (fr!=testframe()) {
+                    // Prevent double instrumentation.
+                    // This is needed due to a strange behaviour of firefox:
+                    // When a frame is hidden, the scripts in the frame get
+                    // reexecuted, but with the same window object...
+                    return;
+                }
+                fr.instrumented = true;
+                addLoadEventListener(fr);
+                jasmine.ui.addAsyncWaitHandler(fr, 'loading', function() {
                     if (error) {
                         jasmine.ui.log("Error during loading url " + url + " " + error);
                         throw error;
                     }
                     return !ready;
                 });
+
                 callInstrumentListeners("beforeContent");
             } catch (ex) {
                 error = ex;
             }
         };
 
-        window.afterFramecontent = function() {
-            try {
-                jasmine.ui.log('instrument after content');
-                callInstrumentListeners("afterContent");
-                // if we have an instrument function, use it...
-                if (instrumentCallback) {
-                    instrumentCallback(testframe());
-                }
-            } catch (ex) {
-                error = ex;
-            }
-        };
-
-        window.frameReady = function() {
-            jasmine.ui.log("Successfully loaded url " + url);
-            ready = true;
-        };
-
-
-        var pageText, pageHead, pageBody;
-
-        function loadPage(pageUrl) {
-            var xmlhttp = new XMLHttpRequest();
-            xmlhttp.open("GET", pageUrl, false);
-            xmlhttp.send();
-            var status = xmlhttp.status;
-            if (status != 200) {
-                error = "Error during loading page " + pageUrl + ": " + xmlhttp.statusText;
-            } else {
-                pageText = xmlhttp.responseText;
-            }
-        }
-
-        function parsePage() {
-            var regex = /<head>((?:.|\n|\r)*)<\/head>[^<>]*(?:<body[^>]*>((?:.|\n|\r)*)<\/body>)?/i;
-            var match = regex.exec(pageText);
-            pageHead = match[1];
-            pageBody = match[2];
-        }
-
-        function stripHashPath(href) {
-            var hashPos = href.indexOf('#');
-            if (hashPos != -1) {
-                return href.substring(0, hashPos);
-            } else {
-                return href;
-            }
-        }
-
-        function getBaseUrl(url) {
-            // add the host and protocol if needed
-            var protocolIndex = url.indexOf("://");
-            if (protocolIndex == -1) {
-                url = document.location.protocol + "//" + document.location.host + url;
-            }
-            return stripHashPath(url);
-        }
-
-        function writeFrame() {
-            var doc = testframe(!sameFrame).document;
-            var baseUrl = getBaseUrl(url);
-            doc.open();
-            doc.write('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">');
-            doc.write('<html>');
-            doc.write('<head>');
-            doc.write('<base href="');
-            doc.write(baseUrl);
-            doc.write('">');
-            doc.write('<script type="text/javascript">parent.beforeFramecontent();</script>');
-            doc.write(pageHead);
-            doc.write('</head><body>');
-            doc.write(pageBody);
-            doc.write('<script type="text/javascript">');
-            doc.write('parent.afterFramecontent();');
-            doc.write('if ( document.addEventListener ) {');
-            doc.write('  window.addEventListener( "load", parent.frameReady, false );');
-            doc.write('} else {');
-            doc.write('  window.attachEvent( "onload", parent.frameReady );');
-            doc.write('}');
-            doc.write('</script>');
-            doc.write('</body></html>');
-            doc.close();
-        }
-
-        loadPage(url);
-        if (!error) {
-            parsePage();
-            writeFrame();
-        }
+        testframe(true, url);
     };
 })(jasmine, window);
 
 
 /**
  * Jasmine UI Multi-Page Plugin.
- * Listens for unload events and waits until the new url is known. Then aborts
- * the loading of the page and reloads the page via the instrumentation mechanism.
- * <p>
- * Note that this double loading of the target page
- * is needed as an unload cannot be prevented, neither is
- * the target url known in the unload event. The first load
- * is quickly aborted, so it should not result in a large performance overhead.
- * <p>
- * Attention: This assumes that the loading of the target page does not
- * trigger a non repeatable server action!
+ * Listens for unload events and waits until the new page is loaded.
  *
  */
 (function(jasmine) {
@@ -333,54 +282,31 @@ jasmine.ui.log = function(msg) {
         return inUnload;
     });
 
-    // TODO add a maximum wait time for the unload to happen!
-    function reloadCheck(frame, oldHref) {
-        var curHref = frame.location.href;
-        if (curHref == oldHref) {
-            jasmine.ui.log('detected unload of url ' + oldHref + " waiting for new url");
-            inUnload = true;
-            window.setTimeout(function() {
-                reloadCheck(frame, oldHref);
-            }, 0);
-        } else {
-            // a new location has been loaded.
-            jasmine.ui.log('detected url change from ' + oldHref + " to " + curHref);
-            inUnload = false;
-            jasmine.ui.internalLoadHtml(curHref, true, null);
-        }
-    }
-
     // instrument the unload function of all testframes
     jasmine.ui.addLoadHtmlListener('instrumentUnload', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
-        // Note: We cannot stop the unload, and we don't know where the user
-        // navigates to. But as soon as we know that,
-        // we rewrite the document.
-        var oldHref;
-        var waitingForUnload = false;
+        // When a new document gets loaded, stop the unload waiting
+        inUnload = false;
+
+        function unloadCallback() {
+            inUnload = true;
+        }
         if (window.addEventListener) {
-            window.addEventListener("unload", function() {
-                oldHref = window.document.location.href;
-                reloadCheck(window, oldHref);
-            }, false);
+            window.addEventListener("unload", unloadCallback, false);
         } else {
             // IE support
-            window.attachEvent('onunload', function() {
-                oldHref = window.document.location.href;
-                reloadCheck(window, oldHref);
-            });
+            window.attachEvent('onunload', unloadCallback);
         }
     });
 
 })(jasmine);
 
 /**
- * Fake history to allow the history to play well with ui tests.
- * Always needed for page reloads due to the instrumentation process of pages.
- * This is also needed for hash changes to work correctly with the history,
- * see the corresponding bugs in the browsers,
+ * Fake history. Needed to prevent iframe to change the main frame
+ * through the history object. Also the history in iframes does not always
+ * work correctly. See the corresponding bugs in the browsers,
  * e.g. http://code.google.com/p/chromium/issues/detail?id=8011
  */
 (function(jasmine) {
@@ -388,27 +314,19 @@ jasmine.ui.log = function(msg) {
     var historyNavigation = false;
     var virtualHistoryByFrame = {};
     jasmine.ui.addLoadHtmlListener('instrumentHistory', function(frame, callTime) {
-
         if (callTime != 'beforeContent') {
             return;
         }
         var name = frame.name;
         var history = virtualHistoryByFrame[name] = virtualHistoryByFrame[name] || {list: [], index:-1};
-        var baseHref = frame.testurl;
         if (!historyNavigation) {
-            history.list.push({
-                base: baseHref,
-                hash: frame.location.hash
-            });
+            history.list.push(frame.location.href);
             history.index++;
         }
         historyNavigation = false;
         var hashListener = function() {
             if (!historyNavigation) {
-                history.list.push({
-                    base: baseHref,
-                    hash: frame.location.hash
-                });
+                history.list.push(frame.location.href);
                 history.index++;
             }
             historyNavigation = false;
@@ -438,12 +356,8 @@ jasmine.ui.log = function(msg) {
             }
             history.index += relPos;
             historyNavigation = true;
-            var target = history.list[history.index];
-            if (target.base != baseHref) {
-                frame.location.href = target.base;
-            } else {
-                frame.location.hash = target.hash;
-            }
+            var targetHref = history.list[history.index];
+            frame.location.assign(targetHref);
         }
     });
 
@@ -463,7 +377,9 @@ jasmine.ui.log = function(msg) {
         // Note: Do NOT use function.apply here,
         // as sometimes the timeout method
         // is also used with native objects!
-        window.oldTimeout = window.setTimeout;
+        if (!window.oldTimeout) {
+            window.oldTimeout = window.setTimeout;
+        }
         window.setTimeout = function(fn, time) {
             jasmine.ui.log("setTimeout called");
             var handle;
