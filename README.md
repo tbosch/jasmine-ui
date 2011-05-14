@@ -28,7 +28,7 @@ Features
 * wait until end of asynchronous operations
 * works well with single and multi page applications
 * bugfixes history handling of some browsers in iframes. So the history object works as expected
-
+* Support Firefox, Chrome, Safari and IE8 and above.
 
 Functions
 -----------
@@ -58,7 +58,7 @@ Standalone Jasmine HTML SpecRunner for Test-Debugging
 ------------
 * The File `SpecRunnerStandalone.html` contains the jasmine html runner, including
   all dependencies (css and javascript) in one file, but excluding the jasmine-ui.js library.
-* Add your tests to the end of that file and load it in a browser to run the tests.
+* Add your libs (including jasmine-ui.js) and tests to the end of that file and load it in a browser to run the tests.
 * This approach is good for debugging your test cases with browser debuggers, as
   you do not have to switch between tools to run and debug the tests.
 
@@ -102,4 +102,16 @@ This is more promising, and works well for mouse events, see here:
 https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
 However, this does not work well for keyboard events (Firefox works well, Safari and Chrome not,
 see this bug: https://bugs.webkit.org/show_bug.cgi?id=16735; however, for Safari we could use a TextEvent...).
+
+Running the self-tests for jasmine-ui
+--------------
+To run the self-tests for the jasmine-ui.js file, there are two possibilities:
+
+- Using maven:
+     1. change the property `browser` in the pom.xml to point to a browser of your choice.
+      2. Run `mvn integration-test` from a command line
+
+- Using the Jasmine HTML Runner:
+      1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
+      2. Enter `http://localhost:8080/jasmine-ui/src/SpecRunnerStandalone.html` in the browser of your choice
 
