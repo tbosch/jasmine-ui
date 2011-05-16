@@ -28,7 +28,7 @@ Features
 * wait until end of asynchronous operations
 * works well with single and multi page applications
 * bugfixes history handling of some browsers in iframes. So the history object works as expected
-* Support Firefox, Chrome, Safari and IE8 and above.
+* Supports Firefox, Chrome, Safari and IE8 and above.
 
 Functions
 -----------
@@ -85,23 +85,33 @@ Example configuration:
 
 
 
-
-
 Simulation of Browser-Events
 -------
 
-To simulate browser events, there are several ways:
+To simulate browser events, there are two ways:
+
+#### Use `jasmine.ui.simulate(element, type, options)`
+This will simulate the real browser event of the given type, fire it on the given element and dispatch it.
+The options argument is optionla and contains detail-information for the event. See the browser documentation
+for this. However, this should not very often be needed as meaningful defaults are provided.
+
+
+Supported event types:
+
+- Mouse events: mouseup, mousedown, mouseover, mouseout, mousemove, click, dblick
+- Keyboard events: keydown, keyup, keypress
+
+Note that for keyboard events on webkit browsers, this does fire the correct event, but with a wrong keycode
+(see https://bugs.webkit.org/show_bug.cgi?id=16735).
+
+Recommended usage for keyboard events:
+Use the simulated events always with keycode 0 (due to the bug above), and fill the needed data before
+firing the event.
 
 #### Use `jQuery.trigger`
 This does _not_ fire the underlying browser event, but only triggers
-event handlers registered by jquery. I.e. this can not be used to click on links, ... if the
-native navigation of the browser should be used.
-
-#### Simulate events using document.createEvent
-This is more promising, and works well for mouse events, see here:
-https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
-However, this does not work well for keyboard events (Firefox works well, Safari and Chrome not,
-see this bug: https://bugs.webkit.org/show_bug.cgi?id=16735; however, for Safari we could use a TextEvent...).
+event handlers registered by jquery. I.e. this can not be used for
+event listeners attached without jquery! Also, this does not do the default navigation of anchor links!
 
 Running the self-tests for jasmine-ui
 --------------
