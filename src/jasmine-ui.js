@@ -585,8 +585,9 @@ jasmine.ui.log = function(msg) {
 
 
 /**
- * Functions to simulate browser mous and keyboard events.
+ * Functions to simulate events.
  * Based upon https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
+ * Can also handle elements from different frames.
  * <p>
  * Provides:
  * jasmine.ui.simulate(el, type, options)
@@ -594,7 +595,8 @@ jasmine.ui.log = function(msg) {
 (function(jasmine) {
     jasmine.ui.simulate = function(el, type, options) {
         options = extend({}, jasmine.ui.simulate.defaults, options || {});
-        simulateEvent(el, type, options);
+        var document = el.ownerDocument;
+        simulateEvent(document, el, type, options);
     }
 
     function extend(target) {
@@ -607,24 +609,26 @@ jasmine.ui.log = function(msg) {
         return target;
     }
 
-    function simulateEvent(el, type, options) {
-        var evt = createEvent(type, options);
+    function simulateEvent(document, el, type, options) {
+        var evt = createEvent(document, type, options);
         dispatchEvent(el, type, evt);
         return evt;
     }
 
-    function createEvent(type, options) {
+    function createEvent(document, type, options) {
         if (/^mouse(over|out|down|up|move)|(dbl)?click$/.test(type)) {
-            return mouseEvent(type, options);
+            return mouseEvent(document, type, options);
         } else if (/^key(up|down|press)$/.test(type)) {
-            return keyboardEvent(type, options);
+            return keyboardEvent(document, type, options);
+        } else {
+            return otherEvent(document, type, options);
         }
     }
 
-    function mouseEvent(type, options) {
+    function mouseEvent(document, type, options) {
         var evt;
         var e = extend({
-            bubbles: true, cancelable: (type != "mousemove"), view: window, detail: 0,
+            bubbles: true, cancelable: (type != "mousemove"), detail: 0,
             screenX: 0, screenY: 0, clientX: 0, clientY: 0,
             ctrlKey: false, altKey: false, shiftKey: false, metaKey: false,
             button: 0, relatedTarget: undefined
@@ -646,10 +650,10 @@ jasmine.ui.log = function(msg) {
         return evt;
     }
 
-    function keyboardEvent(type, options) {
+    function keyboardEvent(document, type, options) {
         var evt;
 
-        var e = extend({ bubbles: true, cancelable: true, view: window,
+        var e = extend({ bubbles: true, cancelable: true,
             ctrlKey: false, altKey: false, shiftKey: false, metaKey: false,
             keyCode: 0, charCode: 0
         }, options);
@@ -668,6 +672,22 @@ jasmine.ui.log = function(msg) {
                     keyCode: e.keyCode, charCode: e.charCode
                 });
             }
+        } else if (document.createEventObject) {
+            evt = document.createEventObject();
+            extend(evt, e);
+        }
+        return evt;
+    }
+
+    function otherEvent(document, type, options) {
+        var evt;
+
+        var e = extend({ bubbles: true, cancelable: true
+        }, options);
+
+        if (typeof document.createEvent == 'function') {
+            evt = document.createEvent("Events");
+            evt.initEvent(type, e.bubbles, e.cancelable);
         } else if (document.createEventObject) {
             evt = document.createEventObject();
             extend(evt, e);

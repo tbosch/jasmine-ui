@@ -100,6 +100,7 @@ Supported event types:
 
 - Mouse events: mouseup, mousedown, mouseover, mouseout, mousemove, click, dblick
 - Keyboard events: keydown, keyup, keypress
+- Other events: change, blur, ...
 
 Note that for keyboard events on webkit browsers, this does fire the correct event, but with a wrong keycode
 (see https://bugs.webkit.org/show_bug.cgi?id=16735).
