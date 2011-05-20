@@ -33,7 +33,7 @@ Features
 Functions
 -----------
 
-#### loadHtml(<your-html-file>,<instrumentCallback>)
+#### `loadHtml(<your-html-file>,<instrumentCallback>)`
 Loads the given html file and waits until it is fully loaded (e.g. it's document is ready).
 The second argument is a callback function that will be called right before the document receives it's ready
 event, and may be used to mock functions in libraries loaded in the document. The callback gets
@@ -41,7 +41,7 @@ the frame as parameter.
 
 To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 
-#### waitsForAsync()
+#### `waitsForAsync()`
 * Waits until the end of all asynchronous work in the loaded frame:
     * end of all timeouts
     * end of all intervals
@@ -49,6 +49,13 @@ To be placed where the run and waits functions can be placed in asynchronous jas
     * end of all css3 animations
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 * Note that this can be extended by custom plugins.
+* Note that this does NOT wait in page reload situations. See the `waitsForReload()` function instead.
+
+
+#### `waitsForReload()`
+* Waits until the end of a page reload. To be called after a form submit, external navigation, ...
+* To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
+
 
 ##### testframe()
 * Returns the loaded frame

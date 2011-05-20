@@ -22,18 +22,6 @@
  * THE SOFTWARE.
  */
 
-var loadHtml = function(url, instrumentCallback) {
-    jasmine.getEnv().currentSpec.loadHtml.apply(jasmine.getEnv().currentSpec,
-            arguments);
-};
-
-
-var waitsForAsync = function(timeout) {
-    jasmine.getEnv().currentSpec.waitsForAsync.apply(jasmine.getEnv().currentSpec,
-            arguments);
-};
-
-
 jasmine.ui = {};
 
 
@@ -41,7 +29,7 @@ jasmine.ui = {};
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    //console.log(msg);
+    console.log(msg);
 };
 
 
@@ -117,6 +105,11 @@ jasmine.ui.log = function(msg) {
         }
     }
 
+    window.waitsForAsync = function(timeout) {
+        jasmine.getEnv().currentSpec.waitsForAsync.apply(jasmine.getEnv().currentSpec,
+                arguments);
+    };
+
     jasmine.ui.isWaitForAsync = function() {
         var handlers = allFramesWaitHandlers;
         for (var name in handlers) {
@@ -141,19 +134,22 @@ jasmine.ui.log = function(msg) {
         if (!timeout) {
             timeout = 5000;
         }
-        jasmine.ui.log("begin waiting for async");
         // Wait at least 50 ms. Needed e.g.
         // for animations, as the animation start event is
         // not fired directly after the animation css is added.
         // There may also be a gap between changing the location hash
         // and the hashchange event (almost none however...).
-        // Also needed to wait for the beforeunload event when
-        // the page is changed.
         spec.waits(100);
+        spec.runs(function() {
+            jasmine.ui.log("begin async waiting");
+        });
         spec.waitsFor(
                 function() {
                     return !jasmine.ui.isWaitForAsync()
                 }, "end of async work", timeout);
+        spec.runs(function() {
+            jasmine.ui.log("end async waiting");
+        });
     };
 })(jasmine, window);
 
@@ -166,7 +162,7 @@ jasmine.ui.log = function(msg) {
 
     /**
      * Adds a listener to the instrumentation done by #loadHtml. All listeners
-     * will be called when the frame is loaded by loadHtml.
+     * will be called when a frame is loaded.
      * @param name
      * @param listener A function with the signature fn(window, callTime) where callTime is either
      * "beforeContent" or "afterContent".
@@ -174,6 +170,31 @@ jasmine.ui.log = function(msg) {
     jasmine.ui.addLoadHtmlListener = function(name, listener) {
         instrumentListeners[name] = listener;
     }
+
+    var customListenerId = 0;
+    /**
+     * Same as #addLoadHtmlListener, but removes the listener
+     * after the first execution.
+     * @param name
+     * @param listener
+     */
+    jasmine.ui.addLoadHtmlListenerForNextLoad = function(name, callTime, listener) {
+        name = name + (customListenerId++);
+        jasmine.ui.addLoadHtmlListener(name, function(window, pcallTime) {
+            if (callTime==pcallTime) {
+                window.setTimeout(function() {
+                    delete instrumentListeners[name];
+                },0);
+                listener(window);
+            }
+        });
+    }
+
+    window.loadHtml = function(url, instrumentCallback) {
+        jasmine.getEnv().currentSpec.loadHtml.apply(jasmine.getEnv().currentSpec,
+                arguments);
+    };
+
 
     /**
      * Loads the given url into the testframe and waits
@@ -184,122 +205,131 @@ jasmine.ui.log = function(msg) {
     jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback) {
         var spec = this;
         spec.runs(function() {
-            jasmine.ui.internalLoadHtml(url, instrumentCallback);
+            if (instrumentCallback) {
+                jasmine.ui.addLoadHtmlListenerForNextLoad('loadHtmlCallback', 'afterContent', instrumentCallback);
+            }
+            testframe(true, url);
         });
         spec.waitsForAsync();
     }
 
-    jasmine.ui.internalLoadHtml = function(url, instrumentCallback) {
-        var error = null;
-        var ready = false;
+    function callInstrumentListeners(fr, callTime) {
+        jasmine.ui.log('instrumenting ' + fr.name + " " + callTime);
+        for (var name in instrumentListeners) {
+            var fn = instrumentListeners[name];
+            fn(testframe(), callTime);
+        }
+    }
 
-        function callInstrumentListeners(callTime) {
-            jasmine.ui.log('instrumenting ' + callTime);
-            for (var name in instrumentListeners) {
-                var fn = instrumentListeners[name];
-                fn(testframe(), callTime);
+    function addLoadEventListener(fr) {
+        var win = fr;
+        var doc = fr.document;
+
+        function callback() {
+            if (!win.ready) {
+                win.ready = true;
+                callInstrumentListeners(fr, "afterContent");
+                jasmine.ui.log("Successfully loaded frame " + fr.name + " with url " + fr.location.href);
             }
+
         }
 
-        function addLoadEventListener(fr) {
-            var win = fr;
-            var doc = fr.document;
+        // Mozilla, Opera and webkit nightlies currently support this event
+        if (doc.addEventListener) {
+            // Use the handy event callback
+            doc.addEventListener("DOMContentLoaded", callback, false);
 
-            function callback() {
-                if (!ready) {
-                    ready = true;
-                    callInstrumentListeners("afterContent");
-                    // if we have an instrument function, use it...
-                    if (instrumentCallback) {
-                        instrumentCallback(testframe());
-                    }
-                    jasmine.ui.log("Successfully loaded url " + url);
-                }
+            // A fallback to window.onload, that will always work
+            win.addEventListener("load", callback, false);
 
-            }
+            // If IE event model is used
+        } else if (doc.attachEvent) {
+            // ensure firing before onload,
+            // maybe late but safe also for iframes
+            doc.attachEvent("onreadystatechange", callback);
 
-            // Mozilla, Opera and webkit nightlies currently support this event
-            if (doc.addEventListener) {
-                // Use the handy event callback
-                doc.addEventListener("DOMContentLoaded", callback, false);
-
-                // A fallback to window.onload, that will always work
-                win.addEventListener("load", callback, false);
-
-                // If IE event model is used
-            } else if (doc.attachEvent) {
-                // ensure firing before onload,
-                // maybe late but safe also for iframes
-                doc.attachEvent("onreadystatechange", callback);
-
-                // A fallback to window.onload, that will always work
-                win.attachEvent("onload", callback);
-            }
+            // A fallback to window.onload, that will always work
+            win.attachEvent("onload", callback);
         }
+    }
 
-        window.instrument = function(fr) {
-            try {
-                if (fr != testframe()) {
-                    // Prevent double instrumentation.
-                    // This is needed due to a strange behaviour of firefox:
-                    // When a frame is hidden, the scripts in the frame get
-                    // reexecuted, but with the same window object...
-                    return;
-                }
-                fr.instrumented = true;
-                addLoadEventListener(fr);
-                jasmine.ui.addAsyncWaitHandler(fr, 'loading', function() {
-                    if (error) {
-                        jasmine.ui.log("Error during loading url " + url + " " + error);
-                        throw error;
-                    }
-                    return !ready;
-                });
-
-                callInstrumentListeners("beforeContent");
-            } catch (ex) {
-                error = ex;
+    window.instrument = function(fr) {
+        try {
+            if (fr != testframe()) {
+                // Prevent double instrumentation.
+                // This is needed due to a strange behaviour of firefox:
+                // When a frame is hidden, the scripts in the frame get
+                // reexecuted, but with the same window object...
+                return;
             }
-        };
+            jasmine.ui.log("Beginn instrumenting frame " + fr.name + " with url " + fr.location.href);
+            fr.instrumented = true;
+            addLoadEventListener(fr);
+            fr.error = null;
+            fr.ready = false;
+            jasmine.ui.addAsyncWaitHandler(fr, 'loading', function() {
+                if (fr.error) {
+                    jasmine.ui.log("Error during instrumenting frame " + fr.name + ": " + fr.error);
+                    throw fr.error;
+                }
+                return !fr.ready;
+            });
 
-        testframe(true, url);
+            callInstrumentListeners(fr, "beforeContent");
+        } catch (ex) {
+            error = ex;
+        }
     };
 })(jasmine, window);
 
 
 /**
  * Jasmine UI Multi-Page Plugin.
- * Listens for unload events and waits until the new page is loaded.
- *
+ * Provides a function waitsForReload to wait until a new page was loaded.
+ * <p>
+ * Note: This could be implemented using the beforeunload and unload event.
+ * However, these events are not fired correctly in all browsers (e.g. safari),
+ * and they are fired some time after the unload was triggered.
+ * By these reasons the simpler solution was preferred.
  */
 (function(jasmine) {
-    var inUnload = false;
+    var inReload = false;
 
-    /**
-     * Use the asyncWait function to wait while in an unload cycle.
-     */
-    jasmine.ui.addAsyncWaitHandler(null, 'unload', function() {
-        return inUnload;
-    });
+    window.waitsForReload = function(timeout) {
+        jasmine.getEnv().currentSpec.waitsForReload.apply(jasmine.getEnv().currentSpec,
+                arguments);
+    };
 
-    // instrument the unload function of all testframes
-    jasmine.ui.addLoadHtmlListener('instrumentUnload', function(window, callTime) {
+
+    jasmine.Spec.prototype.waitsForReload = function(timeout) {
+        var spec = this;
+        if (!timeout) {
+            timeout = 5000;
+        }
+        spec.runs(
+                function() {
+                    jasmine.ui.log("begin wait for reload");
+                    inReload = true;
+                }
+                );
+        spec.waitsFor(
+                function() {
+                    return !inReload;
+                }, "reload of page", timeout);
+        spec.waitsForAsync();
+        spec.runs(
+                function() {
+                    jasmine.ui.log("end wait for reload");
+                }
+                );
+    };
+
+    jasmine.ui.addLoadHtmlListener('instrumentReload', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
-        // When a new document gets loaded, stop the unload waiting
-        inUnload = false;
-
-        function unloadCallback() {
-            inUnload = true;
-        }
-
-        if (window.addEventListener) {
-            window.addEventListener("unload", unloadCallback, false);
-        } else {
-            // IE support
-            window.attachEvent('onunload', unloadCallback);
-        }
+        // When a new document gets loaded, stop the realod waiting
+        inReload = false;
     });
 
 })(jasmine);

@@ -11,7 +11,7 @@ describe("multi page handling", function() {
             var fr = testframe();
             fr.location.assign("/jasmine-ui/test/ui/jasmine-uiSpec2.html");
         });
-        waitsForAsync();
+        waitsForReload();
         runs(function() {
             var fr = testframe();
             expect(getFileName(fr.location.href)).toEqual('jasmine-uiSpec2.html');
@@ -27,7 +27,7 @@ describe("multi page handling", function() {
             var fr = testframe();
             fr.location.assign("/jasmine-ui/test/ui/jasmine-uiSpec2.html");
         });
-        waitsForAsync();
+        waitsForReload();
         runs(function() {
             var fr = testframe();
             expect(getFileName(fr.location.href)).toEqual('jasmine-uiSpec2.html');
