@@ -29,7 +29,7 @@ jasmine.ui = {};
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    console.log(msg);
+    //console.log(msg);
 };
 
 
