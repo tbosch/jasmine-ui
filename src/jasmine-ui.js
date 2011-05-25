@@ -375,6 +375,14 @@ jasmine.ui.log = function(msg) {
         frame.history.forward = function() {
             this.go(1);
         };
+        function splitAtHash(href) {
+            var pos = href.indexOf('#');
+            if (pos!=-1) {
+                return [href.substring(0, pos), href.substring(pos+1)];
+            } else {
+                return [href, ''];
+            }
+        }
         frame.history.go = function(relPos) {
             if (relPos == 0) {
                 return;
@@ -387,8 +395,20 @@ jasmine.ui.log = function(msg) {
             }
             history.index += relPos;
             historyNavigation = true;
+            // only change the hash if that is the only different part.
+            // Important if we go back from a hash to an url with no hash,
+            // as this would reload the document if that url with no hash
+            // is assigned to the href.
+            var currHref = frame.location.href;
+            var currHrefHashSplit = splitAtHash(currHref);
             var targetHref = history.list[history.index];
-            frame.location.assign(targetHref);
+            var targetHrefHashSplit = splitAtHash(targetHref);
+            if (currHrefHashSplit[0] == targetHrefHashSplit[0]) {
+                frame.location.hash = targetHrefHashSplit[1];
+            } else {
+                frame.location.assign(targetHref);
+
+            }
         }
     });
 

@@ -19,6 +19,7 @@ describe("history", function() {
 
         runs(function() {
             var fr = testframe();
+            fr.mark = true;
             expect(normHash(fr.location.hash)).toEqual("");
             fr.location.assign(fr.location.href + "#test1");
         });
@@ -31,6 +32,8 @@ describe("history", function() {
         waitsForAsync();
         runs(function() {
             var fr = testframe();
+            // Check that the frame did not reload when an empty hash was assigned!
+            expect(fr.mark).toBeTruthy();
             expect(normHash(fr.location.hash)).toEqual("");
             fr.history.forward();
         });
