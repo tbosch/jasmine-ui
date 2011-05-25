@@ -29,7 +29,7 @@ jasmine.ui = {};
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    //console.log(msg);
+    // console.log(msg);
 };
 
 
@@ -584,17 +584,6 @@ jasmine.ui.log = function(msg) {
  * So be sure to always wait at least that time!
  */
 (function() {
-    var ignoredAnimations = {};
-    var animationCount = 0;
-
-    /*
-     * Defines that the animation with the given name should be ignored.
-     * Needed e.g. for infinite animations whose elements are
-     * only shown or hidden.
-     */
-    jasmine.ui.ignoreAnimation = function(animName) {
-        ignoredAnimations[animName] = true;
-    }
 
     jasmine.ui.addLoadHtmlListener('instrumentAnimationEnd', function(window, callTime) {
         if (callTime != 'afterContent') {
@@ -604,16 +593,17 @@ jasmine.ui.log = function(msg) {
             return;
         }
         var oldFn = window.$.fn.animationComplete;
+        window.animationCount = 0;
         window.$.fn.animationComplete = function(callback) {
-            animationCount++;
+            window.animationCount++;
             return oldFn.call(this, function() {
-                animationCount--;
+                window.animationCount--;
                 return callback.apply(this, arguments);
             });
         };
         jasmine.ui.addAsyncWaitHandler(window, 'WebkitAnimation',
                 function() {
-                    return animationCount != 0;
+                    return window.animationCount != 0;
                 });
     });
 })();
@@ -625,8 +615,6 @@ jasmine.ui.log = function(msg) {
  * So be sure to always wait at least that time!
  */
 (function() {
-    var transitionCount = 0;
-
     jasmine.ui.addLoadHtmlListener('instrumentWebkitTransition', function(window, callTime) {
         if (callTime != 'afterContent') {
             return null;
@@ -634,17 +622,19 @@ jasmine.ui.log = function(msg) {
         if (!(window.$ && window.$.fn.animationComplete)) {
             return;
         }
+        window.transitionCount = 0;
+
         var oldFn = window.$.fn.transitionComplete;
         window.$.fn.transitionComplete = function(callback) {
-            transitionCount++;
+            window.transitionCount++;
             return oldFn.call(this, function() {
-                transitionCount--;
+                window.transitionCount--;
                 return callback.apply(this, arguments);
             });
         };
         jasmine.ui.addAsyncWaitHandler(window, 'WebkitTransition',
                 function() {
-                    return transitionCount != 0;
+                    return window.transitionCount != 0;
                 });
 
     });
