@@ -576,40 +576,57 @@ jasmine.ui.log = function(msg) {
         ignoredAnimations[animName] = true;
     }
 
-    jasmine.ui.addLoadHtmlListener('instrumentWebkitAnimation', function(window, callTime) {
-        if (callTime != 'beforeContent') {
+    jasmine.ui.addLoadHtmlListener('instrumentAnimationEnd', function(window, callTime) {
+        if (callTime != 'afterContent') {
             return null;
         }
-        // Only support webkit animations for now...
-        if (!window.WebKitAnimationEvent) {
+        if (!(window.$ && window.$.fn.animationComplete)) {
             return;
         }
-        var animationElements = {};
-        // Note: the last argument needs to be set to true to always
-        // get informed about the event, even if the event stops bubbeling up
-        // the dom tree!
-        window.document.addEventListener('webkitAnimationStart', function(event) {
-            var animName = event.animationName;
-            if (!ignoredAnimations[animName]) {
-                animationCount++;
-            }
-            jasmine.ui.log("Started animation " + animName);
-        }, true);
-        window.document.addEventListener('webkitAnimationEnd', function(event) {
-            var animName = event.animationName;
-            if (!ignoredAnimations[animName]) {
+        var oldFn = window.$.fn.animationComplete;
+        window.$.fn.animationComplete = function(callback) {
+            animationCount++;
+            return oldFn.call(this, function() {
                 animationCount--;
-            }
-            jasmine.ui.log("Stopped animation " + animName);
-        }, true);
+                return callback.apply(this, arguments);
+            });
+        };
         jasmine.ui.addAsyncWaitHandler(window, 'WebkitAnimation',
                 function() {
-                    var elements = [];
-                    for (var el in animationElements) {
-                        elements.push(el);
-                    }
                     return animationCount != 0;
                 });
+    });
+})();
+
+/**
+ * Adds a loadHtmlListener that adds an async wait handler for the webkitTransitionStart and webkitTransitionEnd events.
+ * Note: The transitionStart event is usually fired some time
+ * after the animation was added to the css of an element (approx 50ms).
+ * So be sure to always wait at least that time!
+ */
+(function() {
+    var transitionCount = 0;
+
+    jasmine.ui.addLoadHtmlListener('instrumentWebkitTransition', function(window, callTime) {
+        if (callTime != 'afterContent') {
+            return null;
+        }
+        if (!(window.$ && window.$.fn.animationComplete)) {
+            return;
+        }
+        var oldFn = window.$.fn.transitionComplete;
+        window.$.fn.transitionComplete = function(callback) {
+            transitionCount++;
+            return oldFn.call(this, function() {
+                transitionCount--;
+                return callback.apply(this, arguments);
+            });
+        };
+        jasmine.ui.addAsyncWaitHandler(window, 'WebkitTransition',
+                function() {
+                    return transitionCount != 0;
+                });
+
     });
 })();
 

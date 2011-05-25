@@ -101,7 +101,7 @@ describe("waitsForAsync", function() {
     });
 
     it(
-            'should detect animation waiting',
+            'should detect jquery animation waiting',
             function() {
                 if (!window.WebKitAnimationEvent) {
                     // This depends on the browser features!
@@ -112,48 +112,14 @@ describe("waitsForAsync", function() {
                 loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
                 runs(function() {
                     animationEnded = false;
-                    var el = testframe().document.getElementById('anim');
-                    el.setAttribute("class", 'fadein');
+                    var $ = testframe().$;
+                    var el = $('#anim');
+                    el.addClass("fadein");
                     expect(wait()).toEqual(false);
-                    testframe().document.addEventListener("webkitAnimationEnd", function() {
+                    el.animationComplete(function() {
                         animationEnded = true;
-                    }, false);
-                });
-                waits(50);
-                runs(function() {
+                    });
                     expect(wait()).toEqual(true);
-                });
-                waitsFor(function() {
-                    return animationEnded;
-                }, 3000);
-                runs(function() {
-                    expect(wait()).toEqual(false);
-                });
-            });
-
-    it(
-            'should ignore marked animations',
-            function() {
-                if (!window.WebKitAnimationEvent) {
-                    // This depends on the browser features!
-                    return;
-                }
-                var animationEnded;
-                var wait = jasmine.ui.isWaitForAsync;
-                loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
-                runs(function() {
-                    jasmine.ui.ignoreAnimation('fadein');
-                    animationEnded = false;
-                    var el = testframe().document.getElementById('anim');
-                    el.setAttribute("class", 'fadein');
-                    expect(wait()).toEqual(false);
-                    testframe().document.addEventListener("webkitAnimationEnd", function() {
-                        animationEnded = true;
-                    }, false);
-                });
-                waits(50);
-                runs(function() {
-                    expect(wait()).toEqual(false);
                 });
                 waitsFor(function() {
                     return animationEnded;
@@ -162,6 +128,36 @@ describe("waitsForAsync", function() {
                     expect(wait()).toEqual(false);
                 });
             });
-
-
+    it(
+            'should detect jquery transition waiting',
+            function() {
+                if (!window.WebKitTransitionEvent) {
+                    // This depends on the browser features!
+                    return;
+                }
+                var transitionComplete;
+                var wait = jasmine.ui.isWaitForAsync;
+                loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(frame) {
+                    var $ = frame.$;
+                    $("#anim").addClass('transition');
+                });
+                waits(500);
+                runs(function() {
+                    transitionComplete = false;
+                    var $ = testframe().$;
+                    expect(wait()).toEqual(false);
+                    var el = $("#anim");
+                    el.addClass('transitionEnd');
+                    el.transitionComplete(function() {
+                        transitionComplete = true;
+                    });
+                    expect(wait()).toEqual(true);
+                });
+                waitsFor(function() {
+                    return transitionComplete;
+                }, 3000);
+                runs(function() {
+                    expect(wait()).toEqual(false);
+                });
+            });
 });

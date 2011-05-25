@@ -46,7 +46,8 @@ To be placed where the run and waits functions can be placed in asynchronous jas
     * end of all timeouts
     * end of all intervals
     * end of all xhr calls (independent of a framework like jquery, ...)
-    * end of all css3 animations
+    * end of all css3 animations and transitions, if someone waits for them via jquery plugins
+      `animationComplete` or `transitionComplete`.
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 * Note that this can be extended by custom plugins.
 * Note that this does NOT wait in page reload situations. See the `waitsForReload()` function instead.

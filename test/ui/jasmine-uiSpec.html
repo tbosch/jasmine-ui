@@ -1,13 +1,23 @@
 <!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
-"http://www.w3.org/TR/html4/loose.dtd"><html>
+"http://www.w3.org/TR/html4/loose.dtd">
 <html>
 <head>
     <script>parent.instrument && parent.instrument(window);</script>
     <script src="../lib/jquery-1.5.1.js"></script>
+    <script src="../lib/jquery.mobile.noinit.js"></script>
+    <script src="../lib/jquery.mobile-1.0a4.1-oc.js"></script>
     <style>@-webkit-keyframes fadein {from { opacity: 0; } to { opacity: 1; }}
     .fadein {
         -webkit-animation-name: 'fadein';
         -webkit-animation-duration: 500ms;
+    }
+    .transition {
+        -webkit-transition-property: -webkit-transform;
+        -webkit-transition-duration: 100ms;
+        -webkit-transition-timing-function: ease-in-out;
+    }
+    .transitionEnd {
+        -webkit-transform: translateX(100px);
     }
     </style>
 </head>
@@ -15,7 +25,8 @@
 <div id="div1">
 
 </div>
-<div id="anim"></div>
+<div id="anim">Test</div>
+
 </body>
 
 </html>
