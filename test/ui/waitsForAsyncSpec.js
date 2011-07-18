@@ -80,16 +80,14 @@ describe("waitsForAsync", function() {
     it('should detect ajax waiting', function() {
         var loaded = false;
         var wait = jasmine.ui.isWaitForAsync;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(window) {
+        });
         runs(function() {
             expect(wait()).toEqual(false);
-            var xhr = new (testframe().XMLHttpRequest)();
-            xhr.onreadystatechange = function() {
-                loaded = xhr.readyState == 4;
-            };
-            xhr.open('GET', '/jasmine-ui/test/ui/jasmine-uiSpec.html');
-            xhr.send();
-
+            var fr = testframe();
+            fr.xhrCall('/jasmine-ui/test/ui/notexistent', function() {
+                loaded = true;
+            });
             expect(wait()).toEqual(true);
         });
         waitsFor(function() {
@@ -101,63 +99,63 @@ describe("waitsForAsync", function() {
     });
 
     it(
-            'should detect jquery animation waiting',
-            function() {
-                if (!window.WebKitAnimationEvent) {
-                    // This depends on the browser features!
-                    return;
-                }
-                var animationEnded;
-                var wait = jasmine.ui.isWaitForAsync;
-                loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
-                runs(function() {
-                    animationEnded = false;
-                    var $ = testframe().$;
-                    var el = $('#anim');
-                    el.addClass("fadein");
-                    expect(wait()).toEqual(false);
-                    el.animationComplete(function() {
-                        animationEnded = true;
-                    });
-                    expect(wait()).toEqual(true);
+        'should detect jquery animation waiting',
+        function() {
+            if (!window.WebKitAnimationEvent) {
+                // This depends on the browser features!
+                return;
+            }
+            var animationEnded;
+            var wait = jasmine.ui.isWaitForAsync;
+            loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+            runs(function() {
+                animationEnded = false;
+                var $ = testframe().$;
+                var el = $('#anim');
+                el.addClass("fadein");
+                expect(wait()).toEqual(false);
+                el.animationComplete(function() {
+                    animationEnded = true;
                 });
-                waitsFor(function() {
-                    return animationEnded;
-                }, 2000);
-                runs(function() {
-                    expect(wait()).toEqual(false);
-                });
+                expect(wait()).toEqual(true);
             });
+            waitsFor(function() {
+                return animationEnded;
+            }, 2000);
+            runs(function() {
+                expect(wait()).toEqual(false);
+            });
+        });
     it(
-            'should detect jquery transition waiting',
-            function() {
-                if (!window.WebKitTransitionEvent) {
-                    // This depends on the browser features!
-                    return;
-                }
-                var transitionComplete;
-                var wait = jasmine.ui.isWaitForAsync;
-                loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(frame) {
-                    var $ = frame.$;
-                    $("#anim").addClass('transition');
-                });
-                waits(500);
-                runs(function() {
-                    transitionComplete = false;
-                    var $ = testframe().$;
-                    expect(wait()).toEqual(false);
-                    var el = $("#anim");
-                    el.addClass('transitionEnd');
-                    el.transitionComplete(function() {
-                        transitionComplete = true;
-                    });
-                    expect(wait()).toEqual(true);
-                });
-                waitsFor(function() {
-                    return transitionComplete;
-                }, 3000);
-                runs(function() {
-                    expect(wait()).toEqual(false);
-                });
+        'should detect jquery transition waiting',
+        function() {
+            if (!window.WebKitTransitionEvent) {
+                // This depends on the browser features!
+                return;
+            }
+            var transitionComplete;
+            var wait = jasmine.ui.isWaitForAsync;
+            loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(frame) {
+                var $ = frame.$;
+                $("#anim").addClass('transition');
             });
+            waits(500);
+            runs(function() {
+                transitionComplete = false;
+                var $ = testframe().$;
+                expect(wait()).toEqual(false);
+                var el = $("#anim");
+                el.addClass('transitionEnd');
+                el.transitionComplete(function() {
+                    transitionComplete = true;
+                });
+                expect(wait()).toEqual(true);
+            });
+            waitsFor(function() {
+                return transitionComplete;
+            }, 3000);
+            runs(function() {
+                expect(wait()).toEqual(false);
+            });
+        });
 });

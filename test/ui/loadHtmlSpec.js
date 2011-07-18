@@ -1,10 +1,10 @@
 describe("loadHtml", function() {
     it('should load the page and save it in the frame variable', function() {
         loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
-
         runs(function() {
             var fr = testframe();
             var jQuery = fr.jQuery;
+            expect(jQuery.isReady).toBeTruthy();
 
             expect(fr).toBeDefined();
             expect(fr.$("#div1").length).toEqual(1);
@@ -30,7 +30,7 @@ describe("loadHtml", function() {
             var fr = testframe();
             expect(docReadyInInstrument).toEqual(false);
             var jQuery = fr.jQuery;
-            expect(jQuery.isReady);
+            expect(jQuery.isReady).toBeTruthy();
             var ajaxData;
             jQuery.ajax("", {success: function(data) {
                 ajaxData = data;

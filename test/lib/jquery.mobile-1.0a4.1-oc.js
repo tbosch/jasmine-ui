@@ -2990,7 +2990,6 @@ $.fixedToolbars = (function(){
 		}
         // JQM-OC-4: Hide fixed toolbars during navigation to
         // prevent them from hanging in the middle of the layout (on iOS devices)
-        console.log('pagebeforeshow');
         $.fixedToolbars.hide(true);
 
         forceHide = true
@@ -3009,7 +3008,6 @@ $.fixedToolbars = (function(){
 		}
         forceHide = false;
 		$.fixedToolbars.show(true, this);
-        console.log('page after show');
 
 	});
 
@@ -3070,7 +3068,6 @@ $.fixedToolbars = (function(){
 			if (forceHide) {
                 return;
             }
-            console.log('header shw');
             $.fixedToolbars.clearShowTimer();
 			currentstate = 'overlay';
 			var $ap = page ? $(page) : ($.mobile.activePage ? $.mobile.activePage : $(".ui-page-active"));
@@ -3107,7 +3104,6 @@ $.fixedToolbars = (function(){
 				if (thisCSStop < 0 || (el.is('.ui-header-fixed') && thisCSStop != 0))
 				{
 					if(immediately){
-                        console.log('header hide');
 						el.css('top',0);
 					}
 					else{

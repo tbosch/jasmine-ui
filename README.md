@@ -4,8 +4,9 @@ Jasmine-Ui
 Description
 -------------
 
-Jasmine-UI provides ui tests for jasmine. It loads a html page in a frame and instruments it,
-so it knows whether there currently is asynchronous work going on.
+Jasmine-UI provides ui tests for jasmine. It loads a html page in a new window and instruments it,
+so it knows whether there currently is asynchronous work going on. This does not use
+an iframe so there is minimal layout inteference with the page to be tested.
 
 By this, a test is able to test the ui functionality of a html page.
 
@@ -13,7 +14,7 @@ Usage:
 
 1. include jasmine-ui.js as library into your test-code.
 2. In the pages that should be tests, include the following line as first line in the header:
-   `<script>parent.instrument && parent.instrument(window);</script>`
+   `<script>opener && opener.instrument && opener.instrument(window);</script>`
 2. write asynchronous jasmine tests, using the functions below.
 3. For debugging run the tests with the standalone html runner,
    and for continous integration use the js-test-driver runner.
@@ -27,8 +28,8 @@ Features
 
 * wait until end of asynchronous operations
 * works well with single and multi page applications
-* bugfixes history handling of some browsers in iframes. So the history object works as expected
-* Supports Firefox, Chrome, Safari and IE8 and above.
+* Supports Firefox, Chrome, Safari and IE7+.
+* Support mobile Safari, mobile Chrome and mobile IE 7+.
 
 Functions
 -----------
@@ -42,7 +43,8 @@ the frame as parameter.
 To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 
 #### `waitsForAsync()`
-* Waits until the end of all asynchronous work in the loaded frame:
+* Waits until the end of all asynchronous work in the test window:
+    * reload if an unload happened (experimental).
     * end of all timeouts
     * end of all intervals
     * end of all xhr calls (independent of a framework like jquery, ...)
@@ -50,15 +52,15 @@ To be placed where the run and waits functions can be placed in asynchronous jas
       `animationComplete` or `transitionComplete`.
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 * Note that this can be extended by custom plugins.
-* Note that this does NOT wait in page reload situations. See the `waitsForReload()` function instead.
 
 
 #### `waitsForReload()`
-* Waits until the end of a page reload. To be called after a form submit, external navigation, ...
+* Waits until a new page is loaded in the test window. To be called after a form submit, external navigation, ...
+* If a reload is know to happen, prefer this function over waitsForAsync.
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 
 
-##### testframe()
+#### testframe()
 * Returns the loaded frame
 * May be used anywhere after loadHtml was called.
 
