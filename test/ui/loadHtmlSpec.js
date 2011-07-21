@@ -1,5 +1,5 @@
 describe("loadHtml", function() {
-    it('should load the page and save it in the frame variable', function() {
+    it('should load the page and save it in the testframe variable', function() {
         loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
             var fr = testframe();
@@ -8,6 +8,75 @@ describe("loadHtml", function() {
 
             expect(fr).toBeDefined();
             expect(fr.$("#div1").length).toEqual(1);
+        });
+    });
+
+    it('should wait until the page was loaded if another page was loaded before', function() {
+        var flag = false;
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function() {
+            flag = true;
+        });
+        runs(function() {
+            expect(flag).toBeTruthy();
+        });
+    });
+
+    it('should refresh the page when the exact same page is loaded', function() {
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        runs(function() {
+            var fr = testframe();
+            fr.test = true;
+        });
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        runs(function() {
+            var fr = testframe();
+            expect(fr.test).toBeUndefined();
+        });
+    });
+
+    it('should refresh the page when the hash changes from empty to something', function() {
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        runs(function() {
+            var fr = testframe();
+            fr.test = true;
+        });
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#123");
+        runs(function() {
+            var fr = testframe();
+            expect(fr.test).toBeUndefined();
+            expect(fr.location.hash).toEqual('#123');
+        });
+    });
+
+    it('should refresh the page when the hash changes from something to something else', function() {
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#456");
+        runs(function() {
+            var fr = testframe();
+            fr.test = true;
+            expect(fr.location.hash).toEqual('#456');
+        });
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#123");
+        runs(function() {
+            var fr = testframe();
+            expect(fr.test).toBeUndefined();
+            expect(fr.location.hash).toEqual('#123');
+        });
+    });
+
+    it('should refresh the page when the hash changes from something to nothing', function() {
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#456");
+        runs(function() {
+            var fr = testframe();
+            fr.test = true;
+            expect(fr.location.hash).toEqual('#456');
+        });
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        runs(function() {
+            var fr = testframe();
+            expect(fr.test).toBeUndefined();
+            var hash = fr.location.hash.replace(/#/g, '');
+            expect(hash).toEqual('');
         });
     });
 
@@ -38,5 +107,4 @@ describe("loadHtml", function() {
             expect(ajaxData.length).toEqual(2);
         });
     });
-
 });

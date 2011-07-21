@@ -29,7 +29,7 @@ Features
 * wait until end of asynchronous operations
 * works well with single and multi page applications
 * Supports Firefox, Chrome, Safari and IE7+.
-* Support mobile Safari, mobile Chrome and mobile IE 7+.
+* Supports mobile Safari, mobile Chrome and mobile IE 7+.
 
 Functions
 -----------
@@ -63,6 +63,20 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 #### testframe()
 * Returns the loaded frame
 * May be used anywhere after loadHtml was called.
+
+
+#### jasmine.ui.normalizeExternalArray(array, window)
+Clones the given array using the Array-Function in the given window.
+This is useful when mocking objects in the testframe.
+
+
+#### jasmine.ui.normalizeExternalObject(obj, window)
+* Normalizes the given object if it originates from another window or iframe.
+* Traverses through the object graph and calls normalizeExternalArray where needed.
+* Note that this changes the object itself if it is no array. If it is an array, a new instance will be created.
+* Attention: This does not work on cyclic graphs!
+* This is useful when mocking objects in the testframe.
+
 
 Standalone Jasmine HTML SpecRunner for Test-Debugging
 ------------

@@ -16,7 +16,7 @@ describe("waitsForAsync", function() {
         });
         waitsFor(function() {
             return called;
-        }, 2000);
+        }, 5000);
         runs(function() {
             expect(wait()).toEqual(false);
         });
@@ -71,7 +71,7 @@ describe("waitsForAsync", function() {
         });
         waitsFor(function() {
             return called == 4;
-        }, 2000);
+        }, 5000);
         runs(function() {
             expect(wait()).toEqual(false);
         });
@@ -101,10 +101,6 @@ describe("waitsForAsync", function() {
     it(
         'should detect jquery animation waiting',
         function() {
-            if (!window.WebKitAnimationEvent) {
-                // This depends on the browser features!
-                return;
-            }
             var animationEnded;
             var wait = jasmine.ui.isWaitForAsync;
             loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
@@ -112,7 +108,6 @@ describe("waitsForAsync", function() {
                 animationEnded = false;
                 var $ = testframe().$;
                 var el = $('#anim');
-                el.addClass("fadein");
                 expect(wait()).toEqual(false);
                 el.animationComplete(function() {
                     animationEnded = true;
@@ -129,23 +124,14 @@ describe("waitsForAsync", function() {
     it(
         'should detect jquery transition waiting',
         function() {
-            if (!window.WebKitTransitionEvent) {
-                // This depends on the browser features!
-                return;
-            }
             var transitionComplete;
             var wait = jasmine.ui.isWaitForAsync;
-            loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(frame) {
-                var $ = frame.$;
-                $("#anim").addClass('transition');
-            });
-            waits(500);
+            loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
             runs(function() {
                 transitionComplete = false;
                 var $ = testframe().$;
                 expect(wait()).toEqual(false);
                 var el = $("#anim");
-                el.addClass('transitionEnd');
                 el.transitionComplete(function() {
                     transitionComplete = true;
                 });

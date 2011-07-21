@@ -3,22 +3,17 @@
 <head>
     <script>opener && opener.instrument && opener.instrument(window);</script>
     <script src="../lib/jquery-1.5.1.js"></script>
-    <script src="../lib/jquery.mobile.noinit.js"></script>
-    <script src="../lib/jquery.mobile-1.0a4.1-oc.js"></script>
-    <style>@-webkit-keyframes fadein {from { opacity: 0; } to { opacity: 1; }}
-    .fadein {
-        -webkit-animation-name: 'fadein';
-        -webkit-animation-duration: 500ms;
-    }
-    .transition {
-        -webkit-transition-property: -webkit-transform;
-        -webkit-transition-duration: 100ms;
-        -webkit-transition-timing-function: ease-in-out;
-    }
-    .transitionEnd {
-        -webkit-transform: translateX(100px);
-    }
-    </style>
+    <script>
+        // Mock implementation of the jquery mobile animationComplete and transitionComplete
+        // callbacks, so we do not need jquery mobile.
+        $.fn.animationComplete = function(callback) {
+           setTimeout(callback,0);
+        }
+        $.fn.transitionComplete = function(callback) {
+           setTimeout(callback,0);
+        }
+
+    </script>
 
     <script>
         function xhrCall(url, callback) {
@@ -31,6 +26,11 @@
             xhr.open('GET', url);
             xhr.send();
         }
+    </script>
+
+    <script>
+        function TestConstructor(x) { this.x = x; };
+        function newTest(x) { return new TestConstructor(x); };
     </script>
 </head>
 <body>

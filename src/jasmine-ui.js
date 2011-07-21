@@ -203,7 +203,11 @@ jasmine.ui.log = function(msg) {
             }
             testframe(url);
         });
-        spec.waitsForAsync();
+        // Be sure to wait until the new page is loaded.
+        // waitsForAsync would not be enough here,
+        // as it would proceed directly if there already was
+        // a frame loaded.
+        waitsForReload();
     }
 
     function callInstrumentListeners(fr, callTime) {
@@ -247,8 +251,8 @@ jasmine.ui.log = function(msg) {
         var doc = fr.document;
 
         function callback() {
-            if (!win.ready) {
-                win.ready = true;
+            if (!win.loadHtmlReady) {
+                win.loadHtmlReady = true;
                 callInstrumentListeners(fr, "afterContent");
                 jasmine.ui.log("Successfully loaded frame " + fr.name + " with url " + fr.location.href);
             }
@@ -286,19 +290,19 @@ jasmine.ui.log = function(msg) {
              scriptElement.innerHTML = '';
              */
             addLoadEventListener(fr);
-            fr.error = null;
-            fr.ready = false;
+            fr.loadHtmlError = null;
+            fr.loadHtmlReady = false;
             jasmine.ui.addAsyncWaitHandler(fr, 'loading', function() {
-                if (fr.error) {
-                    jasmine.ui.log("Error during instrumenting frame " + fr.name + ": " + fr.error);
-                    throw fr.error;
+                if (fr.loadHtmlError) {
+                    jasmine.ui.log("Error during instrumenting frame " + fr.name + ": " + fr.loadHtmlError);
+                    throw fr.loadHtmlError;
                 }
-                return !fr.ready;
+                return !fr.loadHtmlReady;
             });
 
             callInstrumentListeners(fr, "beforeContent");
         } catch (ex) {
-            error = ex;
+            fr.loadHtmlError = ex;
         }
     };
 })(jasmine, window);
@@ -350,16 +354,6 @@ jasmine.ui.log = function(msg) {
  */
 (function() {
     function addHelperFunctions(window) {
-        function normalizeExternalArray(arr) {
-            var res = [];
-            for (var i = 0; i < arr.length; i++) {
-                res.push(arr[i]);
-            }
-            return res;
-        }
-
-        window.normalizeExternalArray = normalizeExternalArray;
-
         /**
          * Instantiates the given function with the given arguments.
          * Needed because IE throws an error if an object is instantiated
@@ -386,58 +380,79 @@ jasmine.ui.log = function(msg) {
         /**
          * Creates a wrapper function for the given function from the given window.
          * Needed for IE to install proxy functions into other windows
-         * than the current one.
+         * than the current one, so that they an be called with the new operator.
          * @param fn
          * @param dispatchWindow
          */
-        function proxyFunction(fn, dispatchWindow) {
+        function proxyConstructor(fn, dispatchWindow) {
             return function() {
-                var newargs = dispatchWindow.normalizeExternalArray(arguments);
+                var newargs = dispatchWindow.instantiateHelper(dispatchWindow.Array);
+                for (var i=0; i<arguments.length; i++) {
+                    newargs.push(arguments[i]);
+                }
                 return fn.apply(this, newargs);
             };
         }
 
-        window.proxyFunction = proxyFunction;
-
-        /**
-         * Normalizes the given object if it originates from another window
-         * or iframe. Especially changes Arrays to use the correct prototype object.
-         * <p>
-         * TODO Check for cycles!
-         * @param obj
-         */
-        function normalizeExternalObject(obj) {
-            if (obj === null || obj === undefined) {
-                return obj;
-            }
-            if (obj.length !== undefined) {
-                var res = new Array();
-                for (var i = 0; i < obj.length; i++) {
-                    res.push(obj[i]);
-                }
-                obj = res;
-            }
-
-            for (var prop in obj) {
-                var value = obj[prop];
-                value = normalize(value);
-                obj[prop] = value;
-            }
-            return obj;
-        }
-
-        window.normalizeExternalObject = normalizeExternalObject;
+        window.proxyConstructor = proxyConstructor;
     }
-
-    addHelperFunctions(window);
 
     jasmine.ui.addLoadHtmlListener('addHelperFunctions', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
-
         window.document.write("<script>" + addHelperFunctions.toString() + ";addHelperFunctions(window);</script>");
     });
+
+    addHelperFunctions(window);
+
+    /**
+     * Clones the given array with the right prototype of the given window.
+     * @param arr
+     * @param win
+     */
+    function normalizeExternalArray(arr,win) {
+        var res = win.instantiateHelper(win.Array);
+        for (var i = 0; i < arr.length; i++) {
+            res.push(arr[i]);
+        }
+        return res;
+    }
+
+    /**
+     * Normalizes the given object if it originates from another window
+     * or iframe. Traverses through the object graph
+     * and calls normalizeExternalArray where needed.
+     * <p>
+     * Note that this changes the object itself if it is no array.
+     * If it is an array, a new instance will be created.
+     * <p>
+     * Attention: This does not work on cyclic graphs!
+     * @param obj
+     */
+    function normalizeExternalObject(obj,win) {
+        if (!win) {
+            win = window;
+        }
+        if (obj === null || obj === undefined) {
+            return obj;
+        }
+        if (obj.length !== undefined) {
+            obj = normalizeExternalArray(obj,win);
+        }
+
+        for (var prop in obj) {
+            var value = obj[prop];
+            var newValue = normalizeExternalObject(value, win);
+            if (value!==newValue) {
+                obj[prop] = newValue;
+            }
+        }
+        return obj;
+    }
+
+    jasmine.ui.normalizeExternalArray = normalizeExternalArray;
+    jasmine.ui.normalizeExternalObject = normalizeExternalObject;
 
 })();
 
@@ -575,7 +590,7 @@ jasmine.ui.log = function(msg) {
                     if (name == 'send') {
                         window.openCallCount++;
                     }
-                    var res = self.origin[name].apply(self.origin, window.normalizeExternalArray(arguments));
+                    var res = self.origin[name].apply(self.origin, jasmine.ui.normalizeExternalArray(arguments,window));
                     copyState();
                     return res;
                 }
@@ -590,12 +605,12 @@ jasmine.ui.log = function(msg) {
                 }
                 copyState();
                 if (self.onreadystatechange) {
-                    self.onreadystatechange.apply(self.origin, window.normalizeExternalArray(arguments));
+                    self.onreadystatechange.apply(self.origin, jasmine.ui.normalizeExternalArray(arguments,window));
                 }
             };
             copyState();
         };
-        window.XMLHttpRequest = window.proxyFunction(newXhr, jasmineWindow);
+        window.XMLHttpRequest = window.proxyConstructor(newXhr, jasmineWindow);
 
         jasmine.ui.addAsyncWaitHandler(window, 'xhr',
             function() {
