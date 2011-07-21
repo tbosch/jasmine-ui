@@ -6,7 +6,8 @@ Description
 
 Jasmine-UI provides ui tests for jasmine. It loads a html page in a new window and instruments it,
 so it knows whether there currently is asynchronous work going on. This does not use
-an iframe so there is minimal layout inteference with the page to be tested.
+an iframe so there is minimal layout inteference with the page to be tested, which
+is especially useful for mobile applications.
 
 By this, a test is able to test the ui functionality of a html page.
 
@@ -60,17 +61,17 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 
 
-#### testframe()
+#### `testframe()`
 * Returns the loaded frame
 * May be used anywhere after loadHtml was called.
 
 
-#### jasmine.ui.normalizeExternalArray(array, window)
+#### `jasmine.ui.normalizeExternalArray(array, window)`
 Clones the given array using the Array-Function in the given window.
 This is useful when mocking objects in the testframe.
 
 
-#### jasmine.ui.normalizeExternalObject(obj, window)
+#### `jasmine.ui.normalizeExternalObject(obj, window)`
 * Normalizes the given object if it originates from another window or iframe.
 * Traverses through the object graph and calls normalizeExternalArray where needed.
 * Note that this changes the object itself if it is no array. If it is an array, a new instance will be created.
