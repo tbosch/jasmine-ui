@@ -24,6 +24,11 @@ Preconditions:
 The page to be tested must be loaded from the same domain as the test code.
 
 
+Sample
+------------
+See project [phonecat-mobile](https://github.com/tigbro/phonecat-mobile).
+
+
 Features
 ----------
 
