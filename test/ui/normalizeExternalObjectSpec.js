@@ -30,17 +30,18 @@ describe("normalizeExternalObject", function() {
         initFrameIfNeeded();
         runs(function() {
             var fr = testframe();
-            var x = {y:{z:true}, x:true};
+            var s = "test";
+            var x = {y:{z:true}, x:true, a: s};
             var x2 = jasmine.ui.normalizeExternalObject(x, fr);
             expect(x).toBe(x2);
             expect(x.x).toBeTruthy();
             expect(x.y.z).toBeTruthy();
-
+            expect(x.a).toBe(s);
 
         });
     });
 
-    it('should clone array fileds in objects', function() {
+    it('should clone array fields in objects', function() {
         initFrameIfNeeded();
         runs(function() {
             var fr = testframe();

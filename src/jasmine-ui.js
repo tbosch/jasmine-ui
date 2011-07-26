@@ -419,6 +419,18 @@ jasmine.ui.log = function(msg) {
         return res;
     }
 
+    function isNumber(obj) {
+        return obj.toFixed !== undefined;
+    }
+
+    function isString(obj) {
+        return obj.charAt !== undefined;
+    }
+
+    function isArray(obj) {
+        return !isString(obj) && obj.slice !== undefined;
+    }
+
     /**
      * Normalizes the given object if it originates from another window
      * or iframe. Traverses through the object graph
@@ -437,15 +449,19 @@ jasmine.ui.log = function(msg) {
         if (obj === null || obj === undefined) {
             return obj;
         }
-        if (obj.length !== undefined) {
+        if (isArray(obj)) {
             obj = normalizeExternalArray(obj,win);
         }
+        if (!isNumber(obj) && !isString(obj)) {
+            for (var prop in obj) {
+                if (obj.hasOwnProperty(prop)) {
+                    var value = obj[prop];
 
-        for (var prop in obj) {
-            var value = obj[prop];
-            var newValue = normalizeExternalObject(value, win);
-            if (value!==newValue) {
-                obj[prop] = newValue;
+                    var newValue = normalizeExternalObject(value, win);
+                    if (value!==newValue) {
+                        obj[prop] = newValue;
+                    }
+                }
             }
         }
         return obj;
