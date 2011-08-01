@@ -84,23 +84,6 @@ This is useful when mocking objects in the testframe.
 * This is useful when mocking objects in the testframe.
 
 
-Standalone Jasmine HTML SpecRunner for Test-Debugging
-------------
-* The File `SpecRunnerStandalone.html` contains the jasmine html runner, including
-  all dependencies (css and javascript) in one file, but excluding the jasmine and jasmine-ui.js library.
-* Add your libs (including jasmine-ui.js) and tests to the end of that file and load it in a browser to run the tests.
-* If your webserver supports directory listings, you can add all specs in a directory at once by using:
-
-
-    <script type="text/javascript">
-        loadDir('myDirWithSpecs/');
-    </script>
-
-
-* This approach is good for debugging your test cases with browser debuggers, as
-  you do not have to switch between tools to run and debug the tests.
-
-
 Integration with js-test-driver for Continuous Integration
 --------------
 * Be sure to use the jstd-jasmine-async-adapter
@@ -162,5 +145,5 @@ To run the self-tests for the jasmine-ui.js file, there are two possibilities:
 
 - Using the Jasmine HTML Runner:
       1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
-      2. Enter `http://localhost:8080/jasmine-ui/src/SpecRunnerStandalone.html` in the browser of your choice
+      2. Enter `http://localhost:8080/jasmine-ui/test/SpecRunner.html` in the browser of your choice
 

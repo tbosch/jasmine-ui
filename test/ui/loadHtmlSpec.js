@@ -107,4 +107,21 @@ describe("loadHtml", function() {
             expect(ajaxData.length).toEqual(2);
         });
     });
+
+    it('should integration with the wait function of requirejs', function() {
+        var jqueryReadyInInstrument = false;
+
+        function instrumentHtml(window) {
+            var jQuery = window.jQuery;
+            jqueryReadyInInstrument = jQuery.isReady;
+        }
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html", instrumentHtml);
+
+        runs(function() {
+            var fr = testframe();
+            // This time, the ready function was called by our fake require-js,
+            // so jquery was already ready.
+            expect(jqueryReadyInInstrument).toEqual(true);
+        });
+    });
 });

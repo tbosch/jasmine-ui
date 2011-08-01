@@ -29,7 +29,7 @@ jasmine.ui = {};
  * The central logging function.
  */
 jasmine.ui.log = function(msg) {
-    //console.log(msg);
+    // console.log(msg);
 };
 
 
@@ -111,10 +111,17 @@ jasmine.ui.log = function(msg) {
                 return true;
             }
         }
-        var handlers = testframe().asyncWaitHandlers || {};
+        var fr = testframe();
+        var handlers = fr.asyncWaitHandlers || {};
         for (var name in handlers) {
             if (handlers[name]()) {
                 jasmine.ui.log("async waiting for " + name);
+                return true;
+            }
+        }
+        if (fr.jQuery) {
+            if (!fr.jQuery.isReady) {
+                jasmine.ui.log("async waiting for jquery ready");
                 return true;
             }
         }
@@ -208,6 +215,9 @@ jasmine.ui.log = function(msg) {
         // as it would proceed directly if there already was
         // a frame loaded.
         waitsForReload();
+        spec.runs(function() {
+            jasmine.ui.log("Successfully loaded url " + url);
+        });
     }
 
     function callInstrumentListeners(fr, callTime) {
@@ -250,57 +260,71 @@ jasmine.ui.log = function(msg) {
         var win = fr;
         var doc = fr.document;
 
-        function callback() {
+        function callListeners() {
+            // Only use the load events when require-js is not used.
+            // Otherwise we use the ready-callback from require-js.
+            if (!fr.define) {
+                callInstrumentListeners(fr, 'afterContent');
+            }
+        }
+
+        function loadCallback() {
             if (!win.loadHtmlReady) {
                 win.loadHtmlReady = true;
-                callInstrumentListeners(fr, "afterContent");
-                jasmine.ui.log("Successfully loaded frame " + fr.name + " with url " + fr.location.href);
+                callListeners();
             }
-
         }
 
         // Mozilla, Opera and webkit nightlies currently support this event
         if (doc.addEventListener) {
             // Be sure that our handler gets called before any
             // other handler of the instrumented page!
-            proxyAddEventFunction(doc, 'addEventListener', {'DOMContentLoaded': callback});
-            proxyAddEventFunction(win, 'addEventListener', {'load': callback});
+            proxyAddEventFunction(doc, 'addEventListener', {'DOMContentLoaded': loadCallback});
+            proxyAddEventFunction(win, 'addEventListener', {'load': loadCallback});
 
             // A fallback to window.onload, that will always work
-            win.addEventListener("load", callback, false);
+            win.addEventListener("load", loadCallback, false);
 
             // If IE event model is used
         } else if (doc.attachEvent) {
             // Be sure that our handler gets called before any
             // other handler of the instrumented page!
-            proxyAddEventFunction(doc, 'attachEvent', {'onreadystatechange': callback});
-            proxyAddEventFunction(win, 'attachEvent', {'load': callback});
+            proxyAddEventFunction(doc, 'attachEvent', {'onreadystatechange': loadCallback});
+            proxyAddEventFunction(win, 'attachEvent', {'load': loadCallback});
 
             // A fallback to window.onload, that will always work
-            win.attachEvent("onload", callback);
+            win.attachEvent("onload", loadCallback);
         }
+    }
+    /*
+     * When using require.js, and all libs are in one file,
+     * we might not be able to intercept the point in time
+     * when everything is loaded, but the ready signal was not yet sent.
+     */
+    function addRequireJsSupport(fr) {
+        fr.require = {
+          ready: function() {
+              callInstrumentListeners(fr, 'afterContent');
+          }
+        };
     }
 
     window.instrument = function(fr) {
         try {
             jasmine.ui.log("Beginn instrumenting frame " + fr.name + " with url " + fr.location.href);
-            fr.instrumented = true;
-            /*
-             var scriptElement = fr.createElement('script');
-             scriptElement.innerHTML = '';
-             */
-            addLoadEventListener(fr);
             fr.loadHtmlError = null;
             fr.loadHtmlReady = false;
             jasmine.ui.addAsyncWaitHandler(fr, 'loading', function() {
                 if (fr.loadHtmlError) {
-                    jasmine.ui.log("Error during instrumenting frame " + fr.name + ": " + fr.loadHtmlError);
+                    jasmine.ui.log("Error during loading page: " + fr.loadHtmlError);
                     throw fr.loadHtmlError;
                 }
                 return !fr.loadHtmlReady;
             });
+            callInstrumentListeners(fr, 'beforeContent');
+            addLoadEventListener(fr);
+            addRequireJsSupport(fr);
 
-            callInstrumentListeners(fr, "beforeContent");
         } catch (ex) {
             fr.loadHtmlError = ex;
         }
@@ -326,8 +350,12 @@ jasmine.ui.log = function(msg) {
         window.runs(function() {
             inReload = true;
         });
-        return window.waitsForAsync();
+        return window.waitsForAsync(10000);
     };
+
+    jasmine.ui.addAsyncWaitHandler(null, 'unload', function() {
+        return inReload;
+    });
 
     jasmine.ui.addLoadHtmlListener('instrumentBeforeUnload', function(window, callTime) {
         if (callTime != 'beforeContent') {
@@ -343,9 +371,6 @@ jasmine.ui.log = function(msg) {
                 inReload = true;
             });
         }
-        jasmine.ui.addAsyncWaitHandler(null, 'unload', function() {
-            return inReload;
-        });
     });
 })();
 
@@ -353,7 +378,7 @@ jasmine.ui.log = function(msg) {
  * Adds some helper functions into the created frame and the current window.
  */
 (function() {
-    function addHelperFunctions(window) {
+    var addHelperFunctions = function(window) {
         /**
          * Instantiates the given function with the given arguments.
          * Needed because IE throws an error if an object is instantiated
@@ -401,7 +426,7 @@ jasmine.ui.log = function(msg) {
         if (callTime != 'beforeContent') {
             return;
         }
-        window.document.write("<script>" + addHelperFunctions.toString() + ";addHelperFunctions(window);</script>");
+        window.document.write("<script>(" + addHelperFunctions.toString() + ")(window);</script>");
     });
 
     addHelperFunctions(window);
