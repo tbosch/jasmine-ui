@@ -1,8 +1,9 @@
 describe("loadHtml", function() {
-    it('should load the page and save it in the testframe variable', function() {
+    it('should load the page and save it in the testframe and testwindow functions', function() {
         loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
             var fr = testframe();
+            expect(testwindow()).toBe(fr);
             var jQuery = fr.jQuery;
             expect(jQuery.isReady).toBeTruthy();
 

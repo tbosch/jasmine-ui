@@ -70,6 +70,7 @@ jasmine.ui.log = function(msg) {
         }
         return testwindow;
     };
+    window.testwindow = window.testframe;
 
 })(window);
 
