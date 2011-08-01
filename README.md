@@ -66,8 +66,8 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 * To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
 
 
-#### `testframe()`
-* Returns the loaded frame
+#### `testwindow()`
+* Returns the loaded frame / window.
 * May be used anywhere after loadHtml was called.
 
 
