@@ -5,12 +5,15 @@
     <script src="../lib/jquery-1.5.1.js"></script>
     <!-- simulate the existence of requirejs -->
     <script>
-        var define = function() { };
+        var require = function() { };
+        require.resourcesDone = location.hash.indexOf('resourcesDone')!==-1;
+        require.resourcesReady = function(isReady) {
+
+        };
         // When the page is ready, fire the requirejs ready callback registered by jasmine-ui
         $(function() {
-            // Note: This should be filled by jasmineui.
             setTimeout(function() {
-                require.ready();
+                require.resourcesReady(true);
             },20);
         });
     </script>
