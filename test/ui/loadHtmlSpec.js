@@ -81,6 +81,21 @@ describe("loadHtml", function() {
         });
     });
 
+    it('should be able to instrument the page at creation', function() {
+        var jQueryBeforeCallback, jQueryAfterCallback;
+
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(window) {
+            jQueryBeforeCallback = window.jQuery;
+        }, function(window) {
+            jQueryAfterCallback = window.jQuery;
+        });
+
+        runs(function() {
+            expect(jQueryBeforeCallback).toBeFalsy();
+            expect(jQueryAfterCallback).toBeTruthy();
+        });
+    });
+
     it('should be able to instrument the page before onload is called', function() {
         var docReadyInInstrument;
 

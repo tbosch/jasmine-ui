@@ -191,7 +191,7 @@ jasmine.ui.log = function(msg) {
         });
     }
 
-    window.loadHtml = function(url, instrumentCallback) {
+    window.loadHtml = function(url, instrumentCallback1, instrumentCallback2) {
         jasmine.getEnv().currentSpec.loadHtml.apply(jasmine.getEnv().currentSpec,
             arguments);
     };
@@ -200,15 +200,23 @@ jasmine.ui.log = function(msg) {
     /**
      * Loads the given url into the testframe and waits
      * until the page is fully loaded.
+     * <p>
+     * If only one callback is given, the callback will be called right before the ready event.
+     * If two callbacks are given, the first callback will be called when the document is created
+     * and the second right before the ready event.
      * @param url
-     * @param instrumentCallback
+     * @param instrumentCallback1
+     * @param instrumentCallback2
      */
-    jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback) {
+    jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback1, instrumentCallback2) {
         var spec = this;
         spec.runs(function() {
-            if (instrumentCallback) {
-                jasmine.ui.addLoadHtmlListenerForNextLoad('loadHtmlCallback', 'afterContent', instrumentCallback);
+            var afterCallback = instrumentCallback1;
+            if (instrumentCallback2) {
+                jasmine.ui.addLoadHtmlListenerForNextLoad('loadHtmlCallback', 'beforeContent', instrumentCallback1);
+                afterCallback = instrumentCallback2;
             }
+            jasmine.ui.addLoadHtmlListenerForNextLoad('loadHtmlCallback', 'afterContent', afterCallback);
             testframe(url);
         });
         // Be sure to wait until the new page is loaded.
@@ -736,6 +744,27 @@ jasmine.ui.log = function(msg) {
     });
 })();
 
+
+/**
+ * Error listener in the opened window to make the spec fail on errors.
+ */
+(function() {
+    jasmine.ui.addLoadHtmlListener('instrumentErrorHandler', function(window, callTime) {
+        if (callTime != 'beforeContent') {
+            return null;
+        }
+
+        function handleError(event) {
+            jasmine.getEnv().currentSpec.fail("Error from testwindow: "+event.message);
+        }
+        if (window.addEventListener) {
+            window.addEventListener('error', handleError, false);
+        } else {
+            window.attachEvent("onerror", handleError);
+        }
+    });
+
+})();
 
 /**
  * Functions to simulate events.
