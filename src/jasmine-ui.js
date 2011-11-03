@@ -39,8 +39,8 @@ jasmine.ui.log = function(msg) {
 (function(window) {
     function splitAtHash(url) {
         var hashPos = url.indexOf('#');
-        if (hashPos!=-1) {
-            return [url.substring(0, hashPos), url.substring(hashPos+1)];
+        if (hashPos != -1) {
+            return [url.substring(0, hashPos), url.substring(hashPos + 1)];
         } else {
             return [url,''];
         }
@@ -49,7 +49,7 @@ jasmine.ui.log = function(msg) {
     var testwindow;
     window.testframe = function(url) {
         if (arguments.length > 0) {
-            if (!url.charAt(0)=='/') {
+            if (!url.charAt(0) == '/') {
                 throw new Error("the url for the testframe needs to be absolute!");
             }
             if (!testwindow) {
@@ -61,7 +61,7 @@ jasmine.ui.log = function(msg) {
             // change the hashpath.
             // So detect this and do a manual reload.
             var urlSplitAtHash = splitAtHash(url);
-            if (oldPath===urlSplitAtHash[0]) {
+            if (oldPath === urlSplitAtHash[0]) {
                 testwindow.location.hash = urlSplitAtHash[1];
                 testwindow.location.reload();
             } else {
@@ -97,7 +97,7 @@ jasmine.ui.log = function(msg) {
             frame.asyncWaitHandlers = frame.asyncWaitHandlers || {};
             frame.asyncWaitHandlers[name] = handler;
         }
-    }
+    };
 
     window.waitsForAsync = function(timeout) {
         jasmine.getEnv().currentSpec.waitsForAsync.apply(jasmine.getEnv().currentSpec,
@@ -159,7 +159,7 @@ jasmine.ui.log = function(msg) {
  * Jasmine UI Plugin for loading and instrumenting a page into a testframe().
  */
 (function(jasmine, window) {
-    var instrumentListeners = {};
+    var globalInstrumentListeners = {};
 
     /**
      * Adds a listener to the instrumentation done by #loadHtml. All listeners
@@ -168,34 +168,96 @@ jasmine.ui.log = function(msg) {
      * @param listener A function with the signature fn(window, callTime) where callTime is either
      * "beforeContent" or "afterContent".
      */
-    jasmine.ui.addLoadHtmlListener = function(name, listener) {
-        instrumentListeners[name] = listener;
+    jasmine.ui.internalAddGlobalLoadHtmlListener = function(name, listener) {
+        globalInstrumentListeners[name] = listener;
+    };
+
+    /**
+     * Adds a listener to the instrumentation done by #loadHtml during the current spec.
+     * All listeners will be removed after the spec was executed.
+     * @param name
+     * @param listener A function with the signature fn(window, callTime) where callTime is either
+     * "beforeContent" or "afterContent".
+     */
+    jasmine.ui.internalAddSpecLoadHtmlListener = function(name, listener) {
+        specInstrumentListeners()[name] = listener;
+    };
+
+    function specInstrumentListeners() {
+        var spec = jasmine.getEnv().currentSpec;
+        var res = spec.instrumentListeners;
+        if (!res) {
+            res = {};
+            spec.instrumentListeners = res;
+        }
+        return res;
     }
 
-    var customListenerId = 0;
     /**
-     * Same as #addLoadHtmlListener, but removes the listener
+     * Same as #addGlobalLoadHtmlListener, but removes the listener
      * after the first execution.
      * @param name
      * @param listener
      */
-    jasmine.ui.addLoadHtmlListenerForNextLoad = function(name, callTime, listener) {
-        name = name + (customListenerId++);
-        jasmine.ui.addLoadHtmlListener(name, function(window, pcallTime) {
-            if (callTime == pcallTime) {
-                window.setTimeout(function() {
-                    delete instrumentListeners[name];
-                }, 0);
-                listener(window);
+    jasmine.ui.internalAddOnceLoadHtmlListener = function(name, listener) {
+        var specListeners = specInstrumentListeners();
+        var index = specListeners.length;
+        var callTimes = {};
+        jasmine.ui.internalAddSpecLoadHtmlListener(name, function(window, callTime) {
+            if (!callTimes[callTime]) {
+                callTimes[callTime] = true;
+                listener(window, callTime);
             }
         });
-    }
+    };
+
+    /**
+     * Creates a function with the signature function(win, calltime) that calls either
+     * the first or the second listener.
+     * <p>
+     * If only one callback is given, the callback will be called right before the ready event.
+     * If two callbacks are given, the first callback will be called when the document is created
+     * and the second right before the ready event.
+     *
+     * @param listener1
+     * @param listener2
+     */
+    jasmine.ui.dispatchedLoadHtmlListener = function(listener1, listener2) {
+        return function(win, calltime) {
+            if (calltime === "beforeContent" && listener2) {
+                listener1(win);
+            } else if (calltime === "afterContent") {
+                if (listener2) {
+                    listener2(win);
+                } else if (listener1) {
+                    listener1(win);
+                }
+            }
+        }
+    };
+
+    var uniqueListenerId = 0;
+
+    /**
+     * Adds a listener to the instrumentation done by #loadHtml during the current spec.
+     * All listeners will be removed after the spec was executed.
+     * <p>
+     * If only one callback is given, the callback will be called right before the ready event.
+     * If two callbacks are given, the first callback will be called when the document is created
+     * and the second right before the ready event.
+     * @param listener1
+     * @param listener2
+     */
+    jasmine.ui.addLoadHtmlListener = function(listener1, listener2) {
+        var name = "temp" + (uniqueListenerId++);
+        jasmine.ui.internalAddSpecLoadHtmlListener(name,
+            jasmine.ui.dispatchedLoadHtmlListener(listener1, listener2));
+    };
 
     window.loadHtml = function(url, instrumentCallback1, instrumentCallback2) {
         jasmine.getEnv().currentSpec.loadHtml.apply(jasmine.getEnv().currentSpec,
             arguments);
     };
-
 
     /**
      * Loads the given url into the testframe and waits
@@ -211,12 +273,9 @@ jasmine.ui.log = function(msg) {
     jasmine.Spec.prototype.loadHtml = function(url, instrumentCallback1, instrumentCallback2) {
         var spec = this;
         spec.runs(function() {
-            var afterCallback = instrumentCallback1;
-            if (instrumentCallback2) {
-                jasmine.ui.addLoadHtmlListenerForNextLoad('loadHtmlCallback', 'beforeContent', instrumentCallback1);
-                afterCallback = instrumentCallback2;
-            }
-            jasmine.ui.addLoadHtmlListenerForNextLoad('loadHtmlCallback', 'afterContent', afterCallback);
+            var name = "loadHtmlCallback" + (uniqueListenerId++);
+            jasmine.ui.internalAddOnceLoadHtmlListener(name,
+                jasmine.ui.dispatchedLoadHtmlListener(instrumentCallback1, instrumentCallback2));
             testframe(url);
         });
         // Be sure to wait until the new page is loaded.
@@ -227,12 +286,19 @@ jasmine.ui.log = function(msg) {
         spec.runs(function() {
             jasmine.ui.log("Successfully loaded url " + url);
         });
-    }
+    };
 
     function callInstrumentListeners(fr, callTime) {
         jasmine.ui.log('instrumenting ' + fr.name + " " + callTime);
-        for (var name in instrumentListeners) {
-            var fn = instrumentListeners[name];
+        var name, listeners, fn;
+        listeners = globalInstrumentListeners;
+        for (name in listeners) {
+            fn = listeners[name];
+            fn(testframe(), callTime);
+        }
+        listeners = specInstrumentListeners();
+        for (name in listeners) {
+            fn = listeners[name];
             fn(testframe(), callTime);
         }
     }
@@ -305,6 +371,7 @@ jasmine.ui.log = function(msg) {
             win.attachEvent("onload", loadCallback);
         }
     }
+
     /*
      * When using require.js, and all libs are in one file,
      * we might not be able to intercept the point in time
@@ -368,14 +435,17 @@ jasmine.ui.log = function(msg) {
         window.runs(function() {
             inReload = true;
         });
-        return window.waitsForAsync(10000);
+        if (!timeout) {
+            timeout = 10000;
+        }
+        return window.waitsForAsync(timeout);
     };
 
     jasmine.ui.addAsyncWaitHandler(null, 'unload', function() {
         return inReload;
     });
 
-    jasmine.ui.addLoadHtmlListener('instrumentBeforeUnload', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentBeforeUnload', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
@@ -430,7 +500,7 @@ jasmine.ui.log = function(msg) {
         function proxyConstructor(fn, dispatchWindow) {
             return function() {
                 var newargs = dispatchWindow.instantiateHelper(dispatchWindow.Array);
-                for (var i=0; i<arguments.length; i++) {
+                for (var i = 0; i < arguments.length; i++) {
                     newargs.push(arguments[i]);
                 }
                 return fn.apply(this, newargs);
@@ -438,9 +508,9 @@ jasmine.ui.log = function(msg) {
         }
 
         window.proxyConstructor = proxyConstructor;
-    }
+    };
 
-    jasmine.ui.addLoadHtmlListener('addHelperFunctions', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('addHelperFunctions', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
@@ -454,7 +524,7 @@ jasmine.ui.log = function(msg) {
      * @param arr
      * @param win
      */
-    function normalizeExternalArray(arr,win) {
+    function normalizeExternalArray(arr, win) {
         var res = win.instantiateHelper(win.Array);
         for (var i = 0; i < arr.length; i++) {
             res.push(arr[i]);
@@ -485,7 +555,7 @@ jasmine.ui.log = function(msg) {
      * Attention: This does not work on cyclic graphs!
      * @param obj
      */
-    function normalizeExternalObject(obj,win) {
+    function normalizeExternalObject(obj, win) {
         if (!win) {
             win = window;
         }
@@ -493,7 +563,7 @@ jasmine.ui.log = function(msg) {
             return obj;
         }
         if (isArray(obj)) {
-            obj = normalizeExternalArray(obj,win);
+            obj = normalizeExternalArray(obj, win);
         }
         if (!isNumber(obj) && !isString(obj)) {
             for (var prop in obj) {
@@ -501,7 +571,7 @@ jasmine.ui.log = function(msg) {
                     var value = obj[prop];
 
                     var newValue = normalizeExternalObject(value, win);
-                    if (value!==newValue) {
+                    if (value !== newValue) {
                         obj[prop] = newValue;
                     }
                 }
@@ -519,7 +589,7 @@ jasmine.ui.log = function(msg) {
  * Adds a loadHtmlListener that adds an async wait handler for the window.setTimeout function.
  */
 (function() {
-    jasmine.ui.addLoadHtmlListener('instrumentTimeout', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentTimeout', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
@@ -570,7 +640,7 @@ jasmine.ui.log = function(msg) {
  * Adds a loadHtmlListener that adds an async wait handler for the window.setInterval function.
  */
 (function() {
-    jasmine.ui.addLoadHtmlListener('instrumentInterval', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentInterval', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return;
         }
@@ -622,7 +692,7 @@ jasmine.ui.log = function(msg) {
     var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
     var proxyMethods = ['abort','getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
 
-    jasmine.ui.addLoadHtmlListener('instrumentXhr', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentXhr', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return null;
         }
@@ -649,7 +719,7 @@ jasmine.ui.log = function(msg) {
                     if (name == 'send') {
                         window.openCallCount++;
                     }
-                    var res = self.origin[name].apply(self.origin, jasmine.ui.normalizeExternalArray(arguments,window));
+                    var res = self.origin[name].apply(self.origin, jasmine.ui.normalizeExternalArray(arguments, window));
                     copyState();
                     return res;
                 }
@@ -664,7 +734,7 @@ jasmine.ui.log = function(msg) {
                 }
                 copyState();
                 if (self.onreadystatechange) {
-                    self.onreadystatechange.apply(self.origin, jasmine.ui.normalizeExternalArray(arguments,window));
+                    self.onreadystatechange.apply(self.origin, jasmine.ui.normalizeExternalArray(arguments, window));
                 }
             };
             copyState();
@@ -689,7 +759,7 @@ jasmine.ui.log = function(msg) {
  */
 (function() {
 
-    jasmine.ui.addLoadHtmlListener('instrumentAnimationEnd', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentAnimationEnd', function(window, callTime) {
         if (callTime != 'afterContent') {
             return null;
         }
@@ -719,7 +789,7 @@ jasmine.ui.log = function(msg) {
  * So be sure to always wait at least that time!
  */
 (function() {
-    jasmine.ui.addLoadHtmlListener('instrumentWebkitTransition', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentWebkitTransition', function(window, callTime) {
         if (callTime != 'afterContent') {
             return null;
         }
@@ -749,14 +819,15 @@ jasmine.ui.log = function(msg) {
  * Error listener in the opened window to make the spec fail on errors.
  */
 (function() {
-    jasmine.ui.addLoadHtmlListener('instrumentErrorHandler', function(window, callTime) {
+    jasmine.ui.internalAddGlobalLoadHtmlListener('instrumentErrorHandler', function(window, callTime) {
         if (callTime != 'beforeContent') {
             return null;
         }
 
         function handleError(event) {
-            jasmine.getEnv().currentSpec.fail("Error from testwindow: "+event.message);
+            jasmine.getEnv().currentSpec.fail("Error from testwindow: " + event.message);
         }
+
         if (window.addEventListener) {
             window.addEventListener('error', handleError, false);
         } else {
@@ -779,7 +850,7 @@ jasmine.ui.log = function(msg) {
         options = extend({}, jasmine.ui.simulate.defaults, options || {});
         var document = el.ownerDocument;
         simulateEvent(document, el, type, options);
-    }
+    };
 
     function extend(target) {
         for (var i = 1; i < arguments.length; i++) {

@@ -140,4 +140,48 @@ describe("loadHtml", function() {
             expect(jqueryReadyInInstrument).toEqual(true);
         });
     });
+
+    it("should call the instrumentation listeners only once", function() {
+        var callCount = 0;
+        function instrumentHtml(window) {
+            callCount++;
+        }
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html", instrumentHtml);
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
+        runs(function() {
+            expect(callCount).toBe(1);
+        });
+    });
+
+    it("should call spec instrumentation listeners for every loadHtml in the spec", function() {
+        var callCount = 0;
+        function instrumentHtml(window) {
+            callCount++;
+        }
+        jasmine.ui.addLoadHtmlListener(instrumentHtml);
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
+        runs(function() {
+            expect(callCount).toBe(2);
+        });
+
+    });
+
+    it("should call spec instrumentation listeners for page reloads in the spec", function() {
+        var callCount = 0;
+        function instrumentHtml(window) {
+            callCount++;
+        }
+        jasmine.ui.addLoadHtmlListener(instrumentHtml);
+        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
+        runs(function() {
+            testwindow().location.reload();
+        });
+        waitsForReload();
+        runs(function() {
+            expect(callCount).toBe(2);
+        });
+
+    });
+
 });

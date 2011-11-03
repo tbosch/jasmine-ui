@@ -33,6 +33,7 @@ Features
 ----------
 
 * wait until end of asynchronous operations
+* mock the loaded application with callbacks from the test.
 * works well with single and multi page applications
 * Supports Firefox, Chrome, Safari and IE7+.
 * Supports mobile Safari, mobile Chrome and mobile IE 7+.
@@ -40,13 +41,22 @@ Features
 Functions
 -----------
 
-#### `loadHtml(<your-html-file>,<instrumentCallback>)`
+#### `loadHtml(<your-html-file>, callback1, callback2)`
 Loads the given html file and waits until it is fully loaded (e.g. it's document is ready).
-The second argument is a callback function that will be called right before the document receives it's ready
-event, and may be used to mock functions in libraries loaded in the document. The callback gets
-the frame as parameter.
+If only one callback is given, the callback will be called right before the ready event.
+If two callbacks are given, the first callback will be called when the document is created
+and the second right before the ready event.
+
+The callbacks get the frame as parameter.
 
 To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
+
+#### `jasmine.ui.addLoadHtmlListener(listener1,listener2)`
+* Adds listeners for all loadHtml calls in the current spec. This will also
+  execute the listeners if the testwindow() is reloaded, e.g. by a form submit, ...
+* If only one callback is given, the callback will be called right before the ready event. If two callbacks are given, the first callback will be called when the document is created
+  and the second right before the ready event.
+  The callbacks get the frame as parameter.
 
 #### `waitsForAsync()`
 * Waits until the end of all asynchronous work in the test window:
@@ -69,7 +79,6 @@ To be placed where the run and waits functions can be placed in asynchronous jas
 #### `testwindow()`
 * Returns the loaded frame / window.
 * May be used anywhere after loadHtml was called.
-
 
 #### `jasmine.ui.normalizeExternalArray(array, window)`
 Clones the given array using the Array-Function in the given window.
