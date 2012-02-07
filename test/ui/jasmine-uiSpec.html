@@ -8,10 +8,10 @@
         // callbacks, so we do not need jquery mobile.
         $.fn.animationComplete = function(callback) {
            setTimeout(callback,0);
-        }
+        };
         $.fn.transitionComplete = function(callback) {
            setTimeout(callback,0);
-        }
+        };
 
     </script>
 
@@ -26,11 +26,6 @@
             xhr.open('GET', url);
             xhr.send();
         }
-    </script>
-
-    <script>
-        function TestConstructor(x) { this.x = x; };
-        function newTest(x) { return new TestConstructor(x); };
     </script>
 </head>
 <body>

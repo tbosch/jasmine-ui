@@ -2,7 +2,7 @@ describe("simulate", function() {
 
 
     /**
-     * Tests the event in an own frame. Needed to check if the jasmine.ui.simulate function
+     * Tests the event in an own frame. Needed to check if the jasmineui.testwindow().simulate function
      * also work within frames.
      * @param type
      * @param inputElement
@@ -11,7 +11,7 @@ describe("simulate", function() {
         var el;
         var received = false;
 
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(frame) {
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(frame) {
             if (inputElement) {
                 frame.$("body").append('<input id="si1" type="text"></input>');
             } else {
@@ -19,7 +19,7 @@ describe("simulate", function() {
             }
         });
         runs(function() {
-            el = testframe().$('#si1')[0];
+            el = jasmineui.testwindow().$('#si1')[0];
             if (el.addEventListener) {
                 el.addEventListener(type, function() {
                     received = true;
@@ -30,7 +30,7 @@ describe("simulate", function() {
                     received = true;
                 });
             }
-            jasmine.ui.simulate(el, type);
+            jasmineui.testwindow().simulate(el, type);
             expect(received).toEqual(true);
         });
     }

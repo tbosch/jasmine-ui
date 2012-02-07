@@ -5,15 +5,15 @@ describe("multi page handling", function() {
     }
 
     it('should wait until the next page is fully loaded', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
 
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.location.assign("/jasmine-ui/test/ui/jasmine-uiSpec2.html");
         });
-        waitsForReload();
+        jasmineui.waitsForReload();
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(getFileName(fr.location.href)).toEqual('jasmine-uiSpec2.html');
             expect(fr.$).toBeTruthy();
             expect(fr.$('#id2').length).toEqual(1);
@@ -21,17 +21,17 @@ describe("multi page handling", function() {
     });
 
     it('should instrument the next page', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
 
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.location.assign("/jasmine-ui/test/ui/jasmine-uiSpec2.html");
         });
-        waitsForReload();
+        jasmineui.waitsForReload();
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(getFileName(fr.location.href)).toEqual('jasmine-uiSpec2.html');
-            var wait = jasmine.ui.isWaitForAsync;
+            var wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
             // check the instrumentation via the waitforAsync flag
             expect(wait()).toEqual(false);
             fr.setTimeout(function() {}, 0);

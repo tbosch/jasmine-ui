@@ -1,9 +1,8 @@
 describe("loadHtml", function() {
-    it('should load the page and save it in the testframe and testwindow functions', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+    it('should load the page and save it in the testwindow functions', function() {
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var fr = testframe();
-            expect(testwindow()).toBe(fr);
+            var fr = jasmineui.testwindow();
             var jQuery = fr.jQuery;
             expect(jQuery.isReady).toBeTruthy();
 
@@ -14,8 +13,8 @@ describe("loadHtml", function() {
 
     it('should wait until the page was loaded if another page was loaded before', function() {
         var flag = false;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function() {
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function() {
             flag = true;
         });
         runs(function() {
@@ -24,83 +23,68 @@ describe("loadHtml", function() {
     });
 
     it('should refresh the page when the exact same page is loaded', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.test = true;
         });
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(fr.test).toBeUndefined();
         });
     });
 
     it('should refresh the page when the hash changes from empty to something', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.test = true;
         });
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#123");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#123");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(fr.test).toBeUndefined();
             expect(fr.location.hash).toEqual('#123');
         });
     });
 
     it('should refresh the page when the hash changes from something to something else', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#456");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#456");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.test = true;
             expect(fr.location.hash).toEqual('#456');
         });
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#123");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#123");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(fr.test).toBeUndefined();
             expect(fr.location.hash).toEqual('#123');
         });
     });
 
     it('should refresh the page when the hash changes from something to nothing', function() {
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#456");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html#456");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.test = true;
             expect(fr.location.hash).toEqual('#456');
         });
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(fr.test).toBeUndefined();
             var hash = fr.location.hash.replace(/#/g, '');
             expect(hash).toEqual('');
         });
     });
 
-    it('should be able to instrument the page at creation', function() {
-        var jQueryBeforeCallback, jQueryAfterCallback;
-
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(window) {
-            jQueryBeforeCallback = window.jQuery;
-        }, function(window) {
-            jQueryAfterCallback = window.jQuery;
-        });
-
-        runs(function() {
-            expect(jQueryBeforeCallback).toBeFalsy();
-            expect(jQueryAfterCallback).toBeTruthy();
-        });
-    });
-
     it('should be able to instrument the page before onload is called', function() {
         var docReadyInInstrument;
 
-        function instrumentHtml(window) {
-            var jQuery = window.jQuery;
+        function instrumentHtml() {
+            var jQuery = jasmineui.testwindow().jQuery;
             docReadyInInstrument = jQuery.isReady;
             spyOn(jQuery, 'ajax').andCallFake(function(url, options) {
                 options.success([
@@ -109,10 +93,10 @@ describe("loadHtml", function() {
                 ]);
             });
         }
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", instrumentHtml);
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", instrumentHtml);
 
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             expect(docReadyInInstrument).toEqual(false);
             var jQuery = fr.jQuery;
             expect(jQuery.isReady).toBeTruthy();
@@ -127,14 +111,14 @@ describe("loadHtml", function() {
     it('should integration with the wait function of requirejs', function() {
         var jqueryReadyInInstrument = false;
 
-        function instrumentHtml(window) {
-            var jQuery = window.jQuery;
+        function instrumentHtml() {
+            var jQuery = jasmineui.testwindow().jQuery;
             jqueryReadyInInstrument = jQuery.isReady;
         }
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html", instrumentHtml);
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html", instrumentHtml);
 
         runs(function() {
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             // This time, the ready function was called by our fake require-js,
             // so jquery was already ready.
             expect(jqueryReadyInInstrument).toEqual(true);
@@ -143,45 +127,16 @@ describe("loadHtml", function() {
 
     it("should call the instrumentation listeners only once", function() {
         var callCount = 0;
-        function instrumentHtml(window) {
+        function instrumentHtml() {
             callCount++;
         }
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html", instrumentHtml);
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html", instrumentHtml);
+        runs(function() {
+            expect(callCount).toBe(1);
+        });
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
         runs(function() {
             expect(callCount).toBe(1);
         });
     });
-
-    it("should call spec instrumentation listeners for every loadHtml in the spec", function() {
-        var callCount = 0;
-        function instrumentHtml(window) {
-            callCount++;
-        }
-        jasmine.ui.addLoadHtmlListener(instrumentHtml);
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
-        runs(function() {
-            expect(callCount).toBe(2);
-        });
-
-    });
-
-    it("should call spec instrumentation listeners for page reloads in the spec", function() {
-        var callCount = 0;
-        function instrumentHtml(window) {
-            callCount++;
-        }
-        jasmine.ui.addLoadHtmlListener(instrumentHtml);
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
-        runs(function() {
-            testwindow().location.reload();
-        });
-        waitsForReload();
-        runs(function() {
-            expect(callCount).toBe(2);
-        });
-
-    });
-
 });

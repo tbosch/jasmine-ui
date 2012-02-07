@@ -1,10 +1,11 @@
 describe("waitsForAsync", function() {
     it('should detect timeout waiting', function() {
         var mywindow, called;
-        var wait = jasmine.ui.isWaitForAsync;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        var wait;
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            mywindow = testframe();
+            wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
+            mywindow = jasmineui.testwindow();
             called = false;
         });
         runs(function() {
@@ -23,10 +24,11 @@ describe("waitsForAsync", function() {
     });
 
     it('should detect timeout clearance', function() {
-        var wait = jasmine.ui.isWaitForAsync;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        var wait;
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var mywindow = testframe();
+            wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
+            var mywindow = jasmineui.testwindow();
             var called = false;
             expect(wait()).toEqual(false);
             var handle = mywindow.setTimeout(function() {
@@ -39,13 +41,12 @@ describe("waitsForAsync", function() {
     });
 
     it('should detect interval waiting', function() {
-        var wait = jasmine.ui.isWaitForAsync;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            var mywindow = testframe();
+            var wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
+            var mywindow = jasmineui.testwindow();
             expect(wait()).toEqual(false);
             var handle = mywindow.setInterval(function() {
-                called = true;
             }, 100);
             expect(wait()).toEqual(true);
             mywindow.clearInterval(handle);
@@ -55,10 +56,11 @@ describe("waitsForAsync", function() {
 
     it('should allow intervals to work', function() {
         var mywindow, called;
-        var wait = jasmine.ui.isWaitForAsync;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+        var wait;
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
-            mywindow = testframe();
+            wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
+            mywindow = jasmineui.testwindow();
             called = 0;
             expect(wait()).toEqual(false);
             var handle = mywindow.setInterval(function() {
@@ -79,12 +81,12 @@ describe("waitsForAsync", function() {
 
     it('should detect ajax waiting', function() {
         var loaded = false;
-        var wait = jasmine.ui.isWaitForAsync;
-        loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html", function(window) {
-        });
+        var wait;
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
         runs(function() {
+            wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
             expect(wait()).toEqual(false);
-            var fr = testframe();
+            var fr = jasmineui.testwindow();
             fr.xhrCall('/jasmine-ui/test/ui/notexistent', function() {
                 loaded = true;
             });
@@ -102,11 +104,12 @@ describe("waitsForAsync", function() {
         'should detect jquery animation waiting',
         function() {
             var animationEnded;
-            var wait = jasmine.ui.isWaitForAsync;
-            loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+            var wait;
+            jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
             runs(function() {
+                wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
                 animationEnded = false;
-                var $ = testframe().$;
+                var $ = jasmineui.testwindow().$;
                 var el = $('#anim');
                 expect(wait()).toEqual(false);
                 el.animationComplete(function() {
@@ -125,11 +128,12 @@ describe("waitsForAsync", function() {
         'should detect jquery transition waiting',
         function() {
             var transitionComplete;
-            var wait = jasmine.ui.isWaitForAsync;
-            loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
+            var wait;
+            jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec.html");
             runs(function() {
+                wait = jasmineui.testwindow().jasmineui.isWaitForAsync;
                 transitionComplete = false;
-                var $ = testframe().$;
+                var $ = jasmineui.testwindow().$;
                 expect(wait()).toEqual(false);
                 var el = $("#anim");
                 el.transitionComplete(function() {
