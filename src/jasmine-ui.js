@@ -46,8 +46,9 @@ jasmineui.server = function () {
             this.childCount = 0;
             this.parent = null;
         }
+
         Node.prototype = {
-            execute: function() {
+            execute:function () {
                 this.executed = true;
                 var oldNode = currentNode;
                 currentNode = this;
@@ -57,32 +58,38 @@ jasmineui.server = function () {
                     currentNode = oldNode;
                 }
             },
-            bindExecute: function() {
+            bindExecute:function () {
                 var self = this;
-                return function() {
+                return function () {
                     return self.execute();
                 }
             },
-            addChild: function(name, childNode) {
+            addChild:function (type, name, childNode) {
                 if (!name) {
-                    name = ''+this.childCount;
+                    name = '' + this.childCount;
                 }
                 this.childCount++;
                 childNode.name = name;
+                childNode.type = type;
                 childNode.parent = this;
                 this.children[name] = childNode;
             },
-            child: function(childId) {
+            child:function (childId) {
                 return this.children[childId];
             },
-            findChild: function(childPath) {
-                if (childPath.length===0) {
+            findChild:function (childPath) {
+                if (childPath.length === 0) {
                     return this;
                 }
-                return this.child(childPath.shift()).findChild(childPath);
+                var childId = childPath.shift();
+                var child = this.child(childId);
+                if (!child) {
+                    throw new Error("Cannot find child "+childId+" in "+this.toString());
+                }
+                return child.findChild(childPath);
             },
-            path: function() {
-                if (this.parent==null) {
+            path:function () {
+                if (this.parent == null) {
                     // Ignore Root-Node in the path
                     return [];
                 } else {
@@ -91,7 +98,7 @@ jasmineui.server = function () {
                     return res;
                 }
             },
-            inDescribeUi: function() {
+            inDescribeUi:function () {
                 if (this.describeUi) {
                     return true;
                 }
@@ -99,31 +106,42 @@ jasmineui.server = function () {
                     return this.parent.inDescribeUi();
                 }
                 return false;
+            },
+            toString: function() {
+                if (this.parent == null) {
+                    return [];
+                } else {
+                    var res = this.parent.toString();
+                    res.push(this.type+':'+this.name);
+                    return res;
+                }
             }
         };
 
         jasmineui.original = {
-            describe: window.describe,
-            it: window.it,
-            beforeEach: window.beforeEach,
-            afterEach: window.afterEach
+            describe:window.describe,
+            it:window.it,
+            beforeEach:window.beforeEach,
+            afterEach:window.afterEach
         };
 
-        var rootNode = new Node(function() { });
+        var rootNode = new Node(function () {
+        });
         currentNode = rootNode;
 
-        function addLocallyDefinedAndRemoteExecutingNode(name) {
-            var node = new Node(function() {
+        function addLocallyDefinedAndRemoteExecutingNode(type, name) {
+            var node = new Node(function () {
                 return jasmineui.testwindow().jasmineui.executeNode(node.path());
             });
-            currentNode.addChild(name, node);
+            currentNode.addChild(type, name, node);
             return node;
         }
 
-        window.xit = function() { };
+        window.xit = function () {
+        };
         window.it = function (name, callback) {
             if (currentNode.inDescribeUi()) {
-                jasmineui.original.it(name, addLocallyDefinedAndRemoteExecutingNode(name).bindExecute());
+                jasmineui.original.it(name, addLocallyDefinedAndRemoteExecutingNode('it', name).bindExecute());
             } else {
                 jasmineui.original.it(name, callback);
             }
@@ -131,7 +149,7 @@ jasmineui.server = function () {
 
         window.beforeEach = function (callback) {
             if (currentNode.inDescribeUi()) {
-                jasmineui.original.beforeEach(addLocallyDefinedAndRemoteExecutingNode(undefined).bindExecute());
+                jasmineui.original.beforeEach(addLocallyDefinedAndRemoteExecutingNode('beforeEach', undefined).bindExecute());
             } else {
                 jasmineui.original.beforeEach(callback);
             }
@@ -139,7 +157,7 @@ jasmineui.server = function () {
 
         window.afterEach = function (callback) {
             if (currentNode.inDescribeUi()) {
-                jasmineui.original.afterEach(addLocallyDefinedAndRemoteExecutingNode(undefined).bindExecute());
+                jasmineui.original.afterEach(addLocallyDefinedAndRemoteExecutingNode('afterEach', undefined).bindExecute());
             } else {
                 jasmineui.original.afterEach(callback);
             }
@@ -152,47 +170,52 @@ jasmineui.server = function () {
          * <p>
          * This will be called from the testwindow!
          */
-        jasmineui.addRemoteDefinedNodeIfNeeded = function(type, parentPath, nodeName, extraArgs) {
+        jasmineui.addRemoteDefinedNodeIfNeeded = function (type, parentPath, nodeName, extraArgs) {
             var parent = rootNode.findChild(parentPath);
             var node = parent.child(nodeName);
-            if (node) {
+            if (node && parent.type==='it') {
                 return;
             }
-            node = new Node(function() {
-                return jasmineui.testwindow().jasmineui.executeNode(node.path());
-            });
-            parent.addChild(nodeName, node);
+            if (!node) {
+                node = new Node(function () {
+                    return jasmineui.testwindow().jasmineui.executeNode(node.path());
+                });
+                parent.addChild(type, nodeName, node);
+            }
             extraArgs = extraArgs || [];
-            if (type==='runs') {
+            if (type === 'runs') {
                 runs(node.bindExecute());
-            } else if (type==='waitsFor') {
+            } else if (type === 'waitsFor') {
                 extraArgs.unshift(node.bindExecute());
                 waitsFor.apply(this, extraArgs);
-            } else if (type==='waits') {
+            } else if (type === 'waits') {
                 waits.apply(this, extraArgs);
-            } else if (type==='waitsForAsync') {
+            } else if (type === 'waitsForAsync') {
                 jasmineui.waitsForAsync.apply(this, extraArgs);
-            } else if (type==='waitsForReload') {
+            } else if (type === 'waitsForReload') {
                 jasmineui.waitsForReload.apply(this, extraArgs);
             }
         };
 
         function createDescribeNode(name, callback, describeUi) {
             var node = new Node(callback);
-            currentNode.addChild(name, node);
+            currentNode.addChild('describe', name, node);
             node.describeUi = describeUi;
             jasmineui.original.describe(name, node.bindExecute());
             return node;
         }
 
-        window.xdescribe = function() { };
-        window.describe = function(name, callback) {
+        window.xdescribe = function () {
+        };
+        window.describe = function (name, callback) {
             createDescribeNode(name, callback, false);
         };
 
-        window.xdescribeUi = function() { };
+        window.xdescribeUi = function () {
+        };
         window.describeUi = function (name, pageUrl, callback) {
             var describeNode;
+
             function execute() {
                 jasmineui.original.beforeEach(function () {
                     jasmineui.loadHtml(pageUrl, function () {
@@ -204,6 +227,7 @@ jasmineui.server = function () {
                 });
                 callback();
             }
+
             describeNode = createDescribeNode(name, execute, true);
         };
 
@@ -212,7 +236,7 @@ jasmineui.server = function () {
          * @param callback
          */
         window.beforeLoad = function (callback) {
-            var node = addLocallyDefinedAndRemoteExecutingNode(undefined);
+            var node = addLocallyDefinedAndRemoteExecutingNode('beforeLoad', undefined);
             currentNode.beforeLoadNodes = currentNode.beforeLoadNodes || [];
             currentNode.beforeLoadNodes.push(node);
         };
@@ -293,14 +317,14 @@ jasmineui.server = function () {
                 // Always add jasmine-ui, the specs and all helper to the testwindow.
                 var scriptUrls = [];
                 findScripts(function (url) {
-                    if (url.match('jasmine-ui[^/]*$')|| url.match('Spec[^/]*$')|| url.match('SpecHelper[^/]*$') ) {
+                    if (url.match('jasmine-ui[^/]*$') || url.match('UiSpec[^/]*$') || url.match('UiHelper[^/]*$')) {
                         scriptUrls.push(url);
                     }
                 });
 
                 window.instrument = function (fr) {
                     jasmineui.log("Begin instrumenting frame " + fr.name + " with url " + fr.location.href);
-                    for (var i=0; i<scriptUrls.length; i++) {
+                    for (var i = 0; i < scriptUrls.length; i++) {
                         fr.document.writeln('<script src="' + scriptUrls[i] + '"></script>');
                     }
                     if (beforeLoadCallback) {
@@ -360,7 +384,8 @@ jasmineui.server = function () {
             });
             waitsFor(
                 function () {
-                    return !jasmineui.testwindow().jasmineui.isWaitForAsync()
+                    var win = jasmineui.testwindow();
+                    return win && win.jasmineui && !win.jasmineui.isWaitForAsync()
                 }, "end of async work", timeout);
             runs(function () {
                 jasmineui.log("end async waiting");
@@ -386,8 +411,9 @@ jasmineui.client = function () {
             this.childCount = 0;
             this.parent = null;
         }
+
         Node.prototype = {
-            execute: function() {
+            execute:function () {
                 this.executed = true;
                 var oldNode = currentNode;
                 currentNode = this;
@@ -397,29 +423,35 @@ jasmineui.client = function () {
                     currentNode = oldNode;
                 }
             },
-            addChild: function(name, childNode) {
+            addChild:function (type, name, childNode) {
                 if (!name) {
                     name = ''+this.childCount;
                 }
                 this.childCount++;
                 childNode.name = name;
+                childNode.type = type;
                 childNode.parent = this;
                 this.children[name] = childNode;
             },
-            child: function(childId) {
+            child:function (childId) {
                 if (!this.executed) {
                     this.execute();
                 }
                 return this.children[childId];
             },
-            findChild: function(childPath) {
-                if (childPath.length===0) {
+            findChild:function (childPath) {
+                if (childPath.length === 0) {
                     return this;
                 }
-                return this.child(childPath.shift()).findChild(childPath);
+                var childId = childPath.shift();
+                var child = this.child(childId);
+                if (!child) {
+                    throw new Error("Cannot find child "+childId+" in "+this.toString());
+                }
+                return child.findChild(childPath);
             },
-            path: function() {
-                if (this.parent==null) {
+            path:function () {
+                if (this.parent == null) {
                     // Ignore Root-Node in the path
                     return [];
                 } else {
@@ -427,73 +459,89 @@ jasmineui.client = function () {
                     res.push(this.name);
                     return res;
                 }
+            },
+            toString: function() {
+                if (this.parent == null) {
+                    return [];
+                } else {
+                    var res = this.parent.toString();
+                    res.push(this.type+':'+this.name);
+                    return res;
+                }
             }
         };
 
-        var rootNode = new Node(function() { });
+        var rootNode = new Node(function () {
+        });
         currentNode = rootNode;
 
-        window.xdescribe = function() { };
-        window.xdescribeUi = function() { };
-        window.xit = function() { };
-
-        window.beforeLoad = function(callback) {
-            addRemoteDefinedAndLocallyExecutingNode(null, callback);
+        window.xdescribe = function () {
+        };
+        window.xdescribeUi = function () {
+        };
+        window.xit = function () {
         };
 
-        function addRemoteDefinedAndLocallyExecutingNode(name, callback) {
-            currentNode.addChild(name, new Node(callback));
+        window.beforeLoad = function (callback) {
+            addRemoteDefinedAndLocallyExecutingNode('beforeLoad', null, callback);
+        };
+
+        function addRemoteDefinedAndLocallyExecutingNode(type, name, callback) {
+            currentNode.addChild(type, name, new Node(callback));
         }
 
         window.describeUi = function (name, pageUrl, callback) {
-            addRemoteDefinedAndLocallyExecutingNode(name, callback);
+            addRemoteDefinedAndLocallyExecutingNode('describe', name, callback);
         };
 
-        window.describe = function(name, callback) {
-            addRemoteDefinedAndLocallyExecutingNode(name, callback);
+        window.describe = function (name, callback) {
+            addRemoteDefinedAndLocallyExecutingNode('describe', name, callback);
         };
 
         window.it = function (name, callback) {
-            addRemoteDefinedAndLocallyExecutingNode(name, callback);
+            addRemoteDefinedAndLocallyExecutingNode('it', name, callback);
         };
 
         window.beforeEach = function (callback) {
-            addRemoteDefinedAndLocallyExecutingNode(null, callback);
+            addRemoteDefinedAndLocallyExecutingNode('beforeEach', null, callback);
         };
 
         window.afterEach = function (callback) {
-            addRemoteDefinedAndLocallyExecutingNode(null, callback);
+            addRemoteDefinedAndLocallyExecutingNode('afterEach', null, callback);
         };
 
         function addLocallyDefinedNode(type, callback, extraArgs) {
             var node = new Node(callback);
-            currentNode.addChild(null, node);
+            currentNode.addChild(type, null, node);
             opener.jasmineui.addRemoteDefinedNodeIfNeeded(type, node.parent.path(), node.name, extraArgs);
         }
 
-        window.runs = function(callback) {
+        window.runs = function (callback) {
             addLocallyDefinedNode('runs', callback);
         };
 
-        window.waitsFor = function(callback) {
+        window.waitsFor = function (callback) {
             var originalArgs = arguments;
-            addLocallyDefinedNode('waitsFor', function() {
+            addLocallyDefinedNode('waitsFor', function () {
                 return callback.apply(this, originalArgs);
             });
         };
 
-        window.waits = function(timeout) {
-            addLocallyDefinedNode('waits', function() { }, [timeout]);
+        window.waits = function (timeout) {
+            addLocallyDefinedNode('waits', function () {
+            }, [timeout]);
         };
 
-        window.waitsForAsync = function(timeout) {
+        window.waitsForAsync = function (timeout) {
             addLocallyDefinedNode('waitsForAsync', [timeout]);
         };
-        window.waitsForReload = function(timeout) {
+        window.waitsForReload = function (timeout) {
             addLocallyDefinedNode('waitsForReload', [timeout]);
         };
 
         window.expect = opener.expect;
+        window.jasmine = opener.jasmine;
+        window.spyOn = opener.spyOn;
 
         jasmineui.executeNode = function (nodePath) {
             var node = rootNode.findChild(nodePath);

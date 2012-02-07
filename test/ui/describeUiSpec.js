@@ -33,6 +33,10 @@ describe('describeUi', function () {
                 expect(new Date().getTime() - startTime).toBeGreaterThan(600);
             });
         });
+        it("should allow access to default jasmine functions", function() {
+            expect(spyOn).toBeTruthy();
+            expect(jasmine).toBeTruthy();
+        });
         xit("should be able to use xit", function () {
             expect(true).toBe(false);
         });
@@ -48,6 +52,30 @@ describe('describeUi', function () {
         it("should not run", function () {
             expect(true).toBe(false);
         })
+    });
+
+    describe('describe interactions', function() {
+        var describeCount = 0;
+        var callcount = 0;
+        describeUi("describe1", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+            describeCount++;
+            it("should only call one describe in a window 1", function() {
+                expect(describeCount).toBe(1);
+                expect(callcount).toBe(0);
+                callcount++;
+            });
+            it("should only call one describe in a window 2", function() {
+                expect(callcount).toBe(0);
+                callcount++;
+            });
+        });
+        describeUi("describe2", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+            describeCount++;
+            it("should only call one describe in a window 1", function() {
+                expect(callcount).toBe(0);
+                expect(describeCount).toBe(1);
+            });
+        });
     });
 
     describeUi("hook functions, even in incorrect order", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
@@ -80,6 +108,24 @@ describe('describeUi', function () {
 
                 state++;
             });
+        });
+    });
+
+    describeUi("repeating hooks", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+        var called1, called2;
+        beforeEach(function() {
+            called1 = true;
+            runs(function() {
+                called2 = true;
+            });
+        });
+        it("should call beforeEach for every it 1", function() {
+            expect(called1).toBe(true);
+            expect(called2).toBe(true);
+        });
+        it("should call beforeEach for every it 2", function() {
+            expect(called1).toBe(true);
+            expect(called2).toBe(true);
         });
     });
 

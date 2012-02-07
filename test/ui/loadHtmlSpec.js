@@ -139,4 +139,11 @@ describe("loadHtml", function() {
             expect(callCount).toBe(1);
         });
     });
+
+    it("should load helper scripts into the newly created window", function() {
+        jasmineui.loadHtml("/jasmine-ui/test/ui/jasmine-uiSpec3.html");
+        runs(function() {
+            expect(uiHelper).toBe(true);
+        });
+    });
 });

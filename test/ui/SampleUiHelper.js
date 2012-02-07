@@ -1,0 +1,1 @@
+window.uiHelper = true;
