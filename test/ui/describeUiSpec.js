@@ -6,17 +6,17 @@ describe('describeUi', function () {
             });
         });
         it("should execute it callbacks in the testwindow", function () {
-            expect(window.opener.jasmineui).toBeTruthy();
+            expect(window.opener.jasmineuiserver).toBeTruthy();
         });
         it("should execute runs callbacks in the testwindow", function () {
             runs(function () {
-                expect(window.opener.jasmineui).toBeTruthy();
+                expect(window.opener.jasmineuiserver).toBeTruthy();
             });
         });
         it("should execute waitFor callbacks in the testwindow", function () {
             var remoteJasmineui;
             waitsFor(function () {
-                remoteJasmineui = window.opener.jasmineui;
+                remoteJasmineui = window.opener.jasmineuiserver;
                 return true;
             });
             runs(function () {
@@ -41,7 +41,6 @@ describe('describeUi', function () {
             expect(true).toBe(false);
         });
     });
-
     xdescribe('should be able to use xdescribe', function () {
         it("should not run", function () {
             expect(true).toBe(false);
@@ -140,8 +139,9 @@ describe('describeUi', function () {
                 opener.remoteCounter++;
                 location.reload();
             });
-            waitsForReload();
+            waitsForAsync({requireReload: true});
             runs(function() {
+                expect($).toBeDefined();
                 expect(localCounter).toBe(0);
                 expect(opener.remoteCounter).toBe(1);
             });

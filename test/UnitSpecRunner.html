@@ -1,0 +1,48 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN"
+        "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+    <title>Jasmine Test Runner</title>
+    <link rel="stylesheet" href="lib/jasmine.css">
+
+    <script type="text/javascript" src="../lib/jasmine.js"></script>
+    <script type="text/javascript" src="lib/jasmine-html.js"></script>
+    <script type="text/javascript" src="lib/jquery-1.5.1.js"></script>
+
+    <script type="text/javascript" src="../src/simple-require.js"></script>
+
+    <script type="text/javascript" src="../src/scriptAccessor.js"></script>
+    <script type="text/javascript" src="../src/logger.js"></script>
+    <script type="text/javascript" src="../src/server/asyncWaitServer.js"></script>
+    <script type="text/javascript" src="../src/server/clientInvoker.js"></script>
+    <script type="text/javascript" src="../src/server/desribeUi.js"></script>
+    <script type="text/javascript" src="../src/server/jasmineApi.js"></script>
+    <script type="text/javascript" src="../src/server/loadHtml.js"></script>
+    <script type="text/javascript" src="../src/server/remoteSpecServer.js"></script>
+    <script type="text/javascript" src="../src/server/testwindow.js"></script>
+    <script type="text/javascript" src="../src/client/remoteSpecClient.js"></script>
+    <script type="text/javascript" src="../src/client/serverInvoker.js"></script>
+    <script type="text/javascript" src="../src/simulateEvent.js"></script>
+    <script type="text/javascript" src="../src/eventListener.js"></script>
+    <!-- Note: DON'T include main.js here, as it would start the modules automatically. But we want to create them
+         with mocks in the specs... -->
+
+    <!-- Specs go here.... -->
+    <script type="text/javascript" src="unit/loggerSpec.js"></script>
+    <script type="text/javascript" src="unit/asyncWaitServerSpec.js"></script>
+    <script type="text/javascript" src="unit/loadHtmlSpec.js"></script>
+    <script type="text/javascript" src="unit/remoteSpecServerSpec.js"></script>
+    <script type="text/javascript" src="unit/remoteSpecClientSpec.js"></script>
+    <script type="text/javascript" src="unit/simulateEventSpec.js"></script>
+
+
+</head>
+<body>
+<!-- execute jasmine tests -->
+<script type="text/javascript">
+    jasmine.getEnv().addReporter(new jasmine.TrivialReporter());
+    jasmine.getEnv().execute();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,20 @@
+<jsp:include page="../build/header.js"/>
+<jsp:include page="../src/simple-require.js"/>
+<jsp:include page="../src/scriptAccessor.js"/>
+<jsp:include page="../src/logger.js"/>
+<jsp:include page="../src/server/asyncWaitServer.js"/>
+<jsp:include page="../src/server/clientInvoker.js"/>
+<jsp:include page="../src/server/desribeUi.js"/>
+<jsp:include page="../src/server/jasmineApi.js"/>
+<jsp:include page="../src/server/loadHtml.js"/>
+<jsp:include page="../src/server/remoteSpecServer.js"/>
+<jsp:include page="../src/server/testwindow.js"/>
+<jsp:include page="../src/client/remoteSpecClient.js"/>
+<jsp:include page="../src/client/serverInvoker.js"/>
+<jsp:include page="../src/client/asyncWaitClient.js"/>
+<jsp:include page="../src/client/errorHandler.js"/>
+<jsp:include page="../src/simulateEvent.js"/>
+<jsp:include page="../src/eventListener.js"/>
+<jsp:include page="../src/main.js"/>
+<jsp:include page="../build/footer.js"/>
+    
