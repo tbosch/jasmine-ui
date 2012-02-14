@@ -5,24 +5,14 @@
  * Copyright 2011, Tobias Bosch (OPITZ CONSULTING GmbH)
  * Licensed under the MIT license.
  */
-(function() {
+
 /**
  * Simple implementation of AMD require/define assuming all
  * modules are named and loaded explicitly, and require is called
  * after all needed modules have been loaded.
  */
-var require, define;
 (function (window) {
-
-    if (typeof define !== "undefined") {
-        //If a define is already in play via another AMD loader,
-        //do not overwrite.
-        return;
-    }
-
-    var moduleDefs = [];
-
-    define = function (name, deps, value) {
+    var define = function (name, deps, value) {
         var dotJs = name.indexOf('.js');
         if (dotJs !== -1) {
             name = name.substring(0, dotJs);
@@ -32,16 +22,29 @@ var require, define;
             value = deps;
             deps = [];
         }
-        moduleDefs.push({
+        var def = {
             name:name,
             deps:deps,
             value:value
-        });
+        };
+        for (var i = 0; i < define.moduleDefs.length; i++) {
+            var mod = define.moduleDefs[i];
+            if (mod.name == name) {
+                define.moduleDefs[i] = def;
+                return;
+            }
+        }
+        define.moduleDefs.push(def);
+    };
+    define.moduleDefs = [];
+    define.plugins = {
+        remote:remotePlugin,
+        factory:factoryPlugin
     };
 
     function findModuleDefinition(name) {
-        for (var i = 0; i < moduleDefs.length; i++) {
-            var mod = moduleDefs[i];
+        for (var i = 0; i < define.moduleDefs.length; i++) {
+            var mod = define.moduleDefs[i];
             if (mod.name == name) {
                 return mod;
             }
@@ -49,18 +52,53 @@ var require, define;
         throw new Error("Could not find the module " + name);
     }
 
+    function plugin(pluginName, moduleName) {
+        var p = define.plugins[pluginName];
+        if (!p) {
+            throw new Error("Unknown plugin " + pluginName);
+        }
+        return p(moduleName);
+    }
+
+    function factoryPlugin(moduleName) {
+        return function (cache) {
+            cache = cache || {};
+            return factory(moduleName, cache);
+        }
+    }
+
+    function remotePlugin(moduleName) {
+        return function (window) {
+            var res;
+            window.jasmineui.require([moduleName], function (remoteModule) {
+                res = remoteModule;
+            });
+            return res;
+        };
+    }
+
 
     function factory(name, instanceCache) {
         if (!instanceCache) {
             instanceCache = {};
         }
-        var mod = findModuleDefinition(name);
-        if (!instanceCache[mod.name]) {
-            var resolvedDeps = listFactory(mod.deps, instanceCache);
-            var resolvedValue = mod.value;
-            if (typeof mod.value === 'function') {
-                resolvedValue = mod.value.apply(window, resolvedDeps);
+        if (instanceCache[name] === undefined) {
+            var resolvedValue;
+            var pluginSeparator = name.indexOf('!');
+            if (pluginSeparator !== -1) {
+                var pluginName = name.substring(0, pluginSeparator);
+                var moduleName = name.substring(pluginSeparator + 1);
+                resolvedValue = plugin(pluginName, moduleName);
+            } else {
+                // Normal locally defined modules.
+                var mod = findModuleDefinition(name);
+                var resolvedDeps = listFactory(mod.deps, instanceCache);
+                resolvedValue = mod.value;
+                if (typeof mod.value === 'function') {
+                    resolvedValue = mod.value.apply(window, resolvedDeps);
+                }
             }
+
             instanceCache[name] = resolvedValue;
         }
         return instanceCache[name];
@@ -77,53 +115,56 @@ var require, define;
         return resolvedDeps;
     }
 
-    var instanceCache = {};
-
-    require = function (deps, callback) {
-        var resolvedDeps = listFactory(deps, instanceCache);
+    var require = function (deps, callback) {
+        var resolvedDeps = listFactory(deps, require.cache);
         if (typeof callback === 'function') {
             callback.apply(this, resolvedDeps);
         }
         return resolvedDeps;
     };
+    require.cache = {};
 
-    require.factory = factory;
+    window.jasmineui = window.jasmineui || {};
+    window.jasmineui.require = require;
+    window.jasmineui.define = define;
 
 })(window);
-define('scriptAccessor', function () {
-    /**
-     * Loops through the scripts of the current document and
-     * calls a callback with their url.
-     * @param urlCallback
-     */
-    function findScripts(document, urlCallback) {
-        var scripts = document.getElementsByTagName("script");
-        for (var i = 0; i < scripts.length; i++) {
-            var script = scripts[i];
-            if (script.src) {
-                urlCallback(script.src);
-            }
-        }
-    }
-
+jasmineui.define('scriptAccessor', function () {
     function writeScriptWithUrl(document, url) {
         document.writeln('<script type="text/javascript" src="' + url + '"></script>');
     }
 
     function writeInlineScript(document, data) {
-        document.writeln('<script type="text/javascript"">' + data + '</script>');
+        document.writeln('<script type="text/javascript">' + data + '</script>');
+    }
+
+    /**
+     * Calls the given callback after the current script finishes execution.
+     * The callback will get one parameter with the url of the executed script.
+     * @param callback
+     */
+    function afterCurrentScript(document, callback) {
+        var loadListener = function (event) {
+            var node = event.target;
+            if (node.nodeName == 'SCRIPT') {
+                callback(node.src);
+                document.removeEventListener('load', loadListener, true);
+            }
+        };
+        // Use capturing event listener, as load event of script does not bubble!
+        document.addEventListener('load', loadListener, true);
     }
 
 
     return {
-        findScripts:findScripts,
         writeScriptWithUrl:writeScriptWithUrl,
-        writeInlineScript:writeInlineScript
+        writeInlineScript:writeInlineScript,
+        afterCurrentScript:afterCurrentScript
     }
-});define('logger', function () {
+});jasmineui.define('logger', ['globals'], function (globals) {
     function log(msg) {
         if (enabled()) {
-            console.log(msg);
+            globals.console.log(msg);
         }
     }
 
@@ -142,80 +183,30 @@ define('scriptAccessor', function () {
         enabled: enabled
     }
 
-});define('server/asyncWaitServer', ['server/jasmineApi', 'logger', 'server/clientInvoker', 'server/testwindow'], function (jasmineApi, logger, clientInvoker, testwindow) {
-    /**
-     * Waits for the end of all aynchronous actions.
-     * @param timeout
-     */
-    function waitsForAsync(arg) {
-        var timeout
-        var requireReload = false;
-        if (typeof arg === 'number') {
-            timeout = arg;
-        } else if (typeof arg === 'object') {
-            timeout = arg.timeout;
-            requireReload = arg.requireReload;
-        }
-        var timeout = timeout || 5000;
-
-        jasmineApi.runs(function () {
-            if (requireReload) {
-                testwindow.requireReload();
-            }
-            logger.log("begin async waiting");
-        });
-        // Wait at least 50 ms. Needed e.g.
-        // for animations, as the animation start event is
-        // not fired directly after the animation css is added.
-        // There may also be a gap between changing the location hash
-        // and the hashchange event (almost none however...).
-        jasmineApi.waits(100);
-        jasmineApi.waitsFor(
-            function () {
-                return clientInvoker.ready() && !clientInvoker.isWaitForAsync();
-            }, "end of async work", timeout);
-        jasmineApi.runs(function () {
-            logger.log("end async waiting");
-        });
-    }
-
+});jasmineui.define('globals', function () {
     return {
-        waitsForAsync:waitsForAsync
-    }
-});/**
- * Invoker to access the testwindow from the server.
- */
-define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
-    function client() {
-        var win = testwindow.get();
-        return win && win.jasmineuiclient;
-    }
-
-    function addBeforeLoadListener(listener) {
-        client().addBeforeLoadListener(listener);
-    }
-
-    function isWaitForAsync() {
-        return client().isWaitForAsync();
-    }
-
-    function executeSpecNode(nodePath) {
-        return client().executeSpecNode(nodePath);
-    }
-
-    function ready() {
-        return testwindow.ready() && !!client();
-    }
-
-    return {
-        addBeforeLoadListener:addBeforeLoadListener,
-        isWaitForAsync:isWaitForAsync,
-        executeSpecNode:executeSpecNode,
-        ready: ready
-    }
-});define('server/describeUi', ['server/jasmineApi', 'server/loadHtml', 'server/testwindow', 'server/asyncWaitServer'], function (jasmineApi, loadHtml, testwindow, asyncWait) {
+        window:window,
+        document:document,
+        console:console,
+        opener:opener
+    };
+});jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/testwindow', 'remote!client/asyncSensor', 'remote!client/loadEventSupport', 'scriptAccessor', 'globals'], function (logger, jasmineApi, testwindow, asyncSensorRemote, loadEventSupportRemote, scriptAccessor, globals) {
 
     var currentBeforeLoadCallbacks;
+    var uiTestScriptUrls = [];
+
+    function addJasmineUiScriptUrl() {
+        if (globals.window.jasmineui.scripturl) {
+            uiTestScriptUrls.push(globals.window.jasmineui.scripturl);
+        }
+    }
+    addJasmineUiScriptUrl();
+
+    function addCurrentScriptToTestWindow() {
+        scriptAccessor.afterCurrentScript(globals.document, function (url) {
+            uiTestScriptUrls.push(url);
+        });
+    }
 
     /**
      * Just like describe, but opens a window with the given url during the test.
@@ -225,17 +216,34 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
      * @param callback
      */
     function describeUi(name, pageUrl, callback) {
+        addCurrentScriptToTestWindow();
         function execute() {
             var beforeLoadCallbacks = [];
             jasmineApi.beforeEach(function () {
+                var beforeLoadHappened = false;
                 jasmineApi.runs(function () {
-                    loadHtml.execute(pageUrl, function () {
-                        for (var i = 0; i < beforeLoadCallbacks.length; i++) {
-                            beforeLoadCallbacks[i]();
-                        }
+                    logger.log('Begin open url ' + pageUrl);
+                    testwindow(pageUrl, uiTestScriptUrls, function (win) {
+                        loadEventSupportRemote(win).addBeforeLoadListener(function () {
+                            beforeLoadHappened = true;
+                            for (var i = 0; i < beforeLoadCallbacks.length; i++) {
+                                beforeLoadCallbacks[i]();
+                            }
+                        });
                     });
                 });
-
+                jasmineApi.waitsFor(function() {
+                    if (!beforeLoadHappened) {
+                        return false;
+                    }
+                    if (asyncSensorRemote(testwindow())()) {
+                        return false;
+                    }
+                    return true;
+                });
+                jasmineApi.runs(function () {
+                    logger.log('Finished open url ' + pageUrl);
+                });
             });
             var oldCallbacks = currentBeforeLoadCallbacks;
             currentBeforeLoadCallbacks = beforeLoadCallbacks;
@@ -261,7 +269,12 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         describeUi:describeUi,
         beforeLoad:beforeLoad
     }
-});define('server/jasmineApi', function () {
+});jasmineui.define('server/jasmineApi', function () {
+
+    function fail(message) {
+        jasmine.getEnv().currentSpec.fail(message);
+    }
+
     /**
      * Save the original values, as we are overwriting them in some modules
      */
@@ -272,75 +285,10 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         runs:window.runs,
         it:window.it,
         waitsFor:window.waitsFor,
-        waits:window.waits
+        waits:window.waits,
+        fail:fail
     }
-});define('server/loadHtml', ['logger', 'server/testwindow', 'server/jasmineApi', 'scriptAccessor', 'server/clientInvoker', 'server/asyncWaitServer'], function (logger, testwindow, jasmineApi, scriptAccessor, clientInvoker, asyncWaitServer) {
-
-    /**
-     * List of regex. Scripts form the current document that match one of these regex
-     * will be injected into the testwindow be loadHtml.
-     */
-    var _injectScripts = [];
-
-    function injectScripts(scripts) {
-        if (!scripts) {
-            return _injectScripts;
-        } else {
-            _injectScripts = scripts;
-        }
-    }
-
-    /**
-     * Loads the given url into the testwindow.
-     * Injects the scripts form injectScripts.
-     * Dynamically adds an additional beforeLoad eventListener to the frame.
-     * Integrates with jasmine and waits until the page is fully loaded.
-     * <p>
-     * Requires the following line at the beginning of the loaded document:
-     * <pre>
-     * opener && opener.instrument && opener.instrument(window);
-     * </pre>
-     * @param url
-     * @param beforeLoadCallback A callback that will be executed right before the load event of the page.
-     */
-    function execute(url, beforeLoadCallback) {
-        jasmineApi.runs(function () {
-
-            var scriptUrls = [];
-            scriptAccessor.findScripts(document, function (url) {
-                for (var i = 0; i < _injectScripts.length; i++) {
-                    if (url.match(_injectScripts[i])) {
-                        scriptUrls.push(url);
-                    }
-                }
-            });
-
-            window.instrument = function (fr) {
-                logger.log("Begin instrumenting frame " + fr.name + " with url " + fr.location.href);
-                for (var i = 0; i < scriptUrls.length; i++) {
-                    scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
-                }
-                if (beforeLoadCallback) {
-                    window.afterScriptInjection = function () {
-                        clientInvoker.addBeforeLoadListener(beforeLoadCallback);
-                        beforeLoadCallback = null;
-                    };
-                    scriptAccessor.writeInlineScript(fr.document, 'opener.afterScriptInjection();');
-                }
-            };
-            testwindow.get(url);
-        });
-        asyncWaitServer.waitsForAsync();
-        jasmineApi.runs(function () {
-            logger.log("Successfully loaded url " + url);
-        });
-    }
-
-    return {
-        execute: execute,
-        injectScripts: injectScripts
-    };
-});define('server/remoteSpecServer', ['server/jasmineApi', 'server/clientInvoker', 'server/describeUi', 'server/asyncWaitServer'], function (jasmineApi, client, originalDescribeUi, asyncWaitServer) {
+});jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'server/testwindow', 'remote!client/remoteSpecClient', 'remote!client/asyncSensor'], function (jasmineApi, originalDescribeUi, testwindow, clientRemote, asyncSensorRemote) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -433,7 +381,7 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
 
     function addClientExecutingNode(type, name) {
         var node = new Node(function () {
-            return client.executeSpecNode(node.path());
+            return clientRemote(testwindow()).executeSpecNode(node.path());
         });
         currentNode.addChild(type, name, node);
         return node;
@@ -481,12 +429,20 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         if (type === 'runs') {
             jasmineApi.runs(node.bindExecute());
         } else if (type === 'waitsFor') {
-            extraArgs.unshift(node.bindExecute());
+            var callback = function () {
+                var testwin = testwindow();
+                if (testwin.document.readyState!=="complete") {
+                    return false;
+                }
+                if (asyncSensorRemote(testwin)()) {
+                    return false;
+                }
+                return node.execute();
+            };
+            extraArgs.unshift(callback);
             jasmineApi.waitsFor.apply(this, extraArgs);
         } else if (type === 'waits') {
             jasmineApi.waits.apply(this, extraArgs);
-        } else if (type === 'waitsForAsync') {
-            asyncWaitServer.waitsForAsync.apply(this, extraArgs);
         }
     }
 
@@ -499,7 +455,9 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         describeUi:describeUi,
         addClientDefinedSpecNode:addClientDefinedNode
     }
-});define('server/testwindow', function () {
+});jasmineui.define('server/testwindow', ['remote!client/reloadMarker', 'scriptAccessor', 'globals'], function (reloadMarkerApi, scriptAccessor, globals) {
+    var window = globals.window;
+
     function splitAtHash(url) {
         var hashPos = url.indexOf('#');
         if (hashPos != -1) {
@@ -509,60 +467,400 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         }
     }
 
-    var testwindow;
-    var requireReloadFlag = 'testwindow#requiresReload';
+    var _testwindow;
 
     /**
-     * testwindow(url): This function is able to create a testframe
-     * with a given url.
+     * Creates a testwindow with the given url.
+     * Injects the scripts with the given urls and calls the given callback after
+     * the scripts were executed.
      */
-    function get(url) {
-        if (arguments.length > 0) {
-            if (!url.charAt(0) == '/') {
-                throw new Error("the url for the testframe needs to be absolute!");
-            }
-            if (!testwindow) {
-                testwindow = window.open(url, 'jasmineui');
-            } else {
-                // Set a flag to detect whether the
-                // window is currently in a reload cycle.
-                requireReload();
-            }
-            var oldPath = testwindow.location.pathname;
+    function testwindow(url, scriptUrls, callback) {
+        if (arguments.length === 0) {
+            return _testwindow;
+        }
+        if (url.charAt(0) !== '/') {
+            // We need absolute paths because of the check later with location.pathname.
+            throw new Error("Absolute paths are required");
+        }
+        if (!_testwindow) {
+            _testwindow = window.open(url, 'jasmineui');
+        } else {
+            // Set a flag to detect whether the
+            // window is currently in a reload cycle.
+            reloadMarkerApi(_testwindow).requireReload();
+            var oldPath = _testwindow.location.pathname;
             // if only the hash changes, the
             // page will not reload by assigning the href but only
             // change the hashpath.
             // So detect this and do a manual reload.
             var urlSplitAtHash = splitAtHash(url);
             if (oldPath === urlSplitAtHash[0]) {
-                testwindow.location.hash = urlSplitAtHash[1];
-                testwindow.location.reload();
+                _testwindow.location.hash = urlSplitAtHash[1];
+                _testwindow.location.reload();
             } else {
-                testwindow.location.href = url;
+                _testwindow.location.href = url;
             }
         }
-        return testwindow;
+
+        window.instrument = function (fr) {
+            for (var i = 0; i < scriptUrls.length; i++) {
+                scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
+            }
+            window.afterScriptInjection = function () {
+                callback(fr);
+            };
+            scriptAccessor.writeInlineScript(fr.document, 'opener.afterScriptInjection();');
+        };
+
+        return _testwindow;
     }
 
-    function requireReload() {
-        get()[requireReloadFlag] = true;
+    return testwindow;
+
+});jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSupport', 'client/reloadMarker'], function (globals, logger, loadEventSupport, reloadMarker) {
+    var window = globals.window;
+    var asyncSensors = {};
+
+    /**
+     * Adds a sensor.
+     * A sensor is a function that returns whether asynchronous work is going on.
+     *
+     * @param name
+     * @param sensor Function that returns true/false.
+     */
+    function addAsyncSensor(name, sensor) {
+        asyncSensors[name] = sensor;
     }
 
-    function inReload() {
-        return get() && get()[requireReloadFlag];
+    function isAsyncProcessing() {
+        var sensors = asyncSensors;
+        for (var name in sensors) {
+            if (sensors[name]()) {
+                logger.log("async processing: " + name);
+                return true;
+            }
+        }
+        return false;
     }
 
-    function ready() {
-        return !!get() && !inReload();
+    /**
+     * Adds an async sensor for the load event
+     */
+    (function () {
+        addAsyncSensor('loading', function () {
+            return !loadEventSupport.loaded();
+        });
+    })();
+
+    /**
+     * Adds an async sensor for the reload
+     */
+    (function () {
+        addAsyncSensor('reload', function () {
+            return reloadMarker.inReload();
+        });
+    })();
+
+    /**
+     * Adds an async sensor for the window.setTimeout function.
+     */
+    (function () {
+        var timeouts = {};
+        if (!window.oldTimeout) {
+            window.oldTimeout = window.setTimeout;
+        }
+        window.setTimeout = function (fn, time) {
+            logger.log("setTimeout called");
+            var handle;
+            var callback = function () {
+                delete timeouts[handle];
+                logger.log("timed out");
+                if (typeof fn == 'string') {
+                    eval(fn);
+                } else {
+                    fn();
+                }
+            };
+            handle = window.oldTimeout(callback, time);
+            timeouts[handle] = true;
+            return handle;
+        };
+
+        window.oldClearTimeout = window.clearTimeout;
+        window.clearTimeout = function (code) {
+            logger.log("clearTimeout called");
+            window.oldClearTimeout(code);
+            delete timeouts[code];
+        };
+        addAsyncSensor('timeout', function () {
+            var count = 0;
+            for (var x in timeouts) {
+                count++;
+            }
+            return count != 0;
+        });
+    })();
+
+    /**
+     * Adds an async sensor for the window.setInterval function.
+     */
+    (function () {
+        var intervals = {};
+        window.oldSetInterval = window.setInterval;
+        window.setInterval = function (fn, time) {
+            logger.log("setInterval called");
+            var callback = function () {
+                if (typeof fn == 'string') {
+                    eval(fn);
+                } else {
+                    fn();
+                }
+            };
+            var res = window.oldSetInterval(callback, time);
+            intervals[res] = 'true';
+            return res;
+        };
+
+        window.oldClearInterval = window.clearInterval;
+        window.clearInterval = function (code) {
+            logger.log("clearInterval called");
+            window.oldClearInterval(code);
+            delete intervals[code];
+        };
+        // return a function that allows to check
+        // if an interval is running...
+        addAsyncSensor('interval', function () {
+            var count = 0;
+            for (var x in intervals) {
+                count++;
+            }
+            return count != 0;
+        });
+    })();
+
+    /**
+     * Adds an async sensor for the window.XMLHttpRequest.
+     */
+    (function () {
+        var jasmineWindow = window;
+        var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
+        var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
+
+        var oldXHR = window.XMLHttpRequest;
+        window.openCallCount = 0;
+        var DONE = 4;
+        var newXhr = function () {
+            var self = this;
+            this.origin = new oldXHR();
+
+            function copyState() {
+                for (var i = 0; i < copyStateFields.length; i++) {
+                    var field = copyStateFields[i];
+                    try {
+                        self[field] = self.origin[field];
+                    } catch (_) {
+                    }
+                }
+            }
+
+            function proxyMethod(name) {
+                self[name] = function () {
+                    if (name == 'send') {
+                        window.openCallCount++;
+                    }
+                    var res = self.origin[name].apply(self.origin, arguments);
+                    copyState();
+                    return res;
+                }
+            }
+
+            for (var i = 0; i < proxyMethods.length; i++) {
+                proxyMethod(proxyMethods[i]);
+            }
+            this.origin.onreadystatechange = function () {
+                if (self.origin.readyState == DONE) {
+                    window.openCallCount--;
+                }
+                copyState();
+                if (self.onreadystatechange) {
+                    self.onreadystatechange.apply(self.origin, arguments);
+                }
+            };
+            copyState();
+        };
+        window.XMLHttpRequest = newXhr;
+
+        addAsyncSensor('xhr',
+            function () {
+                return window.openCallCount != 0;
+            });
+    })();
+
+    /**
+     * Adds an async sensor for the webkitAnimationStart and webkitAnimationEnd events.
+     * Note: The animationStart event is usually fired some time
+     * after the animation was added to the css of an element (approx 50ms).
+     * So be sure to always wait at least that time!
+     */
+    (function () {
+        loadEventSupport.addBeforeLoadListener(function () {
+            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
+                return;
+            }
+            var oldFn = window.$.fn.animationComplete;
+            window.animationCount = 0;
+            window.$.fn.animationComplete = function (callback) {
+                window.animationCount++;
+                return oldFn.call(this, function () {
+                    window.animationCount--;
+                    return callback.apply(this, arguments);
+                });
+            };
+            addAsyncSensor('WebkitAnimation',
+                function () {
+                    return window.animationCount != 0;
+                });
+
+        });
+
+    })();
+
+    /**
+     * Adds an async sensor for the webkitTransitionStart and webkitTransitionEnd events.
+     * Note: The transitionStart event is usually fired some time
+     * after the animation was added to the css of an element (approx 50ms).
+     * So be sure to always wait at least that time!
+     */
+    (function () {
+        loadEventSupport.addBeforeLoadListener(function () {
+            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
+                return;
+            }
+            window.transitionCount = 0;
+
+            var oldFn = window.$.fn.transitionComplete;
+            window.$.fn.transitionComplete = function (callback) {
+                window.transitionCount++;
+                return oldFn.call(this, function () {
+                    window.transitionCount--;
+                    return callback.apply(this, arguments);
+                });
+            };
+            addAsyncSensor('WebkitTransition',
+                function () {
+                    return window.transitionCount != 0;
+                });
+
+        });
+    })();
+
+
+    return isAsyncProcessing;
+});jasmineui.define('client/errorHandler', ['globals', 'remote!server/jasmineApi'], function (globals, jasmineApiRemote) {
+    var window = globals.window;
+
+    // Use a capturing listener so we receive all errors!
+    window.addEventListener('error', errorHandler, true);
+
+    /**
+     * Error listener in the opened window to make the spec fail on errors.
+     */
+    function errorHandler(event) {
+        jasmineApiRemote(opener).fail(event.message);
+    }
+});jasmineui.define('client/loadEventSupport', ['globals'], function (globals) {
+    var window = globals.window;
+    var document = globals.document;
+
+    var beforeLoadListeners = [];
+
+    /**
+     * Adds a listener for the beforeLoad-Event that will be called every time a new url is loaded
+     * @param callback
+     */
+    var addBeforeLoadListener = function (callback) {
+        beforeLoadListeners.push(callback);
+    };
+
+    var beforeLoadEventFired = false;
+
+    function callBeforeLoadListeners() {
+        beforeLoadEventFired = true;
+        var name, listeners, fn;
+        listeners = beforeLoadListeners;
+        for (name in listeners) {
+            fn = listeners[name];
+            fn(window);
+        }
+    }
+
+    /**
+     * We use a capturing event listener to be the first to get the event.
+     * jQuery, ... always use non capturing event listeners...
+     */
+    document.addEventListener('DOMContentLoaded', loadCallback, true);
+
+    function loadCallback() {
+        /*
+         * When using a script loader,
+         * the document might be ready, but not the modules.
+         */
+        if (scriptLoaderIsReady()) {
+            callBeforeLoadListeners();
+        } else {
+            setScriptLoaderBeforeLoadEvent(callBeforeLoadListeners);
+        }
+        return true;
+    }
+
+    /**
+     * Must not be called before the load event of the document!
+     */
+    function scriptLoaderIsReady() {
+        if (window.require) {
+            return window.require.resourcesDone;
+        }
+        return true;
+    }
+
+    function setScriptLoaderBeforeLoadEvent(listener) {
+        var oldResourcesReady = window.require.resourcesReady;
+        window.require.resourcesReady = function (ready) {
+            if (ready) {
+                listener();
+            }
+            return oldResourcesReady.apply(this, arguments);
+        };
+    }
+
+    function loaded() {
+        var docReady = document.readyState == 'complete';
+        if (docReady) {
+            return scriptLoaderIsReady();
+        }
+        return docReady;
     }
 
     return {
-        get:get,
-        requireReload:requireReload,
-        ready:ready
-    };
+        addBeforeLoadListener:addBeforeLoadListener,
+        loaded:loaded
+    }
+});jasmineui.define('client/reloadMarker', function () {
+    var value = false;
 
-});define('client/remoteSpecClient', ['client/serverInvoker'], function (serverInvoker) {
+    function inReload() {
+        return value;
+    }
+
+    function requireReload() {
+        value = true;
+    }
+
+    return {
+        inReload:inReload,
+        requireReload:requireReload
+    }
+});jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer'], function (serverApi) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -674,7 +972,7 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         // The server then already knows about all required runs from the
         // first testwindow!
         if (currentNode == currentExecuteNode) {
-            serverInvoker.addClientDefinedSpecNode(type, node.name, extraArgs);
+            serverApi(window.opener).addClientDefinedSpecNode(type, node.name, extraArgs);
         }
     }
 
@@ -682,18 +980,13 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         addLocallyDefinedNode('runs', undefined, callback);
     };
 
-    var waitsFor = function (callback, timeout) {
-        addLocallyDefinedNode('waitsFor', undefined, callback, [timeout]);
+    var waitsFor = function (callback) {
+        addLocallyDefinedNode('waitsFor', undefined, callback, Array.prototype.slice.call(arguments, 1));
     };
 
-    var waits = function (timeout) {
+    var waits = function () {
         addLocallyDefinedNode('waits', undefined, function () {
-        }, [timeout]);
-    };
-
-    var waitsForAsync = function (timeout) {
-        addLocallyDefinedNode('waitsForAsync', undefined, function () {
-        }, [timeout]);
+        }, Array.prototype.slice.call(arguments));
     };
 
     var executeSpecNode = function (nodePath) {
@@ -705,6 +998,7 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
             oldNode = currentExecuteNode;
         }
     };
+
     return {
         describe:describe,
         describeUi:describeUi,
@@ -715,276 +1009,9 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
         runs:runs,
         waitsFor:waitsFor,
         waits:waits,
-        waitsForAsync:waitsForAsync,
         executeSpecNode:executeSpecNode
     }
-});define('client/serverInvoker', [], function () {
-
-    function addClientDefinedSpecNode(type, name, extraArgs) {
-        window.opener.jasmineuiserver.addClientDefinedSpecNode(type, name, extraArgs);
-    }
-
-    function onScriptError(event) {
-        opener.jasmine.getEnv().currentSpec.fail("Error from testwindow: " + event.message);
-    }
-
-    return {
-        addClientDefinedSpecNode:addClientDefinedSpecNode,
-        onScriptError: onScriptError
-    };
-});define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, eventListener) {
-    /**
-     * Module for waiting for the end of asynchronous actions.
-     */
-    var asyncWaitHandlers = {};
-
-    /**
-     * Adds a handler to the async wait functionality.
-     * A handler is a function that returns whether asynchronous work is going on.
-     *
-     * @param name
-     * @param handler Function that returns true/false.
-     */
-    function addAsyncWaitHandler(name, handler) {
-        asyncWaitHandlers[name] = handler;
-    }
-
-    function isWaitForAsync() {
-        var handlers = asyncWaitHandlers;
-        for (var name in handlers) {
-            if (handlers[name]()) {
-                logger.log("async waiting for " + name);
-                return true;
-            }
-        }
-        if (window.jQuery) {
-            if (!window.jQuery.isReady) {
-                logger.log("async waiting for jquery ready");
-                return true;
-            }
-        }
-        logger.log("end waiting for async");
-        return false;
-    }
-
-    /**
-     * Adds an async wait handler for the load event
-     */
-    var loadListeners = [];
-    (function () {
-        var loadEventFired = false;
-        addAsyncWaitHandler('loading', function () {
-            return !loadEventFired;
-        });
-
-        eventListener.addBeforeLoadListener(function () {
-            loadEventFired = true;
-        });
-    })();
-
-    /**
-     * Adds an async wait handler for the window.setTimeout function.
-     */
-    (function () {
-        var timeouts = {};
-        if (!window.oldTimeout) {
-            window.oldTimeout = window.setTimeout;
-        }
-        window.setTimeout = function (fn, time) {
-            logger.log("setTimeout called");
-            var handle;
-            var callback = function () {
-                delete timeouts[handle];
-                logger.log("timed out");
-                if (typeof fn == 'string') {
-                    eval(fn);
-                } else {
-                    fn();
-                }
-            };
-            handle = window.oldTimeout(callback, time);
-            timeouts[handle] = true;
-            return handle;
-        };
-
-        window.oldClearTimeout = window.clearTimeout;
-        window.clearTimeout = function (code) {
-            logger.log("clearTimeout called");
-            window.oldClearTimeout(code);
-            delete timeouts[code];
-        };
-        addAsyncWaitHandler('timeout', function () {
-            var count = 0;
-            for (var x in timeouts) {
-                count++;
-            }
-            return count != 0;
-        });
-    })();
-
-    /**
-     * Adds an async wait handler for the window.setInterval function.
-     */
-    (function () {
-        var intervals = {};
-        window.oldSetInterval = window.setInterval;
-        window.setInterval = function (fn, time) {
-            logger.log("setInterval called");
-            var callback = function () {
-                if (typeof fn == 'string') {
-                    eval(fn);
-                } else {
-                    fn();
-                }
-            };
-            var res = window.oldSetInterval(callback, time);
-            intervals[res] = 'true';
-            return res;
-        };
-
-        window.oldClearInterval = window.clearInterval;
-        window.clearInterval = function (code) {
-            logger.log("clearInterval called");
-            window.oldClearInterval(code);
-            delete intervals[code];
-        };
-        // return a function that allows to check
-        // if an interval is running...
-        addAsyncWaitHandler('interval', function () {
-            var count = 0;
-            for (var x in intervals) {
-                count++;
-            }
-            return count != 0;
-        });
-    })();
-
-    /**
-     * Adds an async wait handler for the window.XMLHttpRequest.
-     */
-    (function () {
-        var jasmineWindow = window;
-        var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
-        var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
-
-        var oldXHR = window.XMLHttpRequest;
-        window.openCallCount = 0;
-        var DONE = 4;
-        var newXhr = function () {
-            var self = this;
-            this.origin = new oldXHR();
-
-            function copyState() {
-                for (var i = 0; i < copyStateFields.length; i++) {
-                    var field = copyStateFields[i];
-                    try {
-                        self[field] = self.origin[field];
-                    } catch (_) {
-                    }
-                }
-            }
-
-            function proxyMethod(name) {
-                self[name] = function () {
-                    if (name == 'send') {
-                        window.openCallCount++;
-                    }
-                    var res = self.origin[name].apply(self.origin, arguments);
-                    copyState();
-                    return res;
-                }
-            }
-
-            for (var i = 0; i < proxyMethods.length; i++) {
-                proxyMethod(proxyMethods[i]);
-            }
-            this.origin.onreadystatechange = function () {
-                if (self.origin.readyState == DONE) {
-                    window.openCallCount--;
-                }
-                copyState();
-                if (self.onreadystatechange) {
-                    self.onreadystatechange.apply(self.origin, arguments);
-                }
-            };
-            copyState();
-        };
-        window.XMLHttpRequest = newXhr;
-
-        addAsyncWaitHandler('xhr',
-            function () {
-                return window.openCallCount != 0;
-            });
-    })();
-
-    /**
-     * Adds an async wait handler for the webkitAnimationStart and webkitAnimationEnd events.
-     * Note: The animationStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
-     */
-    (function () {
-        eventListener.addBeforeLoadListener(function () {
-            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
-                return;
-            }
-            var oldFn = window.$.fn.animationComplete;
-            window.animationCount = 0;
-            window.$.fn.animationComplete = function (callback) {
-                window.animationCount++;
-                return oldFn.call(this, function () {
-                    window.animationCount--;
-                    return callback.apply(this, arguments);
-                });
-            };
-            addAsyncWaitHandler('WebkitAnimation',
-                function () {
-                    return window.animationCount != 0;
-                });
-
-        });
-
-    })();
-
-    /**
-     * Adds an async wait handler for the webkitTransitionStart and webkitTransitionEnd events.
-     * Note: The transitionStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
-     */
-    (function () {
-        eventListener.addBeforeLoadListener(function () {
-            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
-                return;
-            }
-            window.transitionCount = 0;
-
-            var oldFn = window.$.fn.transitionComplete;
-            window.$.fn.transitionComplete = function (callback) {
-                window.transitionCount++;
-                return oldFn.call(this, function () {
-                    window.transitionCount--;
-                    return callback.apply(this, arguments);
-                });
-            };
-            addAsyncWaitHandler('WebkitTransition',
-                function () {
-                    return window.transitionCount != 0;
-                });
-
-        });
-    })();
-
-    return {
-        isWaitForAsync:isWaitForAsync,
-        addAsyncWaitHandler:addAsyncWaitHandler
-    }
-});define('client/errorHandler', ['eventListener', 'client/serverInvoker'], function (eventListener, serverInvoker) {
-    /**
-     * Error listener in the opened window to make the spec fail on errors.
-     */
-    eventListener.addEventListener(window, 'error', serverInvoker.onScriptError);
-});define('simulateEvent', function () {
+});jasmineui.define('client/simulateEvent', function () {
     /**
      * Functions to simulate events.
      * Based upon https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
@@ -1123,120 +1150,46 @@ define('server/clientInvoker', ['server/testwindow'], function (testwindow) {
 
     return simulate;
 
-});define('eventListener', function () {
-    function addEventListener(node, event, callback) {
-        if (node.addEventListener) {
-            node.addEventListener(event, callback, false);
-        } else {
-            node.attachEvent("on" + event, callback);
-        }
-    }
-
-    var beforeLoadListeners = [];
+});jasmineui.define('client/waitsForAsync', ['logger', 'client/remoteSpecClient', 'client/asyncSensor'], function (logger, remoteSpecClient, asyncSensor) {
     /**
-     * Adds a listener for the beforeLoad-Event that will be called every time a new url is loaded
-     * @param callback
+     * Waits for the end of all asynchronous actions.
+     * @param timeout
      */
-    var addBeforeLoadListener = function (callback) {
-        beforeLoadListeners.push(callback);
-    };
+    function waitsForAsync(timeout) {
+        timeout = timeout || 5000;
 
-    var beforeLoadEventFired = false;
-
-    function callBeforeLoadListeners() {
-        beforeLoadEventFired = true;
-        var name, listeners, fn;
-        listeners = beforeLoadListeners;
-        for (name in listeners) {
-            fn = listeners[name];
-            fn(window);
-        }
+        remoteSpecClient.runs(function () {
+            logger.log("begin async waiting");
+        });
+        // Wait at least 50 ms. Needed e.g.
+        // for animations, as the animation start event is
+        // not fired directly after the animation css is added.
+        // There may also be a gap between changing the location hash
+        // and the hashchange event (almost none however...).
+        remoteSpecClient.waits(100);
+        remoteSpecClient.waitsFor(
+            function () {
+                return !asyncSensor();
+            }, "async work", timeout);
+        remoteSpecClient.runs(function () {
+            logger.log("end async waiting");
+        });
     }
 
-    function proxyAddEventFunction(baseObject, fnname, eventProxyMap) {
-        var oldFnname = 'old' + fnname;
-        baseObject[oldFnname] = baseObject[fnname];
-        baseObject[fnname] = function () {
-            var event = arguments[0];
-            var callback = arguments[1];
-            var newCallback = callback;
-            var proxyCallback = eventProxyMap[event];
-            if (proxyCallback) {
-                newCallback = function () {
-                    proxyCallback.apply(this, arguments);
-                    return callback.apply(this, arguments);
-                }
-            }
-            arguments[1] = newCallback;
-            return baseObject[oldFnname].apply(this, arguments);
-        }
+    return waitsForAsync;
+});jasmineui.define('client/waitsForReload', ['client/remoteSpecClient', 'client/waitsForAsync', 'client/reloadMarker'], function (remoteSpecClient, waitsForAsync, reloadMarker) {
+    function waitsForReload(timeout) {
+        remoteSpecClient.runs(function () {
+            reloadMarker.requireReload();
+        });
+        waitsForAsync(timeout);
     }
 
-    function addLoadEventListenerToWindow() {
-        if (window.beforeLoadSupport) {
-            return;
-        }
-        window.beforeLoadSupport = true;
-
-        var loadCallbackCalled = false;
-
-        function loadCallback() {
-            if (loadCallbackCalled) {
-                return;
-            }
-            loadCallbackCalled = true;
-            if (!window.require) {
-                callBeforeLoadListeners();
-                return;
-            }
-            /*
-             * When using require.js, and all libs are in one file,
-             * we might not be able to intercept the point in time
-             * when everything is loaded, but the ready signal was not yet sent.
-             */
-            var require = window.require;
-            if (require.resourcesDone) {
-                callBeforeLoadListeners();
-            } else {
-                var oldResourcesReady = require.resourcesReady;
-                require.resourcesReady = function (ready) {
-                    if (ready) {
-                        callBeforeLoadListeners();
-                    }
-                    return oldResourcesReady.apply(this, arguments);
-                };
-            }
-            return true;
-        }
-
-        // Mozilla, Opera and webkit nightlies currently support this event
-        if (document.addEventListener) {
-            // Be sure that our handler gets called before any
-            // other handler of the instrumented page!
-            proxyAddEventFunction(document, 'addEventListener', {'DOMContentLoaded':loadCallback});
-            proxyAddEventFunction(window, 'addEventListener', {'load':loadCallback});
-
-        } else if (document.attachEvent) {
-            // If IE event model is used
-            // Be sure that our handler gets called before any
-            // other handler of the instrumented page!
-            proxyAddEventFunction(document, 'attachEvent', {'onreadystatechange':loadCallback});
-            proxyAddEventFunction(window, 'attachEvent', {'load':loadCallback});
-        }
-        // A fallback to window.onload, that will always work
-        addEventListener(window, 'load', loadCallback);
-    }
-
-    addLoadEventListenerToWindow();
-
-    return {
-        addEventListener:addEventListener,
-        addBeforeLoadListener:addBeforeLoadListener
-    }
+    return waitsForReload;
 });var logEnabled = true;
 
-if (opener && opener.jasmineuiserver) {
-    require(['logger', 'client/asyncWaitClient', 'client/remoteSpecClient', 'eventListener', 'simulateEvent', 'client/errorHandler'], function (logger, asyncWaitClient, remoteSpecClient, eventListener, simulate) {
+if (opener) {
+    jasmineui.require(['logger', 'client/waitsForAsync', 'client/waitsForReload', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, waitsForAsync, waitsForReload, remoteSpecClient, simulate) {
         logger.enabled(logEnabled);
         window.xdescribe = function () {
         };
@@ -1257,23 +1210,13 @@ if (opener && opener.jasmineuiserver) {
         window.runs = remoteSpecClient.runs;
         window.waitsFor = remoteSpecClient.waitsFor;
         window.waits = remoteSpecClient.waits;
-        window.waitsForAsync = remoteSpecClient.waitsForAsync;
-        window.jasmineuiclient = {
-            executeSpecNode:remoteSpecClient.executeSpecNode,
-            isWaitForAsync:asyncWaitClient.isWaitForAsync,
-            addBeforeLoadListener:eventListener.addBeforeLoadListener
-        };
+        window.waitsForAsync = waitsForAsync;
+        window.waitsForReload = waitsForReload;
         window.simulate = simulate;
-
     });
-
-
 } else {
-    require(['server/remoteSpecServer', 'server/loadHtml', 'logger', 'server/testwindow'], function (remoteSpecServer, loadHtml, logger, testwindow) {
+    jasmineui.require(['server/remoteSpecServer', 'logger'], function (remoteSpecServer, logger) {
         logger.enabled(logEnabled);
-
-        loadHtml.injectScripts([
-            'jasmine-ui[^/]*$', 'UiSpec[^/]*$', 'UiHelper[^/]*$' ]);
 
         window.it = remoteSpecServer.it;
         window.beforeEach = remoteSpecServer.beforeEach;
@@ -1282,9 +1225,5 @@ if (opener && opener.jasmineuiserver) {
         window.describeUi = remoteSpecServer.describeUi;
         window.describe = remoteSpecServer.describe;
         window.xdescribeUi = window.xdescribe;
-
-        window.jasmineuiserver = {
-            addClientDefinedSpecNode:remoteSpecServer.addClientDefinedSpecNode
-        };
     });
-}})();
+}

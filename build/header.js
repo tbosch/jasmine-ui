@@ -5,4 +5,4 @@
  * Copyright 2011, Tobias Bosch (OPITZ CONSULTING GmbH)
  * Licensed under the MIT license.
  */
-(function() {
+

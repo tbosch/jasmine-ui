@@ -1,31 +1,33 @@
-define('scriptAccessor', function () {
-    /**
-     * Loops through the scripts of the current document and
-     * calls a callback with their url.
-     * @param urlCallback
-     */
-    function findScripts(document, urlCallback) {
-        var scripts = document.getElementsByTagName("script");
-        for (var i = 0; i < scripts.length; i++) {
-            var script = scripts[i];
-            if (script.src) {
-                urlCallback(script.src);
-            }
-        }
-    }
-
+jasmineui.define('scriptAccessor', function () {
     function writeScriptWithUrl(document, url) {
         document.writeln('<script type="text/javascript" src="' + url + '"></script>');
     }
 
     function writeInlineScript(document, data) {
-        document.writeln('<script type="text/javascript"">' + data + '</script>');
+        document.writeln('<script type="text/javascript">' + data + '</script>');
+    }
+
+    /**
+     * Calls the given callback after the current script finishes execution.
+     * The callback will get one parameter with the url of the executed script.
+     * @param callback
+     */
+    function afterCurrentScript(document, callback) {
+        var loadListener = function (event) {
+            var node = event.target;
+            if (node.nodeName == 'SCRIPT') {
+                callback(node.src);
+                document.removeEventListener('load', loadListener, true);
+            }
+        };
+        // Use capturing event listener, as load event of script does not bubble!
+        document.addEventListener('load', loadListener, true);
     }
 
 
     return {
-        findScripts:findScripts,
         writeScriptWithUrl:writeScriptWithUrl,
-        writeInlineScript:writeInlineScript
+        writeInlineScript:writeInlineScript,
+        afterCurrentScript:afterCurrentScript
     }
 });

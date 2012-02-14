@@ -1,6 +1,13 @@
-define('client/errorHandler', ['eventListener', 'client/serverInvoker'], function (eventListener, serverInvoker) {
+jasmineui.define('client/errorHandler', ['globals', 'remote!server/jasmineApi'], function (globals, jasmineApiRemote) {
+    var window = globals.window;
+
+    // Use a capturing listener so we receive all errors!
+    window.addEventListener('error', errorHandler, true);
+
     /**
      * Error listener in the opened window to make the spec fail on errors.
      */
-    eventListener.addEventListener(window, 'error', serverInvoker.onScriptError);
+    function errorHandler(event) {
+        jasmineApiRemote(opener).fail(event.message);
+    }
 });

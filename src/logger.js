@@ -1,7 +1,7 @@
-define('logger', function () {
+jasmineui.define('logger', ['globals'], function (globals) {
     function log(msg) {
         if (enabled()) {
-            console.log(msg);
+            globals.console.log(msg);
         }
     }
 

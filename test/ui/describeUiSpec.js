@@ -6,21 +6,21 @@ describe('describeUi', function () {
             });
         });
         it("should execute it callbacks in the testwindow", function () {
-            expect(window.opener.jasmineuiserver).toBeTruthy();
+            expect(window.opener).toBeTruthy();
         });
         it("should execute runs callbacks in the testwindow", function () {
             runs(function () {
-                expect(window.opener.jasmineuiserver).toBeTruthy();
+                expect(window.opener).toBeTruthy();
             });
         });
         it("should execute waitFor callbacks in the testwindow", function () {
-            var remoteJasmineui;
+            var openerInWaitsFor;
             waitsFor(function () {
-                remoteJasmineui = window.opener.jasmineuiserver;
+                openerInWaitsFor = window.opener;
                 return true;
             });
             runs(function () {
-                expect(remoteJasmineui).toBeTruthy();
+                expect(openerInWaitsFor).toBeTruthy();
             });
         });
         it("should execute waits", function () {

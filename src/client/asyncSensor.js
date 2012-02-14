@@ -1,55 +1,49 @@
-define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, eventListener) {
-    /**
-     * Module for waiting for the end of asynchronous actions.
-     */
-    var asyncWaitHandlers = {};
+jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSupport', 'client/reloadMarker'], function (globals, logger, loadEventSupport, reloadMarker) {
+    var window = globals.window;
+    var asyncSensors = {};
 
     /**
-     * Adds a handler to the async wait functionality.
-     * A handler is a function that returns whether asynchronous work is going on.
+     * Adds a sensor.
+     * A sensor is a function that returns whether asynchronous work is going on.
      *
      * @param name
-     * @param handler Function that returns true/false.
+     * @param sensor Function that returns true/false.
      */
-    function addAsyncWaitHandler(name, handler) {
-        asyncWaitHandlers[name] = handler;
+    function addAsyncSensor(name, sensor) {
+        asyncSensors[name] = sensor;
     }
 
-    function isWaitForAsync() {
-        var handlers = asyncWaitHandlers;
-        for (var name in handlers) {
-            if (handlers[name]()) {
-                logger.log("async waiting for " + name);
+    function isAsyncProcessing() {
+        var sensors = asyncSensors;
+        for (var name in sensors) {
+            if (sensors[name]()) {
+                logger.log("async processing: " + name);
                 return true;
             }
         }
-        if (window.jQuery) {
-            if (!window.jQuery.isReady) {
-                logger.log("async waiting for jquery ready");
-                return true;
-            }
-        }
-        logger.log("end waiting for async");
         return false;
     }
 
     /**
-     * Adds an async wait handler for the load event
+     * Adds an async sensor for the load event
      */
-    var loadListeners = [];
     (function () {
-        var loadEventFired = false;
-        addAsyncWaitHandler('loading', function () {
-            return !loadEventFired;
-        });
-
-        eventListener.addBeforeLoadListener(function () {
-            loadEventFired = true;
+        addAsyncSensor('loading', function () {
+            return !loadEventSupport.loaded();
         });
     })();
 
     /**
-     * Adds an async wait handler for the window.setTimeout function.
+     * Adds an async sensor for the reload
+     */
+    (function () {
+        addAsyncSensor('reload', function () {
+            return reloadMarker.inReload();
+        });
+    })();
+
+    /**
+     * Adds an async sensor for the window.setTimeout function.
      */
     (function () {
         var timeouts = {};
@@ -79,7 +73,7 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
             window.oldClearTimeout(code);
             delete timeouts[code];
         };
-        addAsyncWaitHandler('timeout', function () {
+        addAsyncSensor('timeout', function () {
             var count = 0;
             for (var x in timeouts) {
                 count++;
@@ -89,7 +83,7 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
     })();
 
     /**
-     * Adds an async wait handler for the window.setInterval function.
+     * Adds an async sensor for the window.setInterval function.
      */
     (function () {
         var intervals = {};
@@ -116,7 +110,7 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
         };
         // return a function that allows to check
         // if an interval is running...
-        addAsyncWaitHandler('interval', function () {
+        addAsyncSensor('interval', function () {
             var count = 0;
             for (var x in intervals) {
                 count++;
@@ -126,7 +120,7 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
     })();
 
     /**
-     * Adds an async wait handler for the window.XMLHttpRequest.
+     * Adds an async sensor for the window.XMLHttpRequest.
      */
     (function () {
         var jasmineWindow = window;
@@ -177,20 +171,20 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
         };
         window.XMLHttpRequest = newXhr;
 
-        addAsyncWaitHandler('xhr',
+        addAsyncSensor('xhr',
             function () {
                 return window.openCallCount != 0;
             });
     })();
 
     /**
-     * Adds an async wait handler for the webkitAnimationStart and webkitAnimationEnd events.
+     * Adds an async sensor for the webkitAnimationStart and webkitAnimationEnd events.
      * Note: The animationStart event is usually fired some time
      * after the animation was added to the css of an element (approx 50ms).
      * So be sure to always wait at least that time!
      */
     (function () {
-        eventListener.addBeforeLoadListener(function () {
+        loadEventSupport.addBeforeLoadListener(function () {
             if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
                 return;
             }
@@ -203,7 +197,7 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
                     return callback.apply(this, arguments);
                 });
             };
-            addAsyncWaitHandler('WebkitAnimation',
+            addAsyncSensor('WebkitAnimation',
                 function () {
                     return window.animationCount != 0;
                 });
@@ -213,13 +207,13 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
     })();
 
     /**
-     * Adds an async wait handler for the webkitTransitionStart and webkitTransitionEnd events.
+     * Adds an async sensor for the webkitTransitionStart and webkitTransitionEnd events.
      * Note: The transitionStart event is usually fired some time
      * after the animation was added to the css of an element (approx 50ms).
      * So be sure to always wait at least that time!
      */
     (function () {
-        eventListener.addBeforeLoadListener(function () {
+        loadEventSupport.addBeforeLoadListener(function () {
             if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
                 return;
             }
@@ -233,7 +227,7 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
                     return callback.apply(this, arguments);
                 });
             };
-            addAsyncWaitHandler('WebkitTransition',
+            addAsyncSensor('WebkitTransition',
                 function () {
                     return window.transitionCount != 0;
                 });
@@ -241,8 +235,6 @@ define('client/asyncWaitClient', ['logger', 'eventListener'], function (logger, 
         });
     })();
 
-    return {
-        isWaitForAsync:isWaitForAsync,
-        addAsyncWaitHandler:addAsyncWaitHandler
-    }
+
+    return isAsyncProcessing;
 });

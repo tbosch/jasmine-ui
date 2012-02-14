@@ -1,4 +1,4 @@
-define('client/remoteSpecClient', ['client/serverInvoker'], function (serverInvoker) {
+jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer'], function (serverApi) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -110,7 +110,7 @@ define('client/remoteSpecClient', ['client/serverInvoker'], function (serverInvo
         // The server then already knows about all required runs from the
         // first testwindow!
         if (currentNode == currentExecuteNode) {
-            serverInvoker.addClientDefinedSpecNode(type, node.name, extraArgs);
+            serverApi(window.opener).addClientDefinedSpecNode(type, node.name, extraArgs);
         }
     }
 
@@ -118,18 +118,13 @@ define('client/remoteSpecClient', ['client/serverInvoker'], function (serverInvo
         addLocallyDefinedNode('runs', undefined, callback);
     };
 
-    var waitsFor = function (callback, timeout) {
-        addLocallyDefinedNode('waitsFor', undefined, callback, [timeout]);
+    var waitsFor = function (callback) {
+        addLocallyDefinedNode('waitsFor', undefined, callback, Array.prototype.slice.call(arguments, 1));
     };
 
-    var waits = function (timeout) {
+    var waits = function () {
         addLocallyDefinedNode('waits', undefined, function () {
-        }, [timeout]);
-    };
-
-    var waitsForAsync = function (timeout) {
-        addLocallyDefinedNode('waitsForAsync', undefined, function () {
-        }, [timeout]);
+        }, Array.prototype.slice.call(arguments));
     };
 
     var executeSpecNode = function (nodePath) {
@@ -141,6 +136,7 @@ define('client/remoteSpecClient', ['client/serverInvoker'], function (serverInvo
             oldNode = currentExecuteNode;
         }
     };
+
     return {
         describe:describe,
         describeUi:describeUi,
@@ -151,7 +147,6 @@ define('client/remoteSpecClient', ['client/serverInvoker'], function (serverInvo
         runs:runs,
         waitsFor:waitsFor,
         waits:waits,
-        waitsForAsync:waitsForAsync,
         executeSpecNode:executeSpecNode
     }
 });

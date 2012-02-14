@@ -1,4 +1,4 @@
-define('server/remoteSpecServer', ['server/jasmineApi', 'server/clientInvoker', 'server/describeUi', 'server/asyncWaitServer'], function (jasmineApi, client, originalDescribeUi, asyncWaitServer) {
+jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'server/testwindow', 'remote!client/remoteSpecClient', 'remote!client/asyncSensor'], function (jasmineApi, originalDescribeUi, testwindow, clientRemote, asyncSensorRemote) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -91,7 +91,7 @@ define('server/remoteSpecServer', ['server/jasmineApi', 'server/clientInvoker', 
 
     function addClientExecutingNode(type, name) {
         var node = new Node(function () {
-            return client.executeSpecNode(node.path());
+            return clientRemote(testwindow()).executeSpecNode(node.path());
         });
         currentNode.addChild(type, name, node);
         return node;
@@ -139,12 +139,20 @@ define('server/remoteSpecServer', ['server/jasmineApi', 'server/clientInvoker', 
         if (type === 'runs') {
             jasmineApi.runs(node.bindExecute());
         } else if (type === 'waitsFor') {
-            extraArgs.unshift(node.bindExecute());
+            var callback = function () {
+                var testwin = testwindow();
+                if (testwin.document.readyState!=="complete") {
+                    return false;
+                }
+                if (asyncSensorRemote(testwin)()) {
+                    return false;
+                }
+                return node.execute();
+            };
+            extraArgs.unshift(callback);
             jasmineApi.waitsFor.apply(this, extraArgs);
         } else if (type === 'waits') {
             jasmineApi.waits.apply(this, extraArgs);
-        } else if (type === 'waitsForAsync') {
-            asyncWaitServer.waitsForAsync.apply(this, extraArgs);
         }
     }
 

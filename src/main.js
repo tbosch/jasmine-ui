@@ -1,7 +1,7 @@
 var logEnabled = true;
 
-if (opener && opener.jasmineuiserver) {
-    require(['logger', 'client/asyncWaitClient', 'client/remoteSpecClient', 'eventListener', 'simulateEvent', 'client/errorHandler'], function (logger, asyncWaitClient, remoteSpecClient, eventListener, simulate) {
+if (opener) {
+    jasmineui.require(['logger', 'client/waitsForAsync', 'client/waitsForReload', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, waitsForAsync, waitsForReload, remoteSpecClient, simulate) {
         logger.enabled(logEnabled);
         window.xdescribe = function () {
         };
@@ -22,23 +22,13 @@ if (opener && opener.jasmineuiserver) {
         window.runs = remoteSpecClient.runs;
         window.waitsFor = remoteSpecClient.waitsFor;
         window.waits = remoteSpecClient.waits;
-        window.waitsForAsync = remoteSpecClient.waitsForAsync;
-        window.jasmineuiclient = {
-            executeSpecNode:remoteSpecClient.executeSpecNode,
-            isWaitForAsync:asyncWaitClient.isWaitForAsync,
-            addBeforeLoadListener:eventListener.addBeforeLoadListener
-        };
+        window.waitsForAsync = waitsForAsync;
+        window.waitsForReload = waitsForReload;
         window.simulate = simulate;
-
     });
-
-
 } else {
-    require(['server/remoteSpecServer', 'server/loadHtml', 'logger', 'server/testwindow'], function (remoteSpecServer, loadHtml, logger, testwindow) {
+    jasmineui.require(['server/remoteSpecServer', 'logger'], function (remoteSpecServer, logger) {
         logger.enabled(logEnabled);
-
-        loadHtml.injectScripts([
-            'jasmine-ui[^/]*$', 'UiSpec[^/]*$', 'UiHelper[^/]*$' ]);
 
         window.it = remoteSpecServer.it;
         window.beforeEach = remoteSpecServer.beforeEach;
@@ -47,9 +37,5 @@ if (opener && opener.jasmineuiserver) {
         window.describeUi = remoteSpecServer.describeUi;
         window.describe = remoteSpecServer.describe;
         window.xdescribeUi = window.xdescribe;
-
-        window.jasmineuiserver = {
-            addClientDefinedSpecNode:remoteSpecServer.addClientDefinedSpecNode
-        };
     });
 }
