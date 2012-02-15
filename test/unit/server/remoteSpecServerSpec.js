@@ -1,6 +1,6 @@
 jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServerFactory) {
     describe('server/remoteSpecServer', function () {
-        var mod, jasmineApi, clientMod, describeUi, asyncSensorRemote, clientwindow;
+        var mod, jasmineApi, clientMod, describeUi, asyncSensorRemote, clientwindow, waitsForAsync;
         var d, i, dui, be, ae, bl, callback, noop;
         beforeEach(function () {
             noop = function () {
@@ -26,12 +26,14 @@ jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServe
             clientwindow = {
                 document: {}
             };
+            waitsForAsync = jasmine.createSpy('waitsForAsync');
             mod = remoteSpecServerFactory({
                 'server/jasmineApi':jasmineApi,
                 'remote!client/remoteSpecClient':jasmine.createSpy().andReturn(clientMod),
                 'server/describeUi':describeUi,
                 'remote!client/asyncSensor':asyncSensorRemote,
-                'server/testwindow': jasmine.createSpy('testwindow').andReturn(clientwindow)
+                'server/testwindow': jasmine.createSpy('testwindow').andReturn(clientwindow),
+                'server/waitsForAsync': waitsForAsync
             });
             d = mod.describe;
             i = mod.it;
@@ -311,6 +313,13 @@ jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServe
                     jasmineApi.beforeEach.argsForCall[0][0]();
                     expect(jasmineApi.runs).toHaveBeenCalled();
                 });
+                it("should call waitsForAsync before", function () {
+                    clientMod.executeSpecNode.andCallFake(function () {
+                        mod.addClientDefinedSpecNode('waitsFor', '0');
+                    });
+                    jasmineApi.beforeEach.argsForCall[0][0]();
+                    expect(waitsForAsync).toHaveBeenCalled();
+                });
                 it("should call the client when the new node executes", function () {
                     clientMod.executeSpecNode.andCallFake(function () {
                         mod.addClientDefinedSpecNode('runs', '0');
@@ -338,30 +347,14 @@ jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServe
                     expect(jasmineApi.waitsFor).toHaveBeenCalled();
                     expect(jasmineApi.waitsFor.argsForCall[0][1]).toBe(1234);
                 });
-                it("should return false as the argument to waitsFor if the the client is not ready", function () {
-                    clientwindow.document.readyState = "not loaded";
+                it("should call waitsForAsync before", function () {
                     clientMod.executeSpecNode.andCallFake(function () {
                         mod.addClientDefinedSpecNode('waitsFor', '0');
                     });
                     jasmineApi.beforeEach.argsForCall[0][0]();
-                    var someValue = 'someValue';
-                    clientMod.executeSpecNode.andReturn(someValue);
-                    expect(jasmineApi.waitsFor.argsForCall[0][0]()).toBe(false);
+                    expect(waitsForAsync).toHaveBeenCalled();
                 });
-                it("should return false as the argument to waitsFor if the the client is in async processing", function () {
-                    clientwindow.document.readyState = "complete";
-                    asyncSensorRemote().andReturn(true);
-                    clientMod.executeSpecNode.andCallFake(function () {
-                        mod.addClientDefinedSpecNode('waitsFor', '0');
-                    });
-                    jasmineApi.beforeEach.argsForCall[0][0]();
-                    var someValue = 'someValue';
-                    clientMod.executeSpecNode.andReturn(someValue);
-                    expect(jasmineApi.waitsFor.argsForCall[0][0]()).toBe(false);
-                });
-
                 it("should call the client when the new node executes and return the value of the client", function () {
-                    clientwindow.document.readyState = "complete";
                     clientMod.executeSpecNode.andCallFake(function () {
                         mod.addClientDefinedSpecNode('waitsFor', '0');
                     });
@@ -372,7 +365,6 @@ jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServe
                     expect(clientMod.executeSpecNode.mostRecentCall.args[0]).toEqual(['describe1', '0', '0']);
                 });
                 it("should call the client when the new node is added multiple times", function () {
-                    clientwindow.document.readyState = "complete";
                     clientMod.executeSpecNode.andCallFake(function () {
                         mod.addClientDefinedSpecNode('waitsFor', '0');
                     });

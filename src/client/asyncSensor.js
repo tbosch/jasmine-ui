@@ -184,22 +184,22 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSu
      * So be sure to always wait at least that time!
      */
     (function () {
+        var animationCount = 0;
         loadEventSupport.addBeforeLoadListener(function () {
-            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
+            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
                 return;
             }
-            var oldFn = window.$.fn.animationComplete;
-            window.animationCount = 0;
-            window.$.fn.animationComplete = function (callback) {
-                window.animationCount++;
+            var oldFn = globals.$.fn.animationComplete;
+            globals.$.fn.animationComplete = function (callback) {
+                animationCount++;
                 return oldFn.call(this, function () {
-                    window.animationCount--;
+                    animationCount--;
                     return callback.apply(this, arguments);
                 });
             };
             addAsyncSensor('WebkitAnimation',
                 function () {
-                    return window.animationCount != 0;
+                    return animationCount != 0;
                 });
 
         });
@@ -213,23 +213,23 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSu
      * So be sure to always wait at least that time!
      */
     (function () {
+        var transitionCount = 0;
         loadEventSupport.addBeforeLoadListener(function () {
-            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
+            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
                 return;
             }
-            window.transitionCount = 0;
 
-            var oldFn = window.$.fn.transitionComplete;
-            window.$.fn.transitionComplete = function (callback) {
-                window.transitionCount++;
+            var oldFn = globals.$.fn.transitionComplete;
+            globals.$.fn.transitionComplete = function (callback) {
+                transitionCount++;
                 return oldFn.call(this, function () {
-                    window.transitionCount--;
+                    transitionCount--;
                     return callback.apply(this, arguments);
                 });
             };
             addAsyncSensor('WebkitTransition',
                 function () {
-                    return window.transitionCount != 0;
+                    return transitionCount != 0;
                 });
 
         });

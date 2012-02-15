@@ -97,13 +97,12 @@ describe('describeUi', function () {
         beforeLoad(function () {
             expect(state).toBe(0);
             state++;
-            expect($).toBeDefined();
-            expect($.isReady).toBe(false);
+            expect(document.readyState).not.toBe("complete");
         });
         it("should execute the hook functions in the right order", function () {
             runs(function () {
                 expect(state).toBe(3);
-                expect($.isReady).toBe(true);
+                expect(document.readyState).toBe("complete");
 
                 state++;
             });
@@ -138,10 +137,10 @@ describe('describeUi', function () {
                 }
                 opener.remoteCounter++;
                 location.reload();
+                waitForReload();
             });
-            waitsForAsync({requireReload: true});
             runs(function() {
-                expect($).toBeDefined();
+                expect(document.readyState).toBe("complete");
                 expect(localCounter).toBe(0);
                 expect(opener.remoteCounter).toBe(1);
             });

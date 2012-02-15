@@ -13,14 +13,13 @@
     script('server/jasmineApi.js');
     script('server/remoteSpecServer.js');
     script('server/testwindow.js');
+    script('server/waitsForAsync.js');
     script('client/asyncSensor.js');
     script('client/errorHandler.js');
     script('client/loadEventSupport.js');
     script('client/reloadMarker.js');
     script('client/remoteSpecClient.js');
     script('client/simulateEvent.js');
-    script('client/waitsForAsync.js');
-    script('client/waitsForReload.js');
     script('main.js');
 
     function script(url) {

@@ -45,11 +45,11 @@ jasmineui.define('server/testwindow', ['remote!client/reloadMarker', 'scriptAcce
             }
         }
 
-        window.instrument = function (fr) {
+        globals.instrument = function (fr) {
             for (var i = 0; i < scriptUrls.length; i++) {
                 scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
             }
-            window.afterScriptInjection = function () {
+            globals.afterScriptInjection = function () {
                 callback(fr);
             };
             scriptAccessor.writeInlineScript(fr.document, 'opener.afterScriptInjection();');

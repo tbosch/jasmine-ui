@@ -47,15 +47,15 @@ jasmineui.define('client/loadEventSupport', ['globals'], function (globals) {
      * Must not be called before the load event of the document!
      */
     function scriptLoaderIsReady() {
-        if (window.require) {
-            return window.require.resourcesDone;
+        if (globals.require) {
+            return globals.require.resourcesDone;
         }
         return true;
     }
 
     function setScriptLoaderBeforeLoadEvent(listener) {
-        var oldResourcesReady = window.require.resourcesReady;
-        window.require.resourcesReady = function (ready) {
+        var oldResourcesReady = globals.require.resourcesReady;
+        globals.require.resourcesReady = function (ready) {
             if (ready) {
                 listener();
             }

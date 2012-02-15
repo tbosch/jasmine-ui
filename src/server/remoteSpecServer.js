@@ -1,4 +1,4 @@
-jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'server/testwindow', 'remote!client/remoteSpecClient', 'remote!client/asyncSensor'], function (jasmineApi, originalDescribeUi, testwindow, clientRemote, asyncSensorRemote) {
+jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'server/testwindow', 'remote!client/remoteSpecClient', 'server/waitsForAsync'], function (jasmineApi, originalDescribeUi, testwindow, clientRemote, waitsForAsync) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -137,19 +137,11 @@ jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/descri
         }
         extraArgs = extraArgs || [];
         if (type === 'runs') {
+            waitsForAsync();
             jasmineApi.runs(node.bindExecute());
         } else if (type === 'waitsFor') {
-            var callback = function () {
-                var testwin = testwindow();
-                if (testwin.document.readyState!=="complete") {
-                    return false;
-                }
-                if (asyncSensorRemote(testwin)()) {
-                    return false;
-                }
-                return node.execute();
-            };
-            extraArgs.unshift(callback);
+            waitsForAsync();
+            extraArgs.unshift(node.bindExecute());
             jasmineApi.waitsFor.apply(this, extraArgs);
         } else if (type === 'waits') {
             jasmineApi.waits.apply(this, extraArgs);

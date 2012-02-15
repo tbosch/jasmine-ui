@@ -1,11 +1,11 @@
-jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/testwindow', 'remote!client/asyncSensor', 'remote!client/loadEventSupport', 'scriptAccessor', 'globals'], function (logger, jasmineApi, testwindow, asyncSensorRemote, loadEventSupportRemote, scriptAccessor, globals) {
+jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/testwindow', 'server/waitsForAsync', 'remote!client/loadEventSupport', 'scriptAccessor', 'globals'], function (logger, jasmineApi, testwindow, waitsForAsync, loadEventSupportRemote, scriptAccessor, globals) {
 
     var currentBeforeLoadCallbacks;
     var uiTestScriptUrls = [];
 
     function addJasmineUiScriptUrl() {
-        if (globals.window.jasmineui.scripturl) {
-            uiTestScriptUrls.push(globals.window.jasmineui.scripturl);
+        if (globals.jasmineui.scripturl) {
+            uiTestScriptUrls.push(globals.jasmineui.scripturl);
         }
     }
     addJasmineUiScriptUrl();
@@ -40,15 +40,7 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
                         });
                     });
                 });
-                jasmineApi.waitsFor(function() {
-                    if (!beforeLoadHappened) {
-                        return false;
-                    }
-                    if (asyncSensorRemote(testwindow())()) {
-                        return false;
-                    }
-                    return true;
-                });
+                waitsForAsync();
                 jasmineApi.runs(function () {
                     logger.log('Finished open url ' + pageUrl);
                 });

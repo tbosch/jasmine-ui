@@ -32,24 +32,24 @@ jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSuppor
             describe('with requireJs', function () {
                 var listener;
                 beforeEach(function () {
-                    globals.window.require = function () {
+                    globals.require = function () {
                     };
                     listener = jasmine.createSpy('listener');
                     loadEventSupport.addBeforeLoadListener(listener);
                 });
                 it("should call the listener when the DOMContentLoaded fires and requireJs is ready", function () {
-                    globals.window.require.resourcesDone = true;
+                    globals.require.resourcesDone = true;
                     globals.document.addEventListener.mostRecentCall.args[1]();
                     expect(listener).toHaveBeenCalled();
                 });
 
                 it("should not call the listener until requireJs is ready", function () {
-                    globals.window.require.resourcesDone = false;
+                    globals.require.resourcesDone = false;
                     var originalResourcesReady = jasmine.createSpy('resourcesReady');
-                    globals.window.require.resourcesReady = originalResourcesReady;
+                    globals.require.resourcesReady = originalResourcesReady;
                     globals.document.addEventListener.mostRecentCall.args[1]();
                     expect(listener).not.toHaveBeenCalled();
-                    globals.window.require.resourcesReady(true);
+                    globals.require.resourcesReady(true);
                     expect(listener).toHaveBeenCalled();
                     expect(originalResourcesReady).toHaveBeenCalled();
                 });
@@ -69,16 +69,16 @@ jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSuppor
             });
             describe('with requirejs', function () {
                 beforeEach(function () {
-                    globals.window.require = function () {
+                    globals.require = function () {
                     };
                     globals.document.readyState = "complete";
                 });
                 it("should return false when requirejs is not ready", function () {
-                    globals.window.require.resourcesDone = false;
+                    globals.require.resourcesDone = false;
                     expect(loadEventSupport.loaded()).toBe(false);
                 });
                 it("should return true when the document readyState is complete", function () {
-                    globals.window.require.resourcesDone = true;
+                    globals.require.resourcesDone = true;
                     expect(loadEventSupport.loaded()).toBe(true);
                 });
             });

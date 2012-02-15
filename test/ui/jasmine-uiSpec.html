@@ -2,39 +2,7 @@
 <html>
 <head>
     <script>opener && opener.instrument && opener.instrument(window);</script>
-    <script src="../lib/jquery-1.5.1.js"></script>
-    <script>
-        // Mock implementation of the jquery mobile animationComplete and transitionComplete
-        // callbacks, so we do not need jquery mobile.
-        $.fn.animationComplete = function(callback) {
-           setTimeout(callback,0);
-        };
-        $.fn.transitionComplete = function(callback) {
-           setTimeout(callback,0);
-        };
-
-    </script>
-
-    <script>
-        function xhrCall(url, callback) {
-            var xhr = new window.XMLHttpRequest();
-            xhr.onreadystatechange = function() {
-                if (xhr.readyState == 4) {
-                    callback();
-                }
-            };
-            xhr.open('GET', url);
-            xhr.send();
-        }
-    </script>
 </head>
 <body>
-
-<div id="div1">
-
-</div>
-<div id="anim">Test</div>
-
 </body>
-
 </html>

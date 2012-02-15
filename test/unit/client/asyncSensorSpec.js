@@ -1,6 +1,6 @@
 jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) {
     describe("client/asyncSensor", function () {
-        var asyncSensor, mockWindow, loadEventSupport, reloadMarker,
+        var asyncSensor, mockWindow, loadEventSupport, reloadMarker, globals,
             setTimeoutSpy, setIntervalSpy, XMLHttpRequestMock,
             animationCompleteSpy, transitionCompleteSpy;
         beforeEach(function () {
@@ -17,12 +17,6 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
                 setInterval:setIntervalSpy,
                 clearInterval:jasmine.createSpy('clearInterval'),
                 XMLHttpRequest:XMLHttpRequestMock,
-                $:{
-                    fn:{
-                        animationComplete:animationCompleteSpy,
-                        transitionComplete:transitionCompleteSpy
-                    }
-                }
             };
             loadEventSupport = {
                 addBeforeLoadListener:jasmine.createSpy('addBeforeLoadListener'),
@@ -31,10 +25,17 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
             reloadMarker = {
                 inReload:jasmine.createSpy('inReload')
             };
+            globals = {
+                window: mockWindow,
+                $:{
+                    fn:{
+                        animationComplete:animationCompleteSpy,
+                        transitionComplete:transitionCompleteSpy
+                    }
+                }
+            };
             asyncSensor = asyncSensorFactory({
-                globals:{
-                    window:mockWindow
-                },
+                globals:globals,
                 'client/loadEventSupport':loadEventSupport,
                 'client/reloadMarker':reloadMarker
             });
@@ -190,7 +191,7 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
                 beforeLoadListenerCalls[i][0]();
             }
             var callback = jasmine.createSpy('callback');
-            mockWindow.$.fn.animationComplete(callback);
+            globals.$.fn.animationComplete(callback);
             expect(asyncSensor()).toBe(true);
             animationCompleteSpy.mostRecentCall.args[0]();
             expect(asyncSensor()).toBe(false);
@@ -202,7 +203,7 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
                 beforeLoadListenerCalls[i][0]();
             }
             var callback = jasmine.createSpy('callback');
-            mockWindow.$.fn.transitionComplete(callback);
+            globals.$.fn.transitionComplete(callback);
             expect(asyncSensor()).toBe(true);
             transitionCompleteSpy.mostRecentCall.args[0]();
             expect(asyncSensor()).toBe(false);

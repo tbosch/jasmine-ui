@@ -1,6 +1,6 @@
 jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
     describe('server/testwindow', function () {
-        var testwindow, callback, serverwindow, clientwindow, reloadMarkerRemote, reloadMarkerRemote, reloadMarker;
+        var testwindow, callback, serverwindow, clientwindow, reloadMarkerRemote, reloadMarkerRemote, reloadMarker, globals;
         beforeEach(function () {
             reloadMarker = {
                 requireReload:jasmine.createSpy('reloadMarker')
@@ -18,10 +18,11 @@ jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
                 open:jasmine.createSpy('open').andReturn(clientwindow)
             };
             clientwindow.opener = serverwindow;
+            globals = {
+                window:serverwindow
+            };
             testwindow = testwindowFactory({
-                globals:{
-                    window:serverwindow
-                },
+                globals:globals,
                 'remote!client/reloadMarker':reloadMarkerRemote
             });
             callback = jasmine.createSpy('callback');
@@ -68,12 +69,12 @@ jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
         describe('window instrumentation', function () {
             it("should create an instrument function in the calling window", function () {
                 testwindow('/someUrl', [], callback);
-                expect(serverwindow.instrument).toBeDefined();
+                expect(globals.instrument).toBeDefined();
             });
             it("should add the given script urls to the new window", function () {
                 var someScriptUrl = 'someScriptUrl';
                 testwindow('/someUrl', [someScriptUrl], callback);
-                serverwindow.instrument(clientwindow);
+                globals.instrument(clientwindow);
                 var w = clientwindow.document.writeln;
                 expect(w.callCount).toBe(2);
                 expect(w.argsForCall[0][0]).toBe('<script type="text/javascript" src="someScriptUrl"></script>');
@@ -82,12 +83,12 @@ jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
             it("should add an extra script to call the given callback after the scripts", function () {
                 var someScriptUrl = 'someScriptUrl';
                 testwindow('/someUrl', [someScriptUrl], callback);
-                serverwindow.instrument(clientwindow);
+                globals.instrument(clientwindow);
                 var w = clientwindow.document.writeln;
                 expect(w.callCount).toBe(2);
                 expect(w.argsForCall[1][0]).toBe('<script type="text/javascript">opener.afterScriptInjection();</script>');
                 expect(callback).not.toHaveBeenCalled();
-                clientwindow.opener.afterScriptInjection();
+                globals.afterScriptInjection();
                 expect(callback).toHaveBeenCalled();
             });
         });

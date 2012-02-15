@@ -1,7 +1,7 @@
 var logEnabled = true;
 
 if (opener) {
-    jasmineui.require(['logger', 'client/waitsForAsync', 'client/waitsForReload', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, waitsForAsync, waitsForReload, remoteSpecClient, simulate) {
+    jasmineui.require(['logger', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, reloadMarker, remoteSpecClient, simulate) {
         logger.enabled(logEnabled);
         window.xdescribe = function () {
         };
@@ -22,8 +22,7 @@ if (opener) {
         window.runs = remoteSpecClient.runs;
         window.waitsFor = remoteSpecClient.waitsFor;
         window.waits = remoteSpecClient.waits;
-        window.waitsForAsync = waitsForAsync;
-        window.waitsForReload = waitsForReload;
+        window.waitForReload = reloadMarker.requireReload;
         window.simulate = simulate;
     });
 } else {

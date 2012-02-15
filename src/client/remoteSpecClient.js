@@ -1,4 +1,4 @@
-jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer'], function (serverApi) {
+jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer', 'globals'], function (serverApi, globals) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -110,7 +110,7 @@ jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer'], 
         // The server then already knows about all required runs from the
         // first testwindow!
         if (currentNode == currentExecuteNode) {
-            serverApi(window.opener).addClientDefinedSpecNode(type, node.name, extraArgs);
+            serverApi(globals.opener).addClientDefinedSpecNode(type, node.name, extraArgs);
         }
     }
 
