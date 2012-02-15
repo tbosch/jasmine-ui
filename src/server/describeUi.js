@@ -3,13 +3,20 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
     var currentBeforeLoadCallbacks;
     var uiTestScriptUrls = [];
 
-    function addJasmineUiScriptUrl() {
-        if (globals.jasmineui.scripturl) {
-            uiTestScriptUrls.push(globals.jasmineui.scripturl);
-        }
-    }
+    /**
+     * Note that in the optimized case, when jasmineui is concatenated into one file,
+     * the script url of jasmineui is not known util the script has finished execution!
+     */
+    globals.jasmineui.addScriptUrlTo(uiTestScriptUrls);
 
-    addJasmineUiScriptUrl();
+    function addScriptUrl(url) {
+        for (var i = 0; i < uiTestScriptUrls.length; i++) {
+            if (uiTestScriptUrls[i] == url) {
+                return;
+            }
+        }
+        uiTestScriptUrls.push(url);
+    }
 
     /**
      * Registers the current script as a utility script for ui tests.
@@ -22,12 +29,7 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
 
     function addCurrentScriptToTestWindow() {
         scriptAccessor.afterCurrentScript(globals.document, function (url) {
-            for (var i = 0; i < uiTestScriptUrls.length; i++) {
-                if (uiTestScriptUrls[i] == url) {
-                    return;
-                }
-            }
-            uiTestScriptUrls.push(url);
+            addScriptUrl(url);
         });
     }
 

@@ -26,16 +26,40 @@
     script('client/simulateEvent.js');
     script('main.js');
 
-    function scriptLoadListener(event) {
-        if (event.target.nodeName === 'SCRIPT') {
-            document.removeEventListener('load', scriptLoadListener, true);
-            window.jasmineui = window.jasmineui || {};
-            window.jasmineui.scripturl = event.target.src;
+    window.jasmineui = window.jasmineui || {};
+
+    function scriptUrlDetection() {
+        // Note: We need to support both cases:
+        // - development: jasmine-ui is split into multiple files.
+        //   In that case, the scriptUrl is know first, and then addScriptUrlTo is called
+        // - production case: jasmine-ui is built into one file.
+        //   In that case, the addScriptUrlTo is called before the script url is known.
+        var scriptUrl;
+        var addScriptUrlList;
+        window.jasmineui.addScriptUrlTo = function (list) {
+            if (scriptUrl) {
+                list.push(scriptUrl);
+            }
+            addScriptUrlList = list;
+        };
+
+        function scriptLoadListener(event) {
+            if (event.target.nodeName === 'SCRIPT') {
+                document.removeEventListener('load', scriptLoadListener, true);
+                scriptUrl = event.target.src;
+                if (addScriptUrlList) {
+                    addScriptUrlList.push(scriptUrl);
+                }
+            }
         }
+
+        // Use capturing event listener, as load event of script does not bubble!
+        document.addEventListener('load', scriptLoadListener, true);
+
     }
 
-    // Use capturing event listener, as load event of script does not bubble!
-    document.addEventListener('load', scriptLoadListener, true);
+    scriptUrlDetection();
+
 
 })();
 
