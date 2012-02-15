@@ -1,8 +1,9 @@
 var logEnabled = true;
 
 if (opener) {
-    jasmineui.require(['logger', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, reloadMarker, remoteSpecClient, simulate) {
+    jasmineui.require(['logger', 'remote!', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, remotePlugin, reloadMarker, remoteSpecClient, simulate) {
         logger.enabled(logEnabled);
+        remotePlugin.setWindow(opener);
         window.xdescribe = function () {
         };
         window.xdescribeUi = function () {

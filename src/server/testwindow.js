@@ -1,4 +1,4 @@
-jasmineui.define('server/testwindow', ['remote!client/reloadMarker', 'scriptAccessor', 'globals'], function (reloadMarkerApi, scriptAccessor, globals) {
+jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 'scriptAccessor', 'globals'], function (remotePlugin, reloadMarkerApi, scriptAccessor, globals) {
     var window = globals.window;
 
     function splitAtHash(url) {
@@ -27,6 +27,7 @@ jasmineui.define('server/testwindow', ['remote!client/reloadMarker', 'scriptAcce
         }
         if (!_testwindow) {
             _testwindow = window.open(url, 'jasmineui');
+            remotePlugin.setWindow(_testwindow);
         } else {
             // Set a flag to detect whether the
             // window is currently in a reload cycle.
@@ -49,10 +50,15 @@ jasmineui.define('server/testwindow', ['remote!client/reloadMarker', 'scriptAcce
             for (var i = 0; i < scriptUrls.length; i++) {
                 scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
             }
-            globals.afterScriptInjection = function () {
+            testwindow.afterScriptInjection = function () {
                 callback(fr);
             };
-            scriptAccessor.writeInlineScript(fr.document, 'opener.afterScriptInjection();');
+            var inlineScript = function () {
+                jasmineui.require(['remote!server/testwindow'], function (testwindowRemote) {
+                    testwindowRemote().afterScriptInjection();
+                })
+            };
+            scriptAccessor.writeInlineScript(fr.document, '(' + inlineScript + ')();');
         };
 
         return _testwindow;

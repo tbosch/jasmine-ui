@@ -1,6 +1,6 @@
 jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServerFactory) {
     describe('server/remoteSpecServer', function () {
-        var mod, jasmineApi, clientMod, describeUi, asyncSensorRemote, clientwindow, waitsForAsync;
+        var mod, jasmineApi, clientMod, describeUi, asyncSensorRemote, waitsForAsync;
         var d, i, dui, be, ae, bl, callback, noop;
         beforeEach(function () {
             noop = function () {
@@ -23,16 +23,12 @@ jasmineui.require(['factory!server/remoteSpecServer'], function (remoteSpecServe
                 executeSpecNode:jasmine.createSpy('executeSpecNode')
             };
             asyncSensorRemote = jasmine.createSpy('asyncSensorRemote').andReturn(jasmine.createSpy('asyncSensor'));
-            clientwindow = {
-                document: {}
-            };
             waitsForAsync = jasmine.createSpy('waitsForAsync');
             mod = remoteSpecServerFactory({
                 'server/jasmineApi':jasmineApi,
                 'remote!client/remoteSpecClient':jasmine.createSpy().andReturn(clientMod),
                 'server/describeUi':describeUi,
                 'remote!client/asyncSensor':asyncSensorRemote,
-                'server/testwindow': jasmine.createSpy('testwindow').andReturn(clientwindow),
                 'server/waitsForAsync': waitsForAsync
             });
             d = mod.describe;

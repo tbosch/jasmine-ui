@@ -1,21 +1,24 @@
 jasmineui.require(['factory!server/waitsForAsync'], function (waitsForAsyncFactory) {
     describe('server/waitsForAsync', function () {
-        var waitsForAsync, jasmineApi, asyncSensor, testwindow;
+        var waitsForAsync, jasmineApi, asyncSensor, remotePlugin;
         beforeEach(function () {
             jasmineApi = {
                 runs:jasmine.createSpy('runs'),
                 waitsFor:jasmine.createSpy('waitsFor'),
                 waits:jasmine.createSpy('waits')
             };
-            testwindow = jasmine.createSpy('testwindow').andReturn({
+            var win = {
                 document:{ readyState:"complete"},
                 jasmineui:{}
-            });
+            };
+            remotePlugin = {
+                getWindow:jasmine.createSpy('remotePlugin').andReturn(win)
+            };
             asyncSensor = jasmine.createSpy('asyncSensor');
             waitsForAsync = waitsForAsyncFactory({
                 'server/jasmineApi':jasmineApi,
                 'remote!client/asyncSensor':jasmine.createSpy().andReturn(asyncSensor),
-                'server/testwindow':testwindow
+                'remote!':remotePlugin
             });
         });
         it("should use waitsFor on the jasmineApi with the given timeout", function () {
@@ -28,20 +31,20 @@ jasmineui.require(['factory!server/waitsForAsync'], function (waitsForAsyncFacto
             expect(jasmineApi.waitsFor).toHaveBeenCalled();
             expect(jasmineApi.waitsFor.mostRecentCall.args[2]).toBe(5000);
         });
-        it("should wait for testwindow document.readyState=complete", function () {
+        it("should wait for remotePlugin document.readyState=complete", function () {
             waitsForAsync();
             var callback = jasmineApi.waitsFor.mostRecentCall.args[0];
-            testwindow().document.readyState = 'notReady';
+            remotePlugin.getWindow().document.readyState = 'notReady';
             expect(callback()).toBe(false);
-            testwindow().document.readyState = 'complete';
+            remotePlugin.getWindow().document.readyState = 'complete';
             expect(callback()).toBe(true);
         });
-        it("should wait for jasmineui namespace in the testwindow", function () {
+        it("should wait for jasmineui namespace in the remotePlugin", function () {
             waitsForAsync();
             var callback = jasmineApi.waitsFor.mostRecentCall.args[0];
-            testwindow().jasmineui = undefined;
+            remotePlugin.getWindow().jasmineui = undefined;
             expect(callback()).toBe(false);
-            testwindow().jasmineui = {};
+            remotePlugin.getWindow().jasmineui = {};
             expect(callback()).toBe(true);
         });
         it("should wait for asyncSensor to return true", function () {

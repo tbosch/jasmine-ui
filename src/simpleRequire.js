@@ -59,10 +59,25 @@
         }
     }
 
+    var remotePluginWindow;
+
     function remotePlugin(moduleName) {
-        return function (window) {
+        if (!moduleName) {
+            return {
+                setWindow:function (win) {
+                    remotePluginWindow = win;
+                },
+                getWindow:function () {
+                    return remotePluginWindow;
+                }
+            }
+        }
+        return function () {
             var res;
-            window.jasmineui.require([moduleName], function (remoteModule) {
+            if (!remotePluginWindow) {
+                throw new Error("No window set via setWindow yet for remote plugin");
+            }
+            remotePluginWindow.jasmineui.require([moduleName], function (remoteModule) {
                 res = remoteModule;
             });
             return res;

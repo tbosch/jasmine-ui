@@ -1,4 +1,4 @@
-jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'server/testwindow', 'remote!client/asyncSensor'], function (logger, jasmineApi, testwindow, asyncSensorRemote) {
+jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'remote!', 'remote!client/asyncSensor'], function (logger, jasmineApi, remotePlugin, asyncSensorRemote) {
     /**
      * Waits for the end of all asynchronous actions.
      * @param timeout
@@ -14,10 +14,10 @@ jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'server
         // not fired directly after the animation css is added.
         // There may also be a gap between changing the location hash
         // and the hashchange event (almost none however...).
-        jasmineApi.waits(100);
+        jasmineApi.waits(50);
         jasmineApi.waitsFor(
             function () {
-                var testwin = testwindow();
+                var testwin = remotePlugin.getWindow();
                 if (!testwin) {
                     return false;
                 }
@@ -29,7 +29,7 @@ jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'server
                 if (!testwin.jasmineui) {
                     return false;
                 }
-                return !asyncSensorRemote(testwin)();
+                return !asyncSensorRemote()();
             }, "async work", timeout);
         jasmineApi.runs(function () {
             logger.log("end async waiting");

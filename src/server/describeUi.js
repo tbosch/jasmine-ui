@@ -32,7 +32,7 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
                 jasmineApi.runs(function () {
                     logger.log('Begin open url ' + pageUrl);
                     testwindow(pageUrl, uiTestScriptUrls, function (win) {
-                        loadEventSupportRemote(win).addBeforeLoadListener(function () {
+                        loadEventSupportRemote().addBeforeLoadListener(function () {
                             beforeLoadHappened = true;
                             for (var i = 0; i < beforeLoadCallbacks.length; i++) {
                                 beforeLoadCallbacks[i]();

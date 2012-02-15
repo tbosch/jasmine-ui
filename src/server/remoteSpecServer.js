@@ -1,4 +1,4 @@
-jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'server/testwindow', 'remote!client/remoteSpecClient', 'server/waitsForAsync'], function (jasmineApi, originalDescribeUi, testwindow, clientRemote, waitsForAsync) {
+jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'remote!client/remoteSpecClient', 'server/waitsForAsync'], function (jasmineApi, originalDescribeUi, clientRemote, waitsForAsync) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -91,7 +91,7 @@ jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/descri
 
     function addClientExecutingNode(type, name) {
         var node = new Node(function () {
-            return clientRemote(testwindow()).executeSpecNode(node.path());
+            return clientRemote().executeSpecNode(node.path());
         });
         currentNode.addChild(type, name, node);
         return node;

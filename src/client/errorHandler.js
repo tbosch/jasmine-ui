@@ -8,6 +8,6 @@ jasmineui.define('client/errorHandler', ['globals', 'remote!server/jasmineApi'],
      * Error listener in the opened window to make the spec fail on errors.
      */
     function errorHandler(event) {
-        jasmineApiRemote(globals.opener).fail(event.message);
+        jasmineApiRemote().fail(event.message);
     }
 });
