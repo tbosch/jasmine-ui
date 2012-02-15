@@ -33,7 +33,7 @@ describe('describeUi', function () {
                 expect(new Date().getTime() - startTime).toBeGreaterThan(600);
             });
         });
-        it("should allow access to default jasmine functions", function() {
+        it("should allow access to default jasmine functions", function () {
             expect(spyOn).toBeTruthy();
             expect(jasmine).toBeTruthy();
         });
@@ -53,24 +53,24 @@ describe('describeUi', function () {
         })
     });
 
-    describe('describe interactions', function() {
+    describe('describe interactions', function () {
         var describeCount = 0;
         var callcount = 0;
-        describeUi("describe1", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+        describeUi("describe1", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
             describeCount++;
-            it("should only call one describe in a window 1", function() {
+            it("should only call one describe in a window 1", function () {
                 expect(describeCount).toBe(1);
                 expect(callcount).toBe(0);
                 callcount++;
             });
-            it("should only call one describe in a window 2", function() {
+            it("should only call one describe in a window 2", function () {
                 expect(callcount).toBe(0);
                 callcount++;
             });
         });
-        describeUi("describe2", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+        describeUi("describe2", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
             describeCount++;
-            it("should only call one describe in a window 1", function() {
+            it("should only call one describe in a window 1", function () {
                 expect(callcount).toBe(0);
                 expect(describeCount).toBe(1);
             });
@@ -109,19 +109,19 @@ describe('describeUi', function () {
         });
     });
 
-    describeUi("repeating hooks", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+    describeUi("repeating hooks", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
         var called1, called2;
-        beforeEach(function() {
+        beforeEach(function () {
             called1 = true;
-            runs(function() {
+            runs(function () {
                 called2 = true;
             });
         });
-        it("should call beforeEach for every it 1", function() {
+        it("should call beforeEach for every it 1", function () {
             expect(called1).toBe(true);
             expect(called2).toBe(true);
         });
-        it("should call beforeEach for every it 2", function() {
+        it("should call beforeEach for every it 2", function () {
             expect(called1).toBe(true);
             expect(called2).toBe(true);
         });
@@ -129,17 +129,17 @@ describe('describeUi', function () {
 
     describeUi('multi page handling', '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
         var localCounter = 0;
-        it("should be able to continue executing after a page reload, however by loosing state", function() {
-            runs(function() {
+        it("should be able to continue executing after a page reload, however by loosing state", function () {
+            runs(function () {
                 localCounter++;
                 if (opener.remoteCounter === undefined) {
                     opener.remoteCounter = 0;
                 }
                 opener.remoteCounter++;
                 location.reload();
-                waitForReload();
+                jasmineui.waitForReload();
             });
-            runs(function() {
+            runs(function () {
                 expect(document.readyState).toBe("complete");
                 expect(localCounter).toBe(0);
                 expect(opener.remoteCounter).toBe(1);
@@ -148,4 +148,15 @@ describe('describeUi', function () {
         });
     });
 
+    describeUi('utilityScript execution in the client', '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+        it("should execute utilityScript functions", function () {
+            expect(utilityScriptCalled).toBe(true);
+        });
+    });
+
+    describe('utilityScript execution on the server', function () {
+        it("should not execute utilityScript functions", function () {
+            expect(utilityScriptCalled).toBe(false);
+        });
+    });
 });

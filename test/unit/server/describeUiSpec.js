@@ -91,6 +91,24 @@ jasmineui.require(['factory!server/describeUi'], function (describeUiFactory) {
                 expect(scriptUrls).toEqual([globals.jasmineui.scripturl, someOtherUrl]);
             });
         });
+        describe('utilityScript', function () {
+            it("should add the script from calls to utilityScript", function () {
+                var someUtilityScriptUrl = 'someUtilityScriptUrl';
+                describeUi.utilityScript(callback);
+                expect(scriptAccessor.afterCurrentScript).toHaveBeenCalled();
+                scriptAccessor.afterCurrentScript.mostRecentCall.args[1](someUtilityScriptUrl);
+                describeUi.describeUi('someName', 'someUrl', callback);
+                jasmineApi.describe.mostRecentCall.args[1]();
+                jasmineApi.beforeEach.mostRecentCall.args[0]();
+                jasmineApi.runs.argsForCall[0][0]();
+                var scriptUrls = testwindow.mostRecentCall.args[1];
+                expect(scriptUrls).toEqual([globals.jasmineui.scripturl, someUtilityScriptUrl]);
+            });
+            it("should not call the callback", function () {
+                describeUi.utilityScript(callback);
+                expect(callback).not.toHaveBeenCalled();
+            });
+        });
         describe('beforeLoad', function () {
             it("should call all listeners from beforeLoad in a beforeLoad listener for the new window", function () {
                 describeUi.describeUi('someName', 'someUrl', function () {

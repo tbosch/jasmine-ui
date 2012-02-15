@@ -11,6 +11,15 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
 
     addJasmineUiScriptUrl();
 
+    /**
+     * Registers the current script as a utility script for ui tests.
+     * The callback will only be executed on the client.
+     * @param callback
+     */
+    function utilityScript(callback) {
+        addCurrentScriptToTestWindow();
+    }
+
     function addCurrentScriptToTestWindow() {
         scriptAccessor.afterCurrentScript(globals.document, function (url) {
             for (var i = 0; i < uiTestScriptUrls.length; i++) {
@@ -71,6 +80,7 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
 
     return {
         describeUi:describeUi,
-        beforeLoad:beforeLoad
+        beforeLoad:beforeLoad,
+        utilityScript:utilityScript
     }
 });

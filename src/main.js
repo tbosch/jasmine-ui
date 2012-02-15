@@ -25,11 +25,15 @@
             window.runs = remoteSpecClient.runs;
             window.waitsFor = remoteSpecClient.waitsFor;
             window.waits = remoteSpecClient.waits;
-            window.waitForReload = reloadMarker.requireReload;
+            jasmineui.waitForReload = reloadMarker.requireReload;
             window.simulate = simulate;
+            // Just call through.
+            jasmineui.utilityScript = function(callback) {
+                callback();
+            };
         });
     } else {
-        jasmineui.require(['server/remoteSpecServer', 'server/waitsForAsync', 'logger'], function (remoteSpecServer, waitsForAsync, logger) {
+        jasmineui.require(['server/remoteSpecServer', 'server/waitsForAsync', 'logger', 'server/describeUi'], function (remoteSpecServer, waitsForAsync, logger, describeUi) {
             logger.enabled(logEnabled);
 
             window.it = remoteSpecServer.it;
@@ -39,6 +43,7 @@
             window.describeUi = remoteSpecServer.describeUi;
             window.describe = remoteSpecServer.describe;
             window.xdescribeUi = window.xdescribe;
+            jasmineui.utilityScript = describeUi.utilityScript;
 
             waitsForAsync.setTimeout(waitsForAsyncTimeout);
         });
