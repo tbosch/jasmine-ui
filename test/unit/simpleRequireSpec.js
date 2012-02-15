@@ -60,7 +60,7 @@ describe('simpleRequire', function () {
         });
         it("should get and set the target window", function() {
             var remotePlugin;
-            jasmineui.require(['remote!'], function (, _remotePlugin) {
+            jasmineui.require(['remote!'], function (_remotePlugin) {
                 remotePlugin = _remotePlugin;
             });
             var someWindow = {};
