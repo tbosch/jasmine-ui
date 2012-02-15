@@ -1,10 +1,43 @@
 /**
- * Jasmine-Ui v1.0.0
- * http://github.com/tigbro/jquery-mobile-angular-adapter
- *
- * Copyright 2011, Tobias Bosch (OPITZ CONSULTING GmbH)
- * Licensed under the MIT license.
+ * Defines the modules of jasmine-ui.
+ * Will also be used by the build command to append all files into
+ * one file.
+ * @param src
  */
+(function () {
+    function script(url) {
+        document.write('<script type="text/javascript" src="/jasmine-ui/src/' + url + '"></script>');
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    function scriptLoadListener(event) {
+        if (event.target.nodeName === 'SCRIPT') {
+            document.removeEventListener('load', scriptLoadListener, true);
+            window.jasmineui = window.jasmineui || {};
+            window.jasmineui.scripturl = event.target.src;
+        }
+    }
+
+    // Use capturing event listener, as load event of script does not bubble!
+    document.addEventListener('load', scriptLoadListener, true);
+
+})();
 
 /**
  * Simple implementation of AMD require/define assuming all
@@ -67,10 +100,25 @@
         }
     }
 
+    var remotePluginWindow;
+
     function remotePlugin(moduleName) {
-        return function (window) {
+        if (!moduleName) {
+            return {
+                setWindow:function (win) {
+                    remotePluginWindow = win;
+                },
+                getWindow:function () {
+                    return remotePluginWindow;
+                }
+            }
+        }
+        return function () {
             var res;
-            window.jasmineui.require([moduleName], function (remoteModule) {
+            if (!remotePluginWindow) {
+                throw new Error("No window set via setWindow yet for remote plugin");
+            }
+            remotePluginWindow.jasmineui.require([moduleName], function (remoteModule) {
                 res = remoteModule;
             });
             return res;
@@ -184,20 +232,15 @@ jasmineui.define('scriptAccessor', function () {
     }
 
 });jasmineui.define('globals', function () {
-    return {
-        window:window,
-        document:document,
-        console:console,
-        opener:opener
-    };
-});jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/testwindow', 'remote!client/asyncSensor', 'remote!client/loadEventSupport', 'scriptAccessor', 'globals'], function (logger, jasmineApi, testwindow, asyncSensorRemote, loadEventSupportRemote, scriptAccessor, globals) {
+    return window;
+});jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/testwindow', 'server/waitsForAsync', 'remote!client/loadEventSupport', 'scriptAccessor', 'globals'], function (logger, jasmineApi, testwindow, waitsForAsync, loadEventSupportRemote, scriptAccessor, globals) {
 
     var currentBeforeLoadCallbacks;
     var uiTestScriptUrls = [];
 
     function addJasmineUiScriptUrl() {
-        if (globals.window.jasmineui.scripturl) {
-            uiTestScriptUrls.push(globals.window.jasmineui.scripturl);
+        if (globals.jasmineui.scripturl) {
+            uiTestScriptUrls.push(globals.jasmineui.scripturl);
         }
     }
     addJasmineUiScriptUrl();
@@ -224,7 +267,7 @@ jasmineui.define('scriptAccessor', function () {
                 jasmineApi.runs(function () {
                     logger.log('Begin open url ' + pageUrl);
                     testwindow(pageUrl, uiTestScriptUrls, function (win) {
-                        loadEventSupportRemote(win).addBeforeLoadListener(function () {
+                        loadEventSupportRemote().addBeforeLoadListener(function () {
                             beforeLoadHappened = true;
                             for (var i = 0; i < beforeLoadCallbacks.length; i++) {
                                 beforeLoadCallbacks[i]();
@@ -232,15 +275,7 @@ jasmineui.define('scriptAccessor', function () {
                         });
                     });
                 });
-                jasmineApi.waitsFor(function() {
-                    if (!beforeLoadHappened) {
-                        return false;
-                    }
-                    if (asyncSensorRemote(testwindow())()) {
-                        return false;
-                    }
-                    return true;
-                });
+                waitsForAsync();
                 jasmineApi.runs(function () {
                     logger.log('Finished open url ' + pageUrl);
                 });
@@ -269,26 +304,26 @@ jasmineui.define('scriptAccessor', function () {
         describeUi:describeUi,
         beforeLoad:beforeLoad
     }
-});jasmineui.define('server/jasmineApi', function () {
+});jasmineui.define('server/jasmineApi', ['globals'], function (globals) {
 
     function fail(message) {
-        jasmine.getEnv().currentSpec.fail(message);
+        globals.jasmine.getEnv().currentSpec.fail(message);
     }
 
     /**
      * Save the original values, as we are overwriting them in some modules
      */
     return {
-        beforeEach:window.beforeEach,
-        afterEach: window.afterEach,
-        describe:window.describe,
-        runs:window.runs,
-        it:window.it,
-        waitsFor:window.waitsFor,
-        waits:window.waits,
+        beforeEach:globals.beforeEach,
+        afterEach: globals.afterEach,
+        describe:globals.describe,
+        runs:globals.runs,
+        it:globals.it,
+        waitsFor:globals.waitsFor,
+        waits:globals.waits,
         fail:fail
     }
-});jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'server/testwindow', 'remote!client/remoteSpecClient', 'remote!client/asyncSensor'], function (jasmineApi, originalDescribeUi, testwindow, clientRemote, asyncSensorRemote) {
+});jasmineui.define('server/remoteSpecServer', ['server/jasmineApi', 'server/describeUi', 'remote!client/remoteSpecClient', 'server/waitsForAsync'], function (jasmineApi, originalDescribeUi, clientRemote, waitsForAsync) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -381,7 +416,7 @@ jasmineui.define('scriptAccessor', function () {
 
     function addClientExecutingNode(type, name) {
         var node = new Node(function () {
-            return clientRemote(testwindow()).executeSpecNode(node.path());
+            return clientRemote().executeSpecNode(node.path());
         });
         currentNode.addChild(type, name, node);
         return node;
@@ -427,19 +462,11 @@ jasmineui.define('scriptAccessor', function () {
         }
         extraArgs = extraArgs || [];
         if (type === 'runs') {
+            waitsForAsync();
             jasmineApi.runs(node.bindExecute());
         } else if (type === 'waitsFor') {
-            var callback = function () {
-                var testwin = testwindow();
-                if (testwin.document.readyState!=="complete") {
-                    return false;
-                }
-                if (asyncSensorRemote(testwin)()) {
-                    return false;
-                }
-                return node.execute();
-            };
-            extraArgs.unshift(callback);
+            waitsForAsync();
+            extraArgs.unshift(node.bindExecute());
             jasmineApi.waitsFor.apply(this, extraArgs);
         } else if (type === 'waits') {
             jasmineApi.waits.apply(this, extraArgs);
@@ -455,7 +482,7 @@ jasmineui.define('scriptAccessor', function () {
         describeUi:describeUi,
         addClientDefinedSpecNode:addClientDefinedNode
     }
-});jasmineui.define('server/testwindow', ['remote!client/reloadMarker', 'scriptAccessor', 'globals'], function (reloadMarkerApi, scriptAccessor, globals) {
+});jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 'scriptAccessor', 'globals'], function (remotePlugin, reloadMarkerApi, scriptAccessor, globals) {
     var window = globals.window;
 
     function splitAtHash(url) {
@@ -484,6 +511,7 @@ jasmineui.define('scriptAccessor', function () {
         }
         if (!_testwindow) {
             _testwindow = window.open(url, 'jasmineui');
+            remotePlugin.setWindow(_testwindow);
         } else {
             // Set a flag to detect whether the
             // window is currently in a reload cycle.
@@ -502,14 +530,19 @@ jasmineui.define('scriptAccessor', function () {
             }
         }
 
-        window.instrument = function (fr) {
+        globals.instrument = function (fr) {
             for (var i = 0; i < scriptUrls.length; i++) {
                 scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
             }
-            window.afterScriptInjection = function () {
+            testwindow.afterScriptInjection = function () {
                 callback(fr);
             };
-            scriptAccessor.writeInlineScript(fr.document, 'opener.afterScriptInjection();');
+            var inlineScript = function () {
+                jasmineui.require(['remote!server/testwindow'], function (testwindowRemote) {
+                    testwindowRemote().afterScriptInjection();
+                })
+            };
+            scriptAccessor.writeInlineScript(fr.document, '(' + inlineScript + ')();');
         };
 
         return _testwindow;
@@ -517,6 +550,50 @@ jasmineui.define('scriptAccessor', function () {
 
     return testwindow;
 
+});jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'remote!', 'remote!client/asyncSensor'], function (logger, jasmineApi, remotePlugin, asyncSensorRemote) {
+    var timeout = 5000;
+
+    /**
+     * Waits for the end of all asynchronous actions.
+     */
+    function waitsForAsync() {
+        jasmineApi.runs(function () {
+            logger.log("begin async waiting");
+        });
+        // Wait at least 50 ms. Needed e.g.
+        // for animations, as the animation start event is
+        // not fired directly after the animation css is added.
+        // There may also be a gap between changing the location hash
+        // and the hashchange event (almost none however...).
+        jasmineApi.waits(50);
+        jasmineApi.waitsFor(
+            function () {
+                var testwin = remotePlugin.getWindow();
+                if (!testwin) {
+                    return false;
+                }
+                if (testwin.document.readyState !== 'complete') {
+                    return false;
+                }
+                // On the first open, the testwindow contains the empty page,
+                // which has document.readyState==complete, but nothing in it.
+                if (!testwin.jasmineui) {
+                    return false;
+                }
+                return !asyncSensorRemote()();
+            }, "async work", timeout);
+        jasmineApi.runs(function () {
+            logger.log("end async waiting");
+        });
+    }
+
+    function setTimeout(_timeout) {
+        timeout = _timeout;
+    }
+
+    waitsForAsync.setTimeout = setTimeout;
+
+    return waitsForAsync;
 });jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSupport', 'client/reloadMarker'], function (globals, logger, loadEventSupport, reloadMarker) {
     var window = globals.window;
     var asyncSensors = {};
@@ -703,22 +780,22 @@ jasmineui.define('scriptAccessor', function () {
      * So be sure to always wait at least that time!
      */
     (function () {
+        var animationCount = 0;
         loadEventSupport.addBeforeLoadListener(function () {
-            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
+            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
                 return;
             }
-            var oldFn = window.$.fn.animationComplete;
-            window.animationCount = 0;
-            window.$.fn.animationComplete = function (callback) {
-                window.animationCount++;
+            var oldFn = globals.$.fn.animationComplete;
+            globals.$.fn.animationComplete = function (callback) {
+                animationCount++;
                 return oldFn.call(this, function () {
-                    window.animationCount--;
+                    animationCount--;
                     return callback.apply(this, arguments);
                 });
             };
             addAsyncSensor('WebkitAnimation',
                 function () {
-                    return window.animationCount != 0;
+                    return animationCount != 0;
                 });
 
         });
@@ -732,23 +809,23 @@ jasmineui.define('scriptAccessor', function () {
      * So be sure to always wait at least that time!
      */
     (function () {
+        var transitionCount = 0;
         loadEventSupport.addBeforeLoadListener(function () {
-            if (!(window.$ && window.$.fn && window.$.fn.animationComplete)) {
+            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
                 return;
             }
-            window.transitionCount = 0;
 
-            var oldFn = window.$.fn.transitionComplete;
-            window.$.fn.transitionComplete = function (callback) {
-                window.transitionCount++;
+            var oldFn = globals.$.fn.transitionComplete;
+            globals.$.fn.transitionComplete = function (callback) {
+                transitionCount++;
                 return oldFn.call(this, function () {
-                    window.transitionCount--;
+                    transitionCount--;
                     return callback.apply(this, arguments);
                 });
             };
             addAsyncSensor('WebkitTransition',
                 function () {
-                    return window.transitionCount != 0;
+                    return transitionCount != 0;
                 });
 
         });
@@ -766,7 +843,7 @@ jasmineui.define('scriptAccessor', function () {
      * Error listener in the opened window to make the spec fail on errors.
      */
     function errorHandler(event) {
-        jasmineApiRemote(opener).fail(event.message);
+        jasmineApiRemote().fail(event.message);
     }
 });jasmineui.define('client/loadEventSupport', ['globals'], function (globals) {
     var window = globals.window;
@@ -817,15 +894,15 @@ jasmineui.define('scriptAccessor', function () {
      * Must not be called before the load event of the document!
      */
     function scriptLoaderIsReady() {
-        if (window.require) {
-            return window.require.resourcesDone;
+        if (globals.require) {
+            return globals.require.resourcesDone;
         }
         return true;
     }
 
     function setScriptLoaderBeforeLoadEvent(listener) {
-        var oldResourcesReady = window.require.resourcesReady;
-        window.require.resourcesReady = function (ready) {
+        var oldResourcesReady = globals.require.resourcesReady;
+        globals.require.resourcesReady = function (ready) {
             if (ready) {
                 listener();
             }
@@ -860,7 +937,7 @@ jasmineui.define('scriptAccessor', function () {
         inReload:inReload,
         requireReload:requireReload
     }
-});jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer'], function (serverApi) {
+});jasmineui.define('client/remoteSpecClient', ['remote!server/remoteSpecServer'], function (serverRemote) {
     var currentNode;
 
     function Node(executeCallback) {
@@ -972,7 +1049,7 @@ jasmineui.define('scriptAccessor', function () {
         // The server then already knows about all required runs from the
         // first testwindow!
         if (currentNode == currentExecuteNode) {
-            serverApi(window.opener).addClientDefinedSpecNode(type, node.name, extraArgs);
+            serverRemote().addClientDefinedSpecNode(type, node.name, extraArgs);
         }
     }
 
@@ -1150,80 +1227,49 @@ jasmineui.define('scriptAccessor', function () {
 
     return simulate;
 
-});jasmineui.define('client/waitsForAsync', ['logger', 'client/remoteSpecClient', 'client/asyncSensor'], function (logger, remoteSpecClient, asyncSensor) {
-    /**
-     * Waits for the end of all asynchronous actions.
-     * @param timeout
-     */
-    function waitsForAsync(timeout) {
-        timeout = timeout || 5000;
+});(function () {
+    var logEnabled = true;
+    var waitsForAsyncTimeout = 5000;
 
-        remoteSpecClient.runs(function () {
-            logger.log("begin async waiting");
+    if (opener) {
+        jasmineui.require(['logger', 'remote!', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, remotePlugin, reloadMarker, remoteSpecClient, simulate) {
+            logger.enabled(logEnabled);
+            remotePlugin.setWindow(opener);
+            window.xdescribe = function () {
+            };
+            window.xdescribeUi = function () {
+            };
+            window.xit = function () {
+            };
+            window.expect = opener.expect;
+            window.jasmine = opener.jasmine;
+            window.spyOn = opener.spyOn;
+
+            window.describe = remoteSpecClient.describe;
+            window.describeUi = remoteSpecClient.describeUi;
+            window.it = remoteSpecClient.it;
+            window.beforeEach = remoteSpecClient.beforeEach;
+            window.afterEach = remoteSpecClient.afterEach;
+            window.beforeLoad = remoteSpecClient.beforeLoad;
+            window.runs = remoteSpecClient.runs;
+            window.waitsFor = remoteSpecClient.waitsFor;
+            window.waits = remoteSpecClient.waits;
+            window.waitForReload = reloadMarker.requireReload;
+            window.simulate = simulate;
         });
-        // Wait at least 50 ms. Needed e.g.
-        // for animations, as the animation start event is
-        // not fired directly after the animation css is added.
-        // There may also be a gap between changing the location hash
-        // and the hashchange event (almost none however...).
-        remoteSpecClient.waits(100);
-        remoteSpecClient.waitsFor(
-            function () {
-                return !asyncSensor();
-            }, "async work", timeout);
-        remoteSpecClient.runs(function () {
-            logger.log("end async waiting");
+    } else {
+        jasmineui.require(['server/remoteSpecServer', 'server/waitsForAsync', 'logger'], function (remoteSpecServer, waitsForAsync, logger) {
+            logger.enabled(logEnabled);
+
+            window.it = remoteSpecServer.it;
+            window.beforeEach = remoteSpecServer.beforeEach;
+            window.afterEach = remoteSpecServer.afterEach;
+            window.beforeLoad = remoteSpecServer.beforeLoad;
+            window.describeUi = remoteSpecServer.describeUi;
+            window.describe = remoteSpecServer.describe;
+            window.xdescribeUi = window.xdescribe;
+
+            waitsForAsync.setTimeout(waitsForAsyncTimeout);
         });
     }
-
-    return waitsForAsync;
-});jasmineui.define('client/waitsForReload', ['client/remoteSpecClient', 'client/waitsForAsync', 'client/reloadMarker'], function (remoteSpecClient, waitsForAsync, reloadMarker) {
-    function waitsForReload(timeout) {
-        remoteSpecClient.runs(function () {
-            reloadMarker.requireReload();
-        });
-        waitsForAsync(timeout);
-    }
-
-    return waitsForReload;
-});var logEnabled = true;
-
-if (opener) {
-    jasmineui.require(['logger', 'client/waitsForAsync', 'client/waitsForReload', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, waitsForAsync, waitsForReload, remoteSpecClient, simulate) {
-        logger.enabled(logEnabled);
-        window.xdescribe = function () {
-        };
-        window.xdescribeUi = function () {
-        };
-        window.xit = function () {
-        };
-        window.expect = opener.expect;
-        window.jasmine = opener.jasmine;
-        window.spyOn = opener.spyOn;
-
-        window.describe = remoteSpecClient.describe;
-        window.describeUi = remoteSpecClient.describeUi;
-        window.it = remoteSpecClient.it;
-        window.beforeEach = remoteSpecClient.beforeEach;
-        window.afterEach = remoteSpecClient.afterEach;
-        window.beforeLoad = remoteSpecClient.beforeLoad;
-        window.runs = remoteSpecClient.runs;
-        window.waitsFor = remoteSpecClient.waitsFor;
-        window.waits = remoteSpecClient.waits;
-        window.waitsForAsync = waitsForAsync;
-        window.waitsForReload = waitsForReload;
-        window.simulate = simulate;
-    });
-} else {
-    jasmineui.require(['server/remoteSpecServer', 'logger'], function (remoteSpecServer, logger) {
-        logger.enabled(logEnabled);
-
-        window.it = remoteSpecServer.it;
-        window.beforeEach = remoteSpecServer.beforeEach;
-        window.afterEach = remoteSpecServer.afterEach;
-        window.beforeLoad = remoteSpecServer.beforeLoad;
-        window.describeUi = remoteSpecServer.describeUi;
-        window.describe = remoteSpecServer.describe;
-        window.xdescribeUi = window.xdescribe;
-    });
-}
+});

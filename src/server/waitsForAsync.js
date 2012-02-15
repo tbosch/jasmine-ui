@@ -1,11 +1,10 @@
 jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'remote!', 'remote!client/asyncSensor'], function (logger, jasmineApi, remotePlugin, asyncSensorRemote) {
+    var timeout = 5000;
+
     /**
      * Waits for the end of all asynchronous actions.
-     * @param timeout
      */
-    function waitsForAsync(timeout) {
-        timeout = timeout || 5000;
-
+    function waitsForAsync() {
         jasmineApi.runs(function () {
             logger.log("begin async waiting");
         });
@@ -35,6 +34,12 @@ jasmineui.define('server/waitsForAsync', ['logger', 'server/jasmineApi', 'remote
             logger.log("end async waiting");
         });
     }
+
+    function setTimeout(_timeout) {
+        timeout = _timeout;
+    }
+
+    waitsForAsync.setTimeout = setTimeout;
 
     return waitsForAsync;
 });

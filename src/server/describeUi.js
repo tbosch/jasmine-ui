@@ -8,10 +8,16 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
             uiTestScriptUrls.push(globals.jasmineui.scripturl);
         }
     }
+
     addJasmineUiScriptUrl();
 
     function addCurrentScriptToTestWindow() {
         scriptAccessor.afterCurrentScript(globals.document, function (url) {
+            for (var i = 0; i < uiTestScriptUrls.length; i++) {
+                if (uiTestScriptUrls[i] == url) {
+                    return;
+                }
+            }
             uiTestScriptUrls.push(url);
         });
     }
@@ -28,12 +34,10 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
         function execute() {
             var beforeLoadCallbacks = [];
             jasmineApi.beforeEach(function () {
-                var beforeLoadHappened = false;
                 jasmineApi.runs(function () {
                     logger.log('Begin open url ' + pageUrl);
                     testwindow(pageUrl, uiTestScriptUrls, function (win) {
                         loadEventSupportRemote().addBeforeLoadListener(function () {
-                            beforeLoadHappened = true;
                             for (var i = 0; i < beforeLoadCallbacks.length; i++) {
                                 beforeLoadCallbacks[i]();
                             }

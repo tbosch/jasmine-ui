@@ -5,6 +5,10 @@
  * @param src
  */
 (function () {
+    function script(url) {
+        document.write('<script type="text/javascript" src="/jasmine-ui/src/' + url + '"></script>');
+    }
+
     script('simpleRequire.js');
     script('scriptAccessor.js');
     script('logger.js');
@@ -22,16 +26,11 @@
     script('client/simulateEvent.js');
     script('main.js');
 
-    function script(url) {
-        document.write('<script type="text/javascript" src="/jasmine-ui/src/' + url + '"></script>');
-    }
-
     function scriptLoadListener(event) {
         if (event.target.nodeName === 'SCRIPT') {
             document.removeEventListener('load', scriptLoadListener, true);
-            window.jasmineui = {
-                scripturl:event.target.src
-            }
+            window.jasmineui = window.jasmineui || {};
+            window.jasmineui.scripturl = event.target.src;
         }
     }
 

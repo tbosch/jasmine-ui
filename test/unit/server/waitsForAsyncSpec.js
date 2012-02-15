@@ -22,7 +22,8 @@ jasmineui.require(['factory!server/waitsForAsync'], function (waitsForAsyncFacto
             });
         });
         it("should use waitsFor on the jasmineApi with the given timeout", function () {
-            waitsForAsync(1234);
+            waitsForAsync.setTimeout(1234);
+            waitsForAsync();
             expect(jasmineApi.waitsFor).toHaveBeenCalled();
             expect(jasmineApi.waitsFor.mostRecentCall.args[2]).toBe(1234);
         });
