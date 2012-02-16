@@ -2,63 +2,36 @@
  * Defines the modules of jasmine-ui.
  * Will also be used by the build command to append all files into
  * one file.
- * @param src
  */
 (function () {
-    function script(url) {
-        document.write('<script type="text/javascript" src="/jasmine-ui/src/' + url + '"></script>');
-    }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     window.jasmineui = window.jasmineui || {};
 
-    function scriptUrlDetection() {
-        // Note: We need to support both cases:
-        // - development: jasmine-ui is split into multiple files.
-        //   In that case, the scriptUrl is know first, and then addScriptUrlTo is called
-        // - production case: jasmine-ui is built into one file.
-        //   In that case, the addScriptUrlTo is called before the script url is known.
-        var scriptUrl;
-        var addScriptUrlList;
-        window.jasmineui.addScriptUrlTo = function (list) {
-            if (scriptUrl) {
-                list.push(scriptUrl);
-            }
-            addScriptUrlList = list;
-        };
+    jasmineui.currentScriptUrl = function () {
+        var scriptNodes = document.getElementsByTagName("script");
+        var lastNode = scriptNodes[scriptNodes.length - 1];
+        return lastNode.src;
+    };
 
-        function scriptLoadListener(event) {
-            if (event.target.nodeName === 'SCRIPT') {
-                document.removeEventListener('load', scriptLoadListener, true);
-                scriptUrl = event.target.src;
-                if (addScriptUrlList) {
-                    addScriptUrlList.push(scriptUrl);
-                }
-            }
-        }
+    window.jasmineui.scriptUrl = jasmineui.currentScriptUrl();
 
-        // Use capturing event listener, as load event of script does not bubble!
-        document.addEventListener('load', scriptLoadListener, true);
-
+    function script(url) {
+        document.writeln('<script type="text/javascript" src="/jasmine-ui/src/' + url + '"></script>');
     }
 
-    scriptUrlDetection();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 })();
@@ -142,8 +115,8 @@
             if (!remotePluginWindow) {
                 throw new Error("No window set via setWindow yet for remote plugin");
             }
-            remotePluginWindow.jasmineui.require([moduleName], function (remoteModule) {
-                res = remoteModule;
+            remotePluginWindow.jasmineui.require([moduleName], function (module) {
+                res = module;
             });
             return res;
         };
@@ -189,7 +162,9 @@
 
     var require = function (deps, callback) {
         var resolvedDeps = listFactory(deps, require.cache);
-        if (typeof callback === 'function') {
+        // Note: testing if typeof callback==="function" does not work
+        // in IE9 from remote window (then everything is an object...)
+        if (callback && callback.apply) {
             callback.apply(this, resolvedDeps);
         }
         return resolvedDeps;
@@ -201,37 +176,13 @@
     window.jasmineui.define = define;
 
 })(window);
-jasmineui.define('scriptAccessor', function () {
+jasmineui.define('scriptAccessor', ['globals'], function (globals) {
     function writeScriptWithUrl(document, url) {
         document.writeln('<script type="text/javascript" src="' + url + '"></script>');
     }
 
-    function writeInlineScript(document, data) {
-        document.writeln('<script type="text/javascript">' + data + '</script>');
-    }
-
-    /**
-     * Calls the given callback after the current script finishes execution.
-     * The callback will get one parameter with the url of the executed script.
-     * @param callback
-     */
-    function afterCurrentScript(document, callback) {
-        var loadListener = function (event) {
-            var node = event.target;
-            if (node.nodeName == 'SCRIPT') {
-                callback(node.src);
-                document.removeEventListener('load', loadListener, true);
-            }
-        };
-        // Use capturing event listener, as load event of script does not bubble!
-        document.addEventListener('load', loadListener, true);
-    }
-
-
     return {
-        writeScriptWithUrl:writeScriptWithUrl,
-        writeInlineScript:writeInlineScript,
-        afterCurrentScript:afterCurrentScript
+        writeScriptWithUrl:writeScriptWithUrl
     }
 });jasmineui.define('logger', ['globals'], function (globals) {
     function log(msg) {
@@ -262,12 +213,6 @@ jasmineui.define('scriptAccessor', function () {
     var currentBeforeLoadCallbacks;
     var uiTestScriptUrls = [];
 
-    /**
-     * Note that in the optimized case, when jasmineui is concatenated into one file,
-     * the script url of jasmineui is not known util the script has finished execution!
-     */
-    globals.jasmineui.addScriptUrlTo(uiTestScriptUrls);
-
     function addScriptUrl(url) {
         for (var i = 0; i < uiTestScriptUrls.length; i++) {
             if (uiTestScriptUrls[i] == url) {
@@ -287,9 +232,7 @@ jasmineui.define('scriptAccessor', function () {
     }
 
     function addCurrentScriptToTestWindow() {
-        scriptAccessor.afterCurrentScript(globals.document, function (url) {
-            addScriptUrl(url);
-        });
+        addScriptUrl(globals.jasmineui.currentScriptUrl());
     }
 
     /**
@@ -306,7 +249,10 @@ jasmineui.define('scriptAccessor', function () {
             jasmineApi.beforeEach(function () {
                 jasmineApi.runs(function () {
                     logger.log('Begin open url ' + pageUrl);
-                    testwindow(pageUrl, uiTestScriptUrls, function (win) {
+                    testwindow(pageUrl, function (win) {
+                        for (var i = 0; i < uiTestScriptUrls.length; i++) {
+                            scriptAccessor.writeScriptWithUrl(win.document, uiTestScriptUrls[i]);
+                        }
                         loadEventSupportRemote().addBeforeLoadListener(function () {
                             for (var i = 0; i < beforeLoadCallbacks.length; i++) {
                                 beforeLoadCallbacks[i]();
@@ -535,13 +481,14 @@ jasmineui.define('scriptAccessor', function () {
     }
 
     var _testwindow;
+    var jasmineUiScriptUrl = globals.jasmineui.scriptUrl;
 
     /**
      * Creates a testwindow with the given url.
-     * Injects the scripts with the given urls and calls the given callback after
-     * the scripts were executed.
+     * Injects jasmineui into the window. When jasmineui is ready,
+     * calls the given callback.
      */
-    function testwindow(url, scriptUrls, callback) {
+    function testwindow(url, callback) {
         if (arguments.length === 0) {
             return _testwindow;
         }
@@ -571,18 +518,10 @@ jasmineui.define('scriptAccessor', function () {
         }
 
         globals.instrument = function (fr) {
-            for (var i = 0; i < scriptUrls.length; i++) {
-                scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
-            }
-            testwindow.afterScriptInjection = function () {
+            testwindow.afterJasmineUiInjection = function () {
                 callback(fr);
             };
-            var inlineScript = function () {
-                jasmineui.require(['remote!server/testwindow'], function (testwindowRemote) {
-                    testwindowRemote().afterScriptInjection();
-                })
-            };
-            scriptAccessor.writeInlineScript(fr.document, '(' + inlineScript + ')();');
+            scriptAccessor.writeScriptWithUrl(fr.document, jasmineUiScriptUrl);
         };
 
         return _testwindow;
@@ -1250,7 +1189,8 @@ jasmineui.define('scriptAccessor', function () {
 
     extend(simulate, {
         defaults:{
-            speed:'sync'
+            speed:'sync',
+            view: window
         },
         VK_TAB:9,
         VK_ENTER:13,
@@ -1272,7 +1212,7 @@ jasmineui.define('scriptAccessor', function () {
     var waitsForAsyncTimeout = 5000;
 
     if (opener) {
-        jasmineui.require(['logger', 'remote!', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, remotePlugin, reloadMarker, remoteSpecClient, simulate) {
+        jasmineui.require(['logger', 'remote!', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'remote!server/testwindow', 'client/errorHandler'], function (logger, remotePlugin, reloadMarker, remoteSpecClient, simulate, testwindowRemote) {
             logger.enabled(logEnabled);
             remotePlugin.setWindow(opener);
             window.xdescribe = function () {
@@ -1300,6 +1240,7 @@ jasmineui.define('scriptAccessor', function () {
             jasmineui.utilityScript = function(callback) {
                 callback();
             };
+            testwindowRemote().afterJasmineUiInjection();
         });
     } else {
         jasmineui.require(['server/remoteSpecServer', 'server/waitsForAsync', 'logger', 'server/describeUi'], function (remoteSpecServer, waitsForAsync, logger, describeUi) {

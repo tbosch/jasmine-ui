@@ -11,13 +11,14 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
     }
 
     var _testwindow;
+    var jasmineUiScriptUrl = globals.jasmineui.scriptUrl;
 
     /**
      * Creates a testwindow with the given url.
-     * Injects the scripts with the given urls and calls the given callback after
-     * the scripts were executed.
+     * Injects jasmineui into the window. When jasmineui is ready,
+     * calls the given callback.
      */
-    function testwindow(url, scriptUrls, callback) {
+    function testwindow(url, callback) {
         if (arguments.length === 0) {
             return _testwindow;
         }
@@ -47,18 +48,10 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
         }
 
         globals.instrument = function (fr) {
-            for (var i = 0; i < scriptUrls.length; i++) {
-                scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
-            }
-            testwindow.afterScriptInjection = function () {
+            testwindow.afterJasmineUiInjection = function () {
                 callback(fr);
             };
-            var inlineScript = function () {
-                jasmineui.require(['remote!server/testwindow'], function (testwindowRemote) {
-                    testwindowRemote().afterScriptInjection();
-                })
-            };
-            scriptAccessor.writeInlineScript(fr.document, '(' + inlineScript + ')();');
+            scriptAccessor.writeScriptWithUrl(fr.document, jasmineUiScriptUrl);
         };
 
         return _testwindow;

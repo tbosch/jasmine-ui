@@ -4,7 +4,7 @@ jasmineui.require(['factory!server/describeUi'], function (describeUiFactory) {
         beforeEach(function () {
             globals = {
                 jasmineui:{
-                    addScriptUrlTo:jasmine.createSpy('addScriptUrlTo')
+                    currentScriptUrl:jasmine.createSpy('currentScriptUrl')
                 }
             };
             callback = jasmine.createSpy('callback');
@@ -15,7 +15,7 @@ jasmineui.require(['factory!server/describeUi'], function (describeUiFactory) {
                 runs:jasmine.createSpy('runs')
             };
             scriptAccessor = {
-                afterCurrentScript:jasmine.createSpy('afterCurrentScript')
+                writeScriptWithUrl:jasmine.createSpy('writeScriptWithUrl')
             };
             testwindow = jasmine.createSpy('testwindow');
             loadEventSupport = {
@@ -50,67 +50,57 @@ jasmineui.require(['factory!server/describeUi'], function (describeUiFactory) {
             expect(waitsForAsync).toHaveBeenCalled();
         });
         describe('testwindow call', function () {
-            var someUrl = 'someUrl';
-            beforeEach(function () {
+            it("should open a testwindow with the given url", function () {
                 var someUrl = 'someUrl';
                 describeUi.describeUi('someName', someUrl, callback);
                 jasmineApi.describe.mostRecentCall.args[1]();
                 jasmineApi.beforeEach.mostRecentCall.args[0]();
-            });
-            it("should open a testwindow with the given url", function () {
                 jasmineApi.runs.argsForCall[0][0]();
                 expect(testwindow).toHaveBeenCalled();
                 expect(testwindow.mostRecentCall.args[0]).toBe(someUrl);
             });
-            it("should open the testwindow with the jasmine-ui script", function () {
+            it("should inject the calling script into the testwindow", function () {
+                var someScriptUrl = 'someScriptUrl';
+                globals.jasmineui.currentScriptUrl.andReturn(someScriptUrl);
+                var someUrl = 'someUrl';
+                describeUi.describeUi('someName', someUrl, callback);
+                jasmineApi.describe.mostRecentCall.args[1]();
+                jasmineApi.beforeEach.mostRecentCall.args[0]();
                 jasmineApi.runs.argsForCall[0][0]();
-                var scriptUrls = testwindow.mostRecentCall.args[1];
-                expect(scriptUrls[0]).toBe(globals.jasmineui.scripturl);
-            });
-            it("should open the testwindow with the jasmine-ui script", function () {
-                var jasmineUiScriptUrl = 'jasmineUiScriptUrl';
-                globals.jasmineui.addScriptUrlTo.mostRecentCall.args[0].push(jasmineUiScriptUrl);
-                jasmineApi.runs.argsForCall[0][0]();
-                var scriptUrls = testwindow.mostRecentCall.args[1];
-                expect(scriptUrls).toEqual([jasmineUiScriptUrl]);
-            });
-            it("should add the calling script to the testwindow scripts", function () {
-                var jasmineUiScriptUrl = 'jasmineUiScriptUrl';
-                globals.jasmineui.addScriptUrlTo.mostRecentCall.args[0].push(jasmineUiScriptUrl);
-                var someOtherUrl = 'someOtherUrl';
-                expect(scriptAccessor.afterCurrentScript).toHaveBeenCalled();
-                scriptAccessor.afterCurrentScript.mostRecentCall.args[1](someOtherUrl);
-                jasmineApi.runs.argsForCall[0][0]();
-                var scriptUrls = testwindow.mostRecentCall.args[1];
-                expect(scriptUrls).toEqual([jasmineUiScriptUrl, someOtherUrl]);
+                var someWindow = {
+                    document:{}
+                };
+                testwindow.mostRecentCall.args[1](someWindow);
+                expect(scriptAccessor.writeScriptWithUrl).toHaveBeenCalledWith(someWindow.document, someScriptUrl);
             });
             it("should not add the same script twice", function () {
-                var jasmineUiScriptUrl = 'jasmineUiScriptUrl';
-                globals.jasmineui.addScriptUrlTo.mostRecentCall.args[0].push(jasmineUiScriptUrl);
-                var someOtherUrl = 'someOtherUrl';
+                var someScriptUrl = 'someScriptUrl';
+                globals.jasmineui.currentScriptUrl.andReturn(someScriptUrl);
+                var someUrl = 'someUrl';
                 describeUi.describeUi('someName', someUrl, callback);
-                expect(scriptAccessor.afterCurrentScript.callCount).toBe(2);
-                scriptAccessor.afterCurrentScript.argsForCall[0][1](someOtherUrl);
-                scriptAccessor.afterCurrentScript.argsForCall[1][1](someOtherUrl);
+                describeUi.describeUi('someName2', someUrl, callback);
+                jasmineApi.describe.mostRecentCall.args[1]();
+                jasmineApi.beforeEach.mostRecentCall.args[0]();
                 jasmineApi.runs.argsForCall[0][0]();
-                var scriptUrls = testwindow.mostRecentCall.args[1];
-                expect(scriptUrls).toEqual([jasmineUiScriptUrl, someOtherUrl]);
+                testwindow.mostRecentCall.args[1]({});
+                expect(scriptAccessor.writeScriptWithUrl.callCount).toBe(1);
             });
         });
         describe('utilityScript', function () {
             it("should add the script from calls to utilityScript", function () {
-                var jasmineUiScriptUrl = 'jasmineUiScriptUrl';
-                globals.jasmineui.addScriptUrlTo.mostRecentCall.args[0].push(jasmineUiScriptUrl);
                 var someUtilityScriptUrl = 'someUtilityScriptUrl';
+                globals.jasmineui.currentScriptUrl.andReturn(someUtilityScriptUrl);
                 describeUi.utilityScript(callback);
-                expect(scriptAccessor.afterCurrentScript).toHaveBeenCalled();
-                scriptAccessor.afterCurrentScript.mostRecentCall.args[1](someUtilityScriptUrl);
+                var someScriptUrl = 'someScriptUrl';
+                globals.jasmineui.currentScriptUrl.andReturn(someScriptUrl);
                 describeUi.describeUi('someName', 'someUrl', callback);
                 jasmineApi.describe.mostRecentCall.args[1]();
                 jasmineApi.beforeEach.mostRecentCall.args[0]();
                 jasmineApi.runs.argsForCall[0][0]();
-                var scriptUrls = testwindow.mostRecentCall.args[1];
-                expect(scriptUrls).toEqual([jasmineUiScriptUrl, someUtilityScriptUrl]);
+                testwindow.mostRecentCall.args[1]({});
+                expect(scriptAccessor.writeScriptWithUrl.callCount).toBe(2);
+                expect(scriptAccessor.writeScriptWithUrl.argsForCall[0][1]).toBe(someUtilityScriptUrl);
+                expect(scriptAccessor.writeScriptWithUrl.argsForCall[1][1]).toBe(someScriptUrl);
             });
             it("should not call the callback", function () {
                 describeUi.utilityScript(callback);
@@ -125,7 +115,10 @@ jasmineui.require(['factory!server/describeUi'], function (describeUiFactory) {
                 jasmineApi.describe.mostRecentCall.args[1]();
                 jasmineApi.beforeEach.mostRecentCall.args[0]();
                 jasmineApi.runs.argsForCall[0][0]();
-                testwindow.mostRecentCall.args[2]();
+                var someWindow = {
+                    document:{}
+                };
+                testwindow.mostRecentCall.args[1](someWindow);
                 expect(loadEventSupport.addBeforeLoadListener).toHaveBeenCalled();
                 expect(callback).not.toHaveBeenCalled();
                 loadEventSupport.addBeforeLoadListener.mostRecentCall.args[0]();
@@ -144,7 +137,10 @@ jasmineui.require(['factory!server/describeUi'], function (describeUiFactory) {
                 jasmineApi.describe.mostRecentCall.args[1]();
                 jasmineApi.beforeEach.mostRecentCall.args[0]();
                 jasmineApi.runs.argsForCall[0][0]();
-                testwindow.mostRecentCall.args[2]();
+                var someWindow = {
+                    document:{}
+                };
+                testwindow.mostRecentCall.args[1](someWindow);
                 loadEventSupport.addBeforeLoadListener.mostRecentCall.args[0]();
                 expect(callback).not.toHaveBeenCalled();
                 expect(callback2).toHaveBeenCalled();

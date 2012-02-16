@@ -3,7 +3,7 @@
     var waitsForAsyncTimeout = 5000;
 
     if (opener) {
-        jasmineui.require(['logger', 'remote!', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'client/errorHandler'], function (logger, remotePlugin, reloadMarker, remoteSpecClient, simulate) {
+        jasmineui.require(['logger', 'remote!', 'client/reloadMarker', 'client/remoteSpecClient', 'client/simulateEvent', 'remote!server/testwindow', 'client/errorHandler'], function (logger, remotePlugin, reloadMarker, remoteSpecClient, simulate, testwindowRemote) {
             logger.enabled(logEnabled);
             remotePlugin.setWindow(opener);
             window.xdescribe = function () {
@@ -31,6 +31,7 @@
             jasmineui.utilityScript = function(callback) {
                 callback();
             };
+            testwindowRemote().afterJasmineUiInjection();
         });
     } else {
         jasmineui.require(['server/remoteSpecServer', 'server/waitsForAsync', 'logger', 'server/describeUi'], function (remoteSpecServer, waitsForAsync, logger, describeUi) {

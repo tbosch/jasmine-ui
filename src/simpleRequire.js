@@ -77,8 +77,8 @@
             if (!remotePluginWindow) {
                 throw new Error("No window set via setWindow yet for remote plugin");
             }
-            remotePluginWindow.jasmineui.require([moduleName], function (remoteModule) {
-                res = remoteModule;
+            remotePluginWindow.jasmineui.require([moduleName], function (module) {
+                res = module;
             });
             return res;
         };
@@ -124,7 +124,9 @@
 
     var require = function (deps, callback) {
         var resolvedDeps = listFactory(deps, require.cache);
-        if (typeof callback === 'function') {
+        // Note: testing if typeof callback==="function" does not work
+        // in IE9 from remote window (then everything is an object...)
+        if (callback && callback.apply) {
             callback.apply(this, resolvedDeps);
         }
         return resolvedDeps;

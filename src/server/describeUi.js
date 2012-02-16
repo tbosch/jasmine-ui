@@ -3,12 +3,6 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
     var currentBeforeLoadCallbacks;
     var uiTestScriptUrls = [];
 
-    /**
-     * Note that in the optimized case, when jasmineui is concatenated into one file,
-     * the script url of jasmineui is not known util the script has finished execution!
-     */
-    globals.jasmineui.addScriptUrlTo(uiTestScriptUrls);
-
     function addScriptUrl(url) {
         for (var i = 0; i < uiTestScriptUrls.length; i++) {
             if (uiTestScriptUrls[i] == url) {
@@ -28,9 +22,7 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
     }
 
     function addCurrentScriptToTestWindow() {
-        scriptAccessor.afterCurrentScript(globals.document, function (url) {
-            addScriptUrl(url);
-        });
+        addScriptUrl(globals.jasmineui.currentScriptUrl());
     }
 
     /**
@@ -47,7 +39,10 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
             jasmineApi.beforeEach(function () {
                 jasmineApi.runs(function () {
                     logger.log('Begin open url ' + pageUrl);
-                    testwindow(pageUrl, uiTestScriptUrls, function (win) {
+                    testwindow(pageUrl, function (win) {
+                        for (var i = 0; i < uiTestScriptUrls.length; i++) {
+                            scriptAccessor.writeScriptWithUrl(win.document, uiTestScriptUrls[i]);
+                        }
                         loadEventSupportRemote().addBeforeLoadListener(function () {
                             for (var i = 0; i < beforeLoadCallbacks.length; i++) {
                                 beforeLoadCallbacks[i]();

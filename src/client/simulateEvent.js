@@ -120,7 +120,8 @@ jasmineui.define('client/simulateEvent', function () {
 
     extend(simulate, {
         defaults:{
-            speed:'sync'
+            speed:'sync',
+            view: window
         },
         VK_TAB:9,
         VK_ENTER:13,
