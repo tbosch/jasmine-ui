@@ -19,8 +19,8 @@ jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
             };
             globals = {
                 window:serverwindow,
-                jasmineui: {
-                    scriptUrl: 'jasmineUiScriptUrl'
+                jasmineui:{
+                    scriptUrl:'jasmineUiScriptUrl'
                 }
             };
             remotePluginSetWindow = jasmine.createSpy('remotePluginSetWindow');
@@ -56,21 +56,27 @@ jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
             testwindow(someUrl, callback);
             expect(remotePluginSetWindow).toHaveBeenCalledWith(clientwindow);
         });
-        it("should mark the testwindow for reload if it was already open", function () {
+        it("should call window.open only once", function () {
             testwindow('/someUrl', callback);
-            expect(reloadMarkerRemote).not.toHaveBeenCalled();
             testwindow('/someUrl2', callback);
+            expect(serverwindow.open.callCount).toBe(1);
+            expect(serverwindow.open.mostRecentCall.args[0]).toBe('/someUrl');
+        });
+
+        it("should mark the testwindow for reload if it contained jasmineui artifacts", function () {
+            clientwindow.jasmineui = {};
+            testwindow('/someUrl', callback);
             expect(reloadMarkerRemote).toHaveBeenCalledWith(clientwindow);
             expect(reloadMarker.requireReload).toHaveBeenCalled();
         });
-        it("should reload the testwindow by assigning location.href if the path differes", function () {
-            testwindow('/someUrl', callback);
+        it("should reload the testwindow by assigning location.href if the path differs even on first call", function () {
+            clientwindow.jasmineui = {};
             testwindow('/someUrl2', callback);
             expect(clientwindow.location.href).toBe('/someUrl2');
             expect(clientwindow.location.reload).not.toHaveBeenCalled();
         });
-        it("should reload the testwindow by calling location.reload if only the hash changed", function () {
-            testwindow('/someUrl', callback);
+        it("should reload the testwindow by calling location.reload if only the hash changed even on first call", function () {
+            clientwindow.jasmineui = {};
             clientwindow.location.pathname = '/someUrl';
             testwindow('/someUrl#12', callback);
             expect(clientwindow.location.href).toBeUndefined();
@@ -87,7 +93,7 @@ jasmineui.require(['factory!server/testwindow'], function (testwindowFactory) {
                 globals.instrument(clientwindow);
                 var w = clientwindow.document.writeln;
                 expect(w.callCount).toBe(1);
-                expect(w.argsForCall[0][0]).toBe('<script type="text/javascript" src="'+globals.jasmineui.scriptUrl+'"></script>');
+                expect(w.argsForCall[0][0]).toBe('<script type="text/javascript" src="' + globals.jasmineui.scriptUrl + '"></script>');
             });
             it("should add callback to itself which will trigger the given callback", function () {
                 testwindow('/someUrl', callback);

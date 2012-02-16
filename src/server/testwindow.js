@@ -29,7 +29,13 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
         if (!_testwindow) {
             _testwindow = window.open(url, 'jasmineui');
             remotePlugin.setWindow(_testwindow);
-        } else {
+        }
+        // The testwindow might contain old data.
+        // Note: Be sure to always check this, even if we called window.open!
+        // Reason. In FF and Chrome, a named window will be reused, even
+        // if it was opened by another call to window.open!
+        // In contrast for IE9, every call to window.open opens a new window!
+        if (_testwindow.jasmineui) {
             // Set a flag to detect whether the
             // window is currently in a reload cycle.
             reloadMarkerApi(_testwindow).requireReload();
