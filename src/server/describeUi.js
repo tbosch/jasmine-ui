@@ -1,15 +1,14 @@
-jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/testwindow', 'server/waitsForAsync', 'remote!client/loadEventSupport', 'scriptAccessor', 'globals'], function (logger, jasmineApi, testwindow, waitsForAsync, loadEventSupportRemote, scriptAccessor, globals) {
+jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindow', 'scriptAccessor'], function (logger, jasmineApi, testwindow, scriptAccessor) {
 
-    var currentBeforeLoadCallbacks;
-    var uiTestScriptUrls = [];
+    var utilityScripts = [];
 
-    function addScriptUrl(url) {
-        for (var i = 0; i < uiTestScriptUrls.length; i++) {
-            if (uiTestScriptUrls[i] == url) {
+    function addWithoutDuplicates(list, entry) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i] == entry) {
                 return;
             }
         }
-        uiTestScriptUrls.push(url);
+        list.push(entry);
     }
 
     /**
@@ -18,66 +17,123 @@ jasmineui.define('server/describeUi', ['logger', 'server/jasmineApi', 'server/te
      * @param callback
      */
     function utilityScript(callback) {
-        addCurrentScriptToTestWindow();
+        addWithoutDuplicates(utilityScripts, scriptAccessor.currentScriptUrl());
     }
 
-    function addCurrentScriptToTestWindow() {
-        addScriptUrl(globals.jasmineui.currentScriptUrl());
+    var itCalls = [];
+
+    function it(name, callback) {
+        itCalls.push(name);
+    }
+
+    var currentWaitsForRemoteSpecBlock;
+
+    function createWaitsForRemoteSpecBlock(env, spec) {
+        var res = {
+            env:env,
+            spec:spec,
+            execute:function (onComplete) {
+                res.onComplete = onComplete;
+            }
+        };
+        return res;
+    }
+
+    var currentRemoteSpec;
+
+    function createRemoteSpec(spec) {
+        function onComplete(matcherResults, error) {
+            for (var i = 0; i < matcherResults.length; i++) {
+                spec.addMatcherResult(matcherResults[i]);
+            }
+            if (error) {
+                spec.fail(error);
+            }
+            currentWaitsForRemoteSpecBlock.onComplete();
+        }
+
+        var specPath = [spec.description];
+        var suite = spec.suite;
+        while (suite) {
+            specPath.unshift(suite.description);
+            suite = suite.parentSuite;
+        }
+
+        var _reloadCount = 0;
+
+        function reloadCount(value) {
+            if (arguments.length == 0) {
+                return _reloadCount;
+            }
+            _reloadCount = value;
+        }
+
+        return {
+            onComplete:onComplete,
+            specPath:specPath,
+            reloadCount:reloadCount
+        }
     }
 
     /**
      * Just like describe, but opens a window with the given url during the test.
-     * Also needed for beforeLoad to work.
      * @param name
      * @param pageUrl
      * @param callback
      */
     function describeUi(name, pageUrl, callback) {
-        addCurrentScriptToTestWindow();
-        function execute() {
-            var beforeLoadCallbacks = [];
-            jasmineApi.beforeEach(function () {
-                jasmineApi.runs(function () {
-                    logger.log('Begin open url ' + pageUrl);
-                    testwindow(pageUrl, function (win) {
-                        for (var i = 0; i < uiTestScriptUrls.length; i++) {
-                            scriptAccessor.writeScriptWithUrl(win.document, uiTestScriptUrls[i]);
-                        }
-                        loadEventSupportRemote().addBeforeLoadListener(function () {
-                            for (var i = 0; i < beforeLoadCallbacks.length; i++) {
-                                beforeLoadCallbacks[i]();
-                            }
-                        });
-                    });
+        var currentScriptUrl = scriptAccessor.currentScriptUrl();
+
+        function createRemoteIt(name) {
+            var spec = jasmineApi.it(name);
+            spec.runs(function () {
+                var env = spec.env;
+                currentRemoteSpec = createRemoteSpec(spec);
+                spec.runs(function () {
+                    testwindow(pageUrl, utilityScripts.concat([currentScriptUrl]));
                 });
-                waitsForAsync();
-                jasmineApi.runs(function () {
-                    logger.log('Finished open url ' + pageUrl);
-                });
+                currentWaitsForRemoteSpecBlock = createWaitsForRemoteSpecBlock(env, spec);
+                spec.addToQueue(currentWaitsForRemoteSpecBlock);
             });
-            var oldCallbacks = currentBeforeLoadCallbacks;
-            currentBeforeLoadCallbacks = beforeLoadCallbacks;
-            callback();
-            currentBeforeLoadCallbacks = oldCallbacks;
+            // beforeEach and afterEach should only run in the testwindow!
+            spec.addBeforesAndAftersToQueue = function () {
+            };
+
         }
 
-        jasmineApi.describe(name, execute);
+        function execute() {
+            itCalls = [];
+            callback();
+            for (var i = 0; i < itCalls.length; i++) {
+                createRemoteIt(itCalls[i]);
+            }
+        }
+
+        describe(name, execute);
     }
 
-    /**
-     * Registers a callback that will be called right before the page loads
-     * @param callback
-     */
-    function beforeLoad(callback) {
-        if (!currentBeforeLoadCallbacks) {
-            throw new Error("beforeLoad must be called inside of a describeUi statement!");
-        }
-        currentBeforeLoadCallbacks.push(callback);
+    function describe(name, callback) {
+        // This is important, as the callback might be called at a later point.
+        // E.g. during js-test-driver tests, the jasmine adapter delays the execution
+        // of the callbacks!
+        jasmineApi.describe(name, scriptAccessor.preserveCurrentScriptUrl(callback));
     }
 
     return {
         describeUi:describeUi,
-        beforeLoad:beforeLoad,
-        utilityScript:utilityScript
+        describe:describe,
+        it:it,
+        utilityScript:utilityScript,
+        currentRemoteSpec:{
+            onComplete:function () {
+                return currentRemoteSpec.onComplete.apply(this, arguments);
+            },
+            specPath:function () {
+                return currentRemoteSpec.specPath;
+            },
+            reloadCount:function () {
+                return currentRemoteSpec.reloadCount.apply(this, arguments);
+            }
+        }
     }
 });

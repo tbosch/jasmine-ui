@@ -1,6 +1,6 @@
 jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) {
     describe("client/asyncSensor", function () {
-        var asyncSensor, mockWindow, loadEventSupport, reloadMarker, globals,
+        var asyncSensor, mockWindow, loadEventSupport, globals,
             setTimeoutSpy, setIntervalSpy, XMLHttpRequestMock,
             animationCompleteSpy, transitionCompleteSpy;
         beforeEach(function () {
@@ -22,9 +22,6 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
                 addBeforeLoadListener:jasmine.createSpy('addBeforeLoadListener'),
                 loaded:jasmine.createSpy('loaded')
             };
-            reloadMarker = {
-                inReload:jasmine.createSpy('inReload')
-            };
             globals = {
                 window: mockWindow,
                 $:{
@@ -36,11 +33,9 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
             };
             asyncSensor = asyncSensorFactory({
                 globals:globals,
-                'client/loadEventSupport':loadEventSupport,
-                'client/reloadMarker':reloadMarker
+                'client/loadEventSupport':loadEventSupport
             });
             loadEventSupport.loaded.andReturn(true);
-            reloadMarker.inReload.andReturn(false);
         });
         describe("timeout handling", function () {
             var callback;
@@ -176,13 +171,6 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
             loadEventSupport.loaded.andReturn(true);
             expect(asyncSensor()).toBe(false);
 
-        });
-
-        it("should detect reloading of the document", function () {
-            reloadMarker.inReload.andReturn(true);
-            expect(asyncSensor()).toBe(true);
-            reloadMarker.inReload.andReturn(false);
-            expect(asyncSensor()).toBe(false);
         });
 
         it('should detect jquery animation waiting', function () {

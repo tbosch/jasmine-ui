@@ -1,4 +1,4 @@
-jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSupport', 'client/reloadMarker'], function (globals, logger, loadEventSupport, reloadMarker) {
+jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSupport'], function (globals, logger, loadEventSupport) {
     var window = globals.window;
     var asyncSensors = {};
 
@@ -30,15 +30,6 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSu
     (function () {
         addAsyncSensor('loading', function () {
             return !loadEventSupport.loaded();
-        });
-    })();
-
-    /**
-     * Adds an async sensor for the reload
-     */
-    (function () {
-        addAsyncSensor('reload', function () {
-            return reloadMarker.inReload();
         });
     })();
 

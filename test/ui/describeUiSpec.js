@@ -37,21 +37,6 @@ describe('describeUi', function () {
             expect(spyOn).toBeTruthy();
             expect(jasmine).toBeTruthy();
         });
-        xit("should be able to use xit", function () {
-            expect(true).toBe(false);
-        });
-    });
-
-    xdescribe('should be able to use xdescribe', function () {
-        it("should not run", function () {
-            expect(true).toBe(false);
-        })
-    });
-
-    xdescribeUi('should be able to use xdescribeUi', 'somePage', function () {
-        it("should not run", function () {
-            expect(true).toBe(false);
-        })
     });
 
     describe('describe interactions', function () {
@@ -138,8 +123,8 @@ describe('describeUi', function () {
                 }
                 opener.remoteCounter++;
                 location.reload();
-                jasmineui.waitForReload();
             });
+            waitsForReload();
             runs(function () {
                 expect(document.readyState).toBe("complete");
                 expect(localCounter).toBe(0);

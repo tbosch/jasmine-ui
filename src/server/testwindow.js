@@ -1,4 +1,4 @@
-jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 'scriptAccessor', 'globals'], function (remotePlugin, reloadMarkerApi, scriptAccessor, globals) {
+jasmineui.define('server/testwindow', ['scriptAccessor', 'globals'], function (scriptAccessor, globals) {
     var window = globals.window;
 
     function splitAtHash(url) {
@@ -11,14 +11,13 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
     }
 
     var _testwindow;
-    var jasmineUiScriptUrl = globals.jasmineui.scriptUrl;
+    var jasmineUiScriptUrl = scriptAccessor.jasmineUiScriptUrl;
 
     /**
      * Creates a testwindow with the given url.
-     * Injects jasmineui into the window. When jasmineui is ready,
-     * calls the given callback.
+     * Injects jasmineui into the window and all of the given scripts also after jasmineui is loaded.
      */
-    function testwindow(url, callback) {
+    function testwindow(url, scriptUrls) {
         if (arguments.length === 0) {
             return _testwindow;
         }
@@ -28,7 +27,6 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
         }
         if (!_testwindow) {
             _testwindow = window.open(url, 'jasmineui');
-            remotePlugin.setWindow(_testwindow);
         }
         // The testwindow might contain old data.
         // Note: Be sure to always check this, even if we called window.open!
@@ -36,9 +34,6 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
         // if it was opened by another call to window.open!
         // In contrast for IE9, every call to window.open opens a new window!
         if (_testwindow.jasmineui) {
-            // Set a flag to detect whether the
-            // window is currently in a reload cycle.
-            reloadMarkerApi(_testwindow).requireReload();
             var oldPath = _testwindow.location.pathname;
             // if only the hash changes, the
             // page will not reload by assigning the href but only
@@ -54,10 +49,13 @@ jasmineui.define('server/testwindow', ['remote!', 'remote!client/reloadMarker', 
         }
 
         globals.instrument = function (fr) {
-            testwindow.afterJasmineUiInjection = function () {
-                callback(fr);
-            };
             scriptAccessor.writeScriptWithUrl(fr.document, jasmineUiScriptUrl);
+            testwindow.afterJasmineUiInjection = function () {
+                for (var i = 0; i < scriptUrls.length; i++) {
+                    scriptAccessor.writeScriptWithUrl(fr.document, scriptUrls[i]);
+
+                }
+            };
         };
 
         return _testwindow;
