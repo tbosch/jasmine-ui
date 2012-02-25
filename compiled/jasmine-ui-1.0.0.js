@@ -2756,14 +2756,17 @@ jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindo
     var currentRemoteSpec;
 
     function createRemoteSpec(spec) {
-        function onComplete(matcherResults, error) {
-            for (var i = 0; i < matcherResults.length; i++) {
-                spec.addMatcherResult(matcherResults[i]);
-            }
-            if (error) {
-                spec.fail(error);
-            }
+        function onComplete() {
             currentWaitsForRemoteSpecBlock.onComplete();
+        }
+
+        function fail(error) {
+            spec.fail(error);
+            onComplete();
+        }
+
+        function addMatcherResult(result) {
+            spec.addMatcherResult(result);
         }
 
         var specPath = [spec.description];
@@ -2784,6 +2787,8 @@ jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindo
 
         return {
             onComplete:onComplete,
+            addMatcherResult:addMatcherResult,
+            fail:fail,
             specPath:specPath,
             reloadCount:reloadCount
         }
@@ -2841,6 +2846,12 @@ jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindo
         currentRemoteSpec:{
             onComplete:function () {
                 return currentRemoteSpec.onComplete.apply(this, arguments);
+            },
+            fail:function () {
+                return currentRemoteSpec.fail.apply(this, arguments);
+            },
+            addMatcherResult:function () {
+                return currentRemoteSpec.addMatcherResult.apply(this, arguments);
             },
             specPath:function () {
                 return currentRemoteSpec.specPath;
@@ -3167,26 +3178,24 @@ jasmineui.define('client/describeUi', ['logger', 'jasmineApi', 'client/asyncSens
 
     function describeUi(name, url, callback) {
         describe(name, function () {
-            var matcherResults, error;
             jasmineApi.beforeEach(function () {
-                error = null;
-                matcherResults = [];
                 var localSpec = jasmineApi.getEnv().currentSpec;
+                var remoteSpec = describeUiRemote().currentRemoteSpec;
                 var _addMatcherResult = localSpec.addMatcherResult;
                 localSpec.addMatcherResult = function (result) {
-                    matcherResults.push(result);
+                    remoteSpec.addMatcherResult(result);
                     return _addMatcherResult.apply(this, arguments);
                 };
                 var _fail = localSpec.fail;
-                localSpec.fail = function (_error) {
-                    error = _error;
+                localSpec.fail = function (error) {
+                    remoteSpec.fail(error);
                     return _fail.apply(this, arguments);
                 };
                 waitsForAsync();
             });
             jasmineApi.afterEach(function () {
                 var remoteSpec = describeUiRemote().currentRemoteSpec;
-                remoteSpec.onComplete(matcherResults, error);
+                remoteSpec.onComplete();
             });
             callback();
         });
