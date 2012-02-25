@@ -42,14 +42,17 @@ jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindo
     var currentRemoteSpec;
 
     function createRemoteSpec(spec) {
-        function onComplete(matcherResults, error) {
-            for (var i = 0; i < matcherResults.length; i++) {
-                spec.addMatcherResult(matcherResults[i]);
-            }
-            if (error) {
-                spec.fail(error);
-            }
+        function onComplete() {
             currentWaitsForRemoteSpecBlock.onComplete();
+        }
+
+        function fail(error) {
+            spec.fail(error);
+            onComplete();
+        }
+
+        function addMatcherResult(result) {
+            spec.addMatcherResult(result);
         }
 
         var specPath = [spec.description];
@@ -70,6 +73,8 @@ jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindo
 
         return {
             onComplete:onComplete,
+            addMatcherResult:addMatcherResult,
+            fail:fail,
             specPath:specPath,
             reloadCount:reloadCount
         }
@@ -127,6 +132,12 @@ jasmineui.define('server/describeUi', ['logger', 'jasmineApi', 'server/testwindo
         currentRemoteSpec:{
             onComplete:function () {
                 return currentRemoteSpec.onComplete.apply(this, arguments);
+            },
+            fail:function () {
+                return currentRemoteSpec.fail.apply(this, arguments);
+            },
+            addMatcherResult:function () {
+                return currentRemoteSpec.addMatcherResult.apply(this, arguments);
             },
             specPath:function () {
                 return currentRemoteSpec.specPath;

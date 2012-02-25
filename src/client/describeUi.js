@@ -17,26 +17,24 @@ jasmineui.define('client/describeUi', ['logger', 'jasmineApi', 'client/asyncSens
 
     function describeUi(name, url, callback) {
         describe(name, function () {
-            var matcherResults, error;
             jasmineApi.beforeEach(function () {
-                error = null;
-                matcherResults = [];
                 var localSpec = jasmineApi.getEnv().currentSpec;
+                var remoteSpec = describeUiRemote().currentRemoteSpec;
                 var _addMatcherResult = localSpec.addMatcherResult;
                 localSpec.addMatcherResult = function (result) {
-                    matcherResults.push(result);
+                    remoteSpec.addMatcherResult(result);
                     return _addMatcherResult.apply(this, arguments);
                 };
                 var _fail = localSpec.fail;
-                localSpec.fail = function (_error) {
-                    error = _error;
+                localSpec.fail = function (error) {
+                    remoteSpec.fail(error);
                     return _fail.apply(this, arguments);
                 };
                 waitsForAsync();
             });
             jasmineApi.afterEach(function () {
                 var remoteSpec = describeUiRemote().currentRemoteSpec;
-                remoteSpec.onComplete(matcherResults, error);
+                remoteSpec.onComplete();
             });
             callback();
         });
