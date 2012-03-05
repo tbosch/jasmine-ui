@@ -1,4 +1,4 @@
-jasmineui.define('client/simulateEvent', function () {
+jasmineui.define('simulateEvent', function () {
     /**
      * Functions to simulate events.
      * Based upon https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js

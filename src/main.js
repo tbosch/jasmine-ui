@@ -1,13 +1,16 @@
 (function () {
     var logEnabled = true;
     var waitsForAsyncTimeout = 5000;
+    // Use popup mode only for jstestdriver.
+    var popupMode = !!window.jstestdriver;
 
-    if (opener) {
-        jasmineui.require(['remote!'], function(remotePlugin) {
-            remotePlugin.setWindow(opener);
-        });
-        jasmineui.require(['logger', 'client/describeUi', 'client/simulateEvent', 'remote!server/testwindow'], function (logger, describeUi, simulate, testwindowRemote) {
-            logger.enabled(logEnabled);
+    jasmineui.require(['logger', 'simulateEvent'], function (logger, simulate) {
+        logger.enabled(logEnabled);
+        window.simulate = simulate;
+    });
+
+    if (jasmineui && jasmineui.persistent && jasmineui.persistent.currentSpec) {
+        jasmineui.require(['describeUiClient'], function (describeUi) {
             window.xdescribeUi = window.xdescribe;
 
             window.describe = describeUi.describe;
@@ -21,17 +24,18 @@
             window.waitsForReload = describeUi.waitsForReload;
             describeUi.setWaitsForAsyncTimeout(waitsForAsyncTimeout);
 
-            window.simulate = simulate;
             // Just call through.
             jasmineui.utilityScript = function (callback) {
                 callback();
             };
-            testwindowRemote().afterJasmineUiInjection();
         });
     } else {
-        jasmineui.require(['logger', 'server/describeUi'], function (logger, describeUi) {
-            logger.enabled(logEnabled);
-
+        jasmineui.require(['describeUiServer'], function (describeUi) {
+            if (popupMode) {
+                describeUi.setPopupMode();
+            } else {
+                describeUi.setInplaceMode();
+            }
             window.describeUi = describeUi.describeUi;
             window.it = describeUi.it;
             window.beforeLoad = function() {

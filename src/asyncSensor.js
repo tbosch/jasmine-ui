@@ -1,4 +1,4 @@
-jasmineui.define('client/asyncSensor', ['globals', 'logger', 'client/loadEventSupport'], function (globals, logger, loadEventSupport) {
+jasmineui.define('asyncSensor', ['globals', 'logger', 'loadEventSupport'], function (globals, logger, loadEventSupport) {
     var window = globals.window;
     var asyncSensors = {};
 

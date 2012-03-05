@@ -5,22 +5,22 @@ describe('describeUi', function () {
                 expect(window.location.pathname).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
             });
         });
-        it("should execute it callbacks in the testwindow", function () {
-            expect(window.opener).toBeTruthy();
+        it("should execute it callbacks in the url defined by describeUi", function () {
+            expect(window.location.pathname).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
         });
-        it("should execute runs callbacks in the testwindow", function () {
+        it("should execute runs callbacks in the url defined by describeUi", function () {
             runs(function () {
-                expect(window.opener).toBeTruthy();
+                expect(window.location.pathname).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
             });
         });
-        it("should execute waitFor callbacks in the testwindow", function () {
-            var openerInWaitsFor;
+        it("should execute waitFor callbacks in the url defined by describeUi", function () {
+            var urlInWaitsFor;
             waitsFor(function () {
-                openerInWaitsFor = window.opener;
+                urlInWaitsFor = window.location.pathname;
                 return true;
             });
             runs(function () {
-                expect(openerInWaitsFor).toBeTruthy();
+                expect(urlInWaitsFor).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
             });
         });
         it("should execute waits", function () {
@@ -35,31 +35,7 @@ describe('describeUi', function () {
         });
         it("should allow access to default jasmine functions", function () {
             expect(spyOn).toBeTruthy();
-            expect(jasmine).toBeTruthy();
-        });
-    });
-
-    describe('describe interactions', function () {
-        var describeCount = 0;
-        var callcount = 0;
-        describeUi("describe1", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
-            describeCount++;
-            it("should only call one describe in a window 1", function () {
-                expect(describeCount).toBe(1);
-                expect(callcount).toBe(0);
-                callcount++;
-            });
-            it("should only call one describe in a window 2", function () {
-                expect(callcount).toBe(0);
-                callcount++;
-            });
-        });
-        describeUi("describe2", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
-            describeCount++;
-            it("should only call one describe in a window 1", function () {
-                expect(callcount).toBe(0);
-                expect(describeCount).toBe(1);
-            });
+            expect(jasmine).toBeDefined();
         });
     });
 
@@ -118,17 +94,12 @@ describe('describeUi', function () {
         it("should be able to continue executing after a page reload, however by loosing state", function () {
             runs(function () {
                 localCounter++;
-                if (opener.remoteCounter === undefined) {
-                    opener.remoteCounter = 0;
-                }
-                opener.remoteCounter++;
                 location.reload();
             });
             waitsForReload();
             runs(function () {
                 expect(document.readyState).toBe("complete");
                 expect(localCounter).toBe(0);
-                expect(opener.remoteCounter).toBe(1);
             });
 
         });
@@ -145,4 +116,10 @@ describe('describeUi', function () {
             expect(utilityScriptCalled).toBe(false);
         });
     });
+
+    describe("normal specs", function() {
+        it("should execute them", function() {
+            expect(1).toBe(1);
+        });
+    })
 });
