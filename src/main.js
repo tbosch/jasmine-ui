@@ -10,19 +10,18 @@
     });
 
     if (jasmineui && jasmineui.persistent && jasmineui.persistent.currentSpec) {
-        jasmineui.require(['describeUiClient'], function (describeUi) {
+        jasmineui.require(['describeUiClient', 'waitsForAsync'], function (describeUi, waitsForAsync) {
             window.xdescribeUi = window.xdescribe;
 
             window.describe = describeUi.describe;
             window.describeUi = describeUi.describeUi;
-            window.it = describeUi.it;
             window.beforeEach = describeUi.beforeEach;
             window.beforeLoad = describeUi.beforeLoad;
             window.runs = describeUi.runs;
             window.waitsFor = describeUi.waitsFor;
             window.waits = describeUi.waits;
             window.waitsForReload = describeUi.waitsForReload;
-            describeUi.setWaitsForAsyncTimeout(waitsForAsyncTimeout);
+            waitsForAsync.setTimeout(waitsForAsyncTimeout);
 
             // Just call through.
             jasmineui.utilityScript = function (callback) {

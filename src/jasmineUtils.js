@@ -1,4 +1,6 @@
-jasmineui.define('jasmineUtils', ['globals'], function (globals) {
+jasmineui.define('jasmineUtils', ['jasmineApi'], function (jasmineApi) {
+    var jasmine = jasmineApi.jasmine;
+
     function specPath(spec) {
         var res = suitePath(spec.suite);
         res.push(spec.description);
@@ -57,8 +59,8 @@ jasmineui.define('jasmineUtils', ['globals'], function (globals) {
             return copyPrimitive(obj);
         }
 
-        var _ExpectationResult = globals.jasmine.ExpectationResult;
-        globals.jasmine.ExpectationResult = function (data) {
+        var _ExpectationResult = jasmine.ExpectationResult;
+        jasmine.ExpectationResult = function (data) {
             _ExpectationResult.call(this, data);
             // Convert the contained error to normal serializable objects to preserve
             // the line number information!
@@ -72,7 +74,7 @@ jasmineui.define('jasmineUtils', ['globals'], function (globals) {
             this.expected = shallowCopyWithArray(this.expected);
             return this;
         };
-        globals.jasmine.ExpectationResult.prototype = _ExpectationResult.prototype;
+        jasmine.ExpectationResult.prototype = _ExpectationResult.prototype;
     }
 
     makeExpectationResultSerializable();

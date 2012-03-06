@@ -1,5 +1,5 @@
-jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) {
-    describe("client/asyncSensor", function () {
+jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
+    describe("asyncSensor", function () {
         var asyncSensor, mockWindow, loadEventSupport, globals,
             setTimeoutSpy, setIntervalSpy, XMLHttpRequestMock,
             animationCompleteSpy, transitionCompleteSpy;
@@ -33,7 +33,7 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
             };
             asyncSensor = asyncSensorFactory({
                 globals:globals,
-                'client/loadEventSupport':loadEventSupport
+                'loadEventSupport':loadEventSupport
             });
             loadEventSupport.loaded.andReturn(true);
         });

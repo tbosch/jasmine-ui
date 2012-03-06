@@ -50,7 +50,7 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
             return;
         }
         modeSet = true;
-        jasmineApi.getEnv().currentRunner().finishCallback = function () {
+        jasmineApi.jasmine.getEnv().currentRunner().finishCallback = function () {
             var pd = persistentData();
             var specQueue = pd.specQueue;
             pd.specCount = specQueue.length;
@@ -78,7 +78,7 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
         }
         modeSet = true;
         var remoteWindow;
-        var runner = jasmineApi.getEnv().currentRunner();
+        var runner = jasmineApi.jasmine.getEnv().currentRunner();
         var _finishCallback = runner.finishCallback;
         runner.finishCallback = function () {
             remoteWindow.close();
@@ -101,7 +101,7 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
     }
 
     function setPopupSpecResults(results) {
-        var spec = jasmineApi.getEnv().currentSpec;
+        var spec = jasmineApi.jasmine.getEnv().currentSpec;
         var queue = spec.queue;
         var currentWaitsBlock = queue.blocks[queue.index];
         spec.results_ = jasmineUtils.nestedResultsFromJson(results);
@@ -139,7 +139,7 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
     }
 
     function describe(name, callback) {
-        if (jasmineApi.getEnv().currentSuite) {
+        if (jasmineApi.jasmine.getEnv().currentSuite) {
             return jasmineApi.describe(name, callback);
         }
         // It is important to save the current script url at this early point, as the callback might be called at a later point.
@@ -147,20 +147,20 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
         // of the callbacks!
         var currentScriptUrl = scriptAccessor.currentScriptUrl();
         jasmineApi.describe(name, function () {
-            scriptUrl(jasmineApi.getEnv().currentSuite, currentScriptUrl);
+            scriptUrl(jasmineApi.jasmine.getEnv().currentSuite, currentScriptUrl);
             callback();
         });
     }
 
     function describeUi(name, _pageUrl, callback) {
         jasmineApi.describe(name, function () {
-            pageUrl(jasmineApi.getEnv().currentSuite, _pageUrl);
+            pageUrl(jasmineApi.jasmine.getEnv().currentSuite, _pageUrl);
             callback();
         });
     }
 
     function it(name, callback) {
-        var suite = jasmineApi.getEnv().currentSuite;
+        var suite = jasmineApi.jasmine.getEnv().currentSuite;
         var _pageUrl = pageUrl(suite);
         var currentScript = scriptUrl(suite);
         if (!_pageUrl) {
@@ -169,7 +169,7 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
         }
         if (pageUrl) {
             var spec = jasmineApi.it(name, function () {
-                var spec = jasmineApi.getEnv().currentSpec;
+                var spec = jasmineApi.jasmine.getEnv().currentSpec;
                 itHandler(spec, _pageUrl, currentScript);
             });
             // beforeEach and afterEach should only run in the client!

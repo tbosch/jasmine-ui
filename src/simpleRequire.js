@@ -30,7 +30,6 @@
     };
     define.moduleDefs = [];
     define.plugins = {
-        remote:remotePlugin,
         factory:factoryPlugin
     };
 
@@ -58,32 +57,6 @@
             return factory(moduleName, cache);
         }
     }
-
-    var remotePluginWindow;
-
-    function remotePlugin(moduleName) {
-        if (!moduleName) {
-            return {
-                setWindow:function (win) {
-                    remotePluginWindow = win;
-                },
-                getWindow:function () {
-                    return remotePluginWindow;
-                }
-            }
-        }
-        return function () {
-            var res;
-            if (!remotePluginWindow) {
-                throw new Error("No window set via setWindow yet for remote plugin");
-            }
-            remotePluginWindow.jasmineui.require([moduleName], function (module) {
-                res = module;
-            });
-            return res;
-        };
-    }
-
 
     function factory(name, instanceCache) {
         if (!instanceCache) {

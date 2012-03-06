@@ -9,6 +9,13 @@ jasmineui.define('loadEventSupport', ['globals'], function (globals) {
      * @param callback
      */
     var addBeforeLoadListener = function (callback) {
+        if (beforeLoadListeners.length===0) {
+            /**
+             * We use a capturing event listener to be the first to get the event.
+             * jQuery, ... always use non capturing event listeners...
+             */
+            document.addEventListener('DOMContentLoaded', beforeLoadCallback, true);
+        }
         beforeLoadListeners.push(callback);
     };
 
@@ -24,13 +31,8 @@ jasmineui.define('loadEventSupport', ['globals'], function (globals) {
         }
     }
 
-    /**
-     * We use a capturing event listener to be the first to get the event.
-     * jQuery, ... always use non capturing event listeners...
-     */
-    document.addEventListener('DOMContentLoaded', loadCallback, true);
 
-    function loadCallback() {
+    function beforeLoadCallback() {
         /*
          * When using a script loader,
          * the document might be ready, but not the modules.
@@ -71,8 +73,16 @@ jasmineui.define('loadEventSupport', ['globals'], function (globals) {
         return docReady;
     }
 
+    var loadListeners = [];
+
+    function addLoadListener(listener) {
+        // TODO integrate with requirejs!
+        window.addEventListener('load', listener, false);
+    }
+
     return {
         addBeforeLoadListener:addBeforeLoadListener,
-        loaded:loaded
+        loaded:loaded,
+        addLoadListener: addLoadListener
     }
 });

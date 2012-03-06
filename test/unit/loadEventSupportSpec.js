@@ -1,5 +1,5 @@
-jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSupportFactory) {
-    describe('client/loadEventSupport', function () {
+jasmineui.require(['factory!loadEventSupport'], function (loadEventSupportFactory) {
+    describe('loadEventSupport', function () {
         var loadEventSupport, globals;
         beforeEach(function () {
             globals = {
@@ -7,6 +7,7 @@ jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSuppor
                     addEventListener:jasmine.createSpy('addEventListener')
                 },
                 window:{
+                    addEventListener:jasmine.createSpy('addEventListener')
 
                 }
             };
@@ -15,6 +16,11 @@ jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSuppor
 
         describe('addBeforeLoadListener', function () {
             describe('without requireJs', function () {
+                var listener;
+                beforeEach(function () {
+                    listener = jasmine.createSpy('listener');
+                    loadEventSupport.addBeforeLoadListener(listener);
+                });
                 it("should add a capturing listener to the DOMContentLoaded event", function () {
                     var f = globals.document.addEventListener;
                     expect(f).toHaveBeenCalled();
@@ -23,8 +29,6 @@ jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSuppor
                 });
 
                 it("should call the listener when the DOMContentLoaded fires", function () {
-                    var listener = jasmine.createSpy('listener');
-                    loadEventSupport.addBeforeLoadListener(listener);
                     globals.document.addEventListener.mostRecentCall.args[1]();
                     expect(listener).toHaveBeenCalled();
                 });
@@ -55,6 +59,28 @@ jasmineui.require(['factory!client/loadEventSupport'], function (loadEventSuppor
                 });
             });
         });
+
+        describe('addLoadListener', function () {
+            describe('without requireJs', function () {
+                var listener;
+                beforeEach(function () {
+                    listener = jasmine.createSpy('listener');
+                    loadEventSupport.addLoadListener(listener);
+                });
+                it("should add a non capturing listener to the load event", function () {
+                    var f = globals.window.addEventListener;
+                    expect(f).toHaveBeenCalled();
+                    expect(f.mostRecentCall.args[0]).toBe('load');
+                    expect(f.mostRecentCall.args[2]).toBe(false);
+                });
+
+                it("should call the listener when the load event fires", function () {
+                    globals.window.addEventListener.mostRecentCall.args[1]();
+                    expect(listener).toHaveBeenCalled();
+                });
+            });
+        });
+
 
         describe('loaded', function () {
             describe('without requirejs', function () {

@@ -1,6 +1,6 @@
-jasmineui.require(['factory!client/simulateEvent'], function (simulateFactory) {
+jasmineui.require(['factory!simulateEvent'], function (simulateFactory) {
 
-    describe("client/simulateEvent", function () {
+    describe("simulateEvent", function () {
         var simulate, el;
         beforeEach(function () {
             simulate = simulateFactory();

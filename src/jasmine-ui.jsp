@@ -23,6 +23,7 @@ if (!window.jasmine) {
 <jsp:include page="jasmineApi.js"/>
 <jsp:include page="loadUrl.js"/>
 <jsp:include page="asyncSensor.js"/>
+<jsp:include page="waitsForAsync.js"/>
 <jsp:include page="loadEventSupport.js"/>
 <jsp:include page="simulateEvent.js"/>
 <jsp:include page="jasmineUtils.js"/>

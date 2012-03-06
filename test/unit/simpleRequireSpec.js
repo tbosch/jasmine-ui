@@ -49,46 +49,6 @@ describe('simpleRequire', function () {
         });
     });
 
-    describe('remote plugin', function () {
-        it("should create accessor functions", function () {
-            jasmineui.define('someModule', {});
-            var someModuleRemote;
-            jasmineui.require(['remote!someModule'], function (_someModuleRemote) {
-                someModuleRemote = _someModuleRemote;
-            });
-            expect(typeof someModuleRemote).toBe('function');
-        });
-        it("should get and set the target window", function() {
-            var remotePlugin;
-            jasmineui.require(['remote!'], function (_remotePlugin) {
-                remotePlugin = _remotePlugin;
-            });
-            var someWindow = {};
-            remotePlugin.setWindow(someWindow);
-            expect(remotePlugin.getWindow()).toBe(someWindow);
-        });
-        it("should access the module in the window set by setWindow using jasmineui.require", function () {
-            jasmineui.define('someModule', {});
-            var someModuleRemote;
-            var remotePlugin;
-            jasmineui.require(['remote!someModule', 'remote!'], function (_someModuleRemote, _remotePlugin) {
-                someModuleRemote = _someModuleRemote;
-                remotePlugin = _remotePlugin;
-            });
-            var someWindow = {
-                jasmineui:{
-                    require:jasmine.createSpy('remoteRequire')
-                }
-            };
-            remotePlugin.setWindow(someWindow);
-            var someValue = "someValue";
-            someWindow.jasmineui.require.andCallFake(function (deps, callback) {
-                callback(someValue);
-            });
-            expect(someModuleRemote()).toBe(someValue);
-        });
-    });
-
     describe('require', function () {
         it('should cache created instances', function () {
             var counter = 0;

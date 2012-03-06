@@ -1,7 +1,6 @@
-jasmineui.define('describeUiClient', ['logger', 'jasmineApi', 'persistentData', 'asyncSensor', 'loadEventSupport', 'globals', 'loadUrl', 'jasmineUtils'], function (logger, jasmineApi, persistentData, asyncSensor, loadEventSupport, globals, loadUrl, jasmineUtils) {
+jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadEventSupport', 'globals', 'loadUrl', 'jasmineUtils'], function (jasmineApi, persistentData, waitsForAsync, loadEventSupport, globals, loadUrl, jasmineUtils) {
     var remoteSpec = persistentData().currentSpec;
-    var originalReloadCount = remoteSpec.reloadCount || 0;
-    var missingWaitsForReloadCount = originalReloadCount;
+    var missingWaitsForReloadCount = remoteSpec.reloadCount || 0;
 
     function describeUi(name, url, callback) {
         jasmineApi.describe(name, callback);
@@ -9,7 +8,7 @@ jasmineui.define('describeUiClient', ['logger', 'jasmineApi', 'persistentData', 
 
     function beforeEach(callback) {
         // Do not execute beforeEach if we are in a reload situation.
-        if (originalReloadCount === 0) {
+        if (!remoteSpec.reloadCount) {
             jasmineApi.beforeEach.apply(this, arguments);
         }
     }
@@ -23,60 +22,33 @@ jasmineui.define('describeUiClient', ['logger', 'jasmineApi', 'persistentData', 
 
     function waitsFor(callback) {
         if (missingWaitsForReloadCount === 0) {
-            waitsForAsync();
             jasmineApi.waitsFor.apply(this, arguments);
         }
     }
 
     function waits(callback) {
         if (missingWaitsForReloadCount === 0) {
-            waitsForAsync();
             jasmineApi.waits.apply(this, arguments);
         }
     }
 
     function waitsForReload() {
         if (missingWaitsForReloadCount === 0) {
-            remoteSpec.reloadCount = originalReloadCount + 1;
+            jasmineApi.runs(function() {
+                remoteSpec.reloadCount = (remoteSpec.reloadCount || 0) + 1;
+            });
             // Wait for a reload of the page...
-            jasmineUtils.createInfiniteWaitsBlock(jasmine.getEnv().currentSpec);
+            jasmineUtils.createInfiniteWaitsBlock(jasmineApi.jasmine.getEnv().currentSpec);
         } else {
             missingWaitsForReloadCount--;
         }
     }
 
-    var waitsForAsyncTimeout = 5000;
-
-    /**
-     * Waits for the end of all asynchronous actions.
-     */
-    function waitsForAsync() {
-        jasmineApi.runs(function () {
-            logger.log("begin async waiting");
-        });
-        // Wait at least 50 ms. Needed e.g.
-        // for animations, as the animation start event is
-        // not fired directly after the animation css is added.
-        // There may also be a gap between changing the location hash
-        // and the hashchange event (almost none however...).
-        jasmineApi.waits(50);
-        jasmineApi.waitsFor(
-            function () {
-                return !asyncSensor();
-            }, "async work", waitsForAsyncTimeout);
-        jasmineApi.runs(function () {
-            logger.log("end async waiting");
-        });
-    }
-
-    function setWaitsForAsyncTimeout(_timeout) {
-        waitsForAsyncTimeout = _timeout;
-    }
 
     var beforeLoadCallbacks = [];
 
     function beforeLoad(callback) {
-        var suite = jasmineApi.getEnv().currentSuite;
+        var suite = jasmineApi.jasmine.getEnv().currentSuite;
         var suitePath = jasmineUtils.suitePath(suite);
         var remoteSpecPath = remoteSpec.specPath;
         for (var i = 0; i < suitePath.length; i++) {
@@ -89,13 +61,16 @@ jasmineui.define('describeUiClient', ['logger', 'jasmineApi', 'persistentData', 
 
     loadEventSupport.addBeforeLoadListener(function () {
         for (var i = 0; i < beforeLoadCallbacks.length; i++) {
+            // TODO add try/catch here,
+            // catch the error and save it as an expectationresult in the spec...
+            // TODO get the spec...
             beforeLoadCallbacks[i]();
         }
     });
 
-    globals.window.addEventListener('load', function () {
+    loadEventSupport.addLoadListener(function () {
         jasmineApi.beforeEach(waitsForAsync);
-        var specs = jasmineApi.getEnv().currentRunner().specs();
+        var specs = jasmineApi.jasmine.getEnv().currentRunner().specs();
         var spec;
         var remoteSpecId = remoteSpec.specPath.join('#');
         for (var i = 0; i < specs.length; i++) {
@@ -136,7 +111,6 @@ jasmineui.define('describeUiClient', ['logger', 'jasmineApi', 'persistentData', 
     }, false);
 
     return {
-        it:it,
         describe:describe,
         describeUi:describeUi,
         beforeEach:beforeEach,
@@ -144,7 +118,6 @@ jasmineui.define('describeUiClient', ['logger', 'jasmineApi', 'persistentData', 
         beforeLoad:beforeLoad,
         waits:waits,
         waitsFor:waitsFor,
-        runs:runs,
-        setWaitsForAsyncTimeout:setWaitsForAsyncTimeout
+        runs:runs
     }
 });

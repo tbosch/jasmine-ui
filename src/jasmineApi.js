@@ -6,11 +6,12 @@ jasmineui.define('jasmineApi', ['globals'], function (globals) {
     return {
         it:globals.it,
         describe:globals.describe,
-        getEnv:globals.jasmine.getEnv,
         beforeEach:globals.beforeEach,
         afterEach:globals.afterEach,
         runs:globals.runs,
         waitsFor:globals.waitsFor,
-        waits:globals.waits
+        waits:globals.waits,
+        jasmine:globals.jasmine,
+        expect:globals.expect
     }
 });

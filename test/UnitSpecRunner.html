@@ -9,35 +9,26 @@
     <script type="text/javascript" src="lib/jasmine-html.js"></script>
 
     <script type="text/javascript" src="../src/simpleRequire.js"></script>
-    <script type="text/javascript" src="../src/globals.js"></script>
     <script type="text/javascript" src="../src/logger.js"></script>
-    <script type="text/javascript" src="../src/scriptAccessor.js"></script>
     <script type="text/javascript" src="../src/jasmineApi.js"></script>
-    <script type="text/javascript" src="../src/client/simulateEvent.js"></script>
-    <script type="text/javascript" src="../src/client/loadEventSupport.js"></script>
-    <script type="text/javascript" src="../src/client/asyncSensor.js"></script>
-    <script type="text/javascript" src="../src/client/describeUi.js"></script>
-
-    <script type="text/javascript" src="../src/server/testwindow.js"></script>
-    <script type="text/javascript" src="../src/server/describeUi.js"></script>
+    <script type="text/javascript" src="../src/jasmineUtils.js"></script>
+    <script type="text/javascript" src="../src/describeUiClient.js"></script>
+    <script type="text/javascript" src="../src/asyncSensor.js"></script>
+    <script type="text/javascript" src="../src/loadEventSupport.js"></script>
+    <script type="text/javascript" src="../src/simulateEvent.js"></script>
 
     <!-- Note: DON'T include main.js here, as it would start the modules automatically. But we want to create them
          with mocks in the specs... -->
+    <script type="text/javascript" src="unit/testutils.js"></script>
+
 
     <!-- Specs go here.... -->
     <script type="text/javascript" src="unit/simpleRequireSpec.js"></script>
     <script type="text/javascript" src="unit/loggerSpec.js"></script>
-    <script type="text/javascript" src="unit/scriptAccessorSpec.js"></script>
-    <script type="text/javascript" src="unit/client/simulateEventSpec.js"></script>
-    <script type="text/javascript" src="unit/client/loadEventSupportSpec.js"></script>
-    <script type="text/javascript" src="unit/client/asyncSensorSpec.js"></script>
-    <!--
-    <script type="text/javascript" src="unit/client/waitsForAsyncSpec.js"></script>
-    -->
-    <script type="text/javascript" src="unit/server/testwindowSpec.js"></script>
-    <!--
-    <script type="text/javascript" src="unit/server/describeUiSpec.js"></script>
-    -->
+    <script type="text/javascript" src="unit/asyncSensorSpec.js"></script>
+    <script type="text/javascript" src="unit/loadEventSupportSpec.js"></script>
+    <script type="text/javascript" src="unit/simulateEventSpec.js"></script>
+    <script type="text/javascript" src="unit/describeUiClientSpec.js"></script>
 
 </head>
 <body>
