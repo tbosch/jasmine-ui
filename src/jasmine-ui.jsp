@@ -9,13 +9,14 @@
 * Copyright Pivotal Labs
 *
 */
-// Allow jasmine to be defined before jasmine-ui separately. Needed for
-// js-test-driver integration, as the js-test-driver adapter does not know
-// about describeUi.
 if (!window.jasmine) {
 <jsp:include page="../lib/jasmine.js"/>
 }
+if (window.jstestdriver) {
+<jsp:include page="../test/lib/JasmineAdapter.js"/>
+}
 <jsp:include page="simpleRequire.js"/>
+<jsp:include page="config.js"/>
 <jsp:include page="scriptAccessor.js"/>
 <jsp:include page="logger.js"/>
 <jsp:include page="globals.js"/>

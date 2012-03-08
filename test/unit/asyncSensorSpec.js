@@ -33,7 +33,10 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
             };
             asyncSensor = asyncSensorFactory({
                 globals:globals,
-                'loadEventSupport':loadEventSupport
+                'loadEventSupport':loadEventSupport,
+                logger: {
+                    log: jasmine.createSpy('log')
+                }
             });
             loadEventSupport.loaded.andReturn(true);
         });

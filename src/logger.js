@@ -1,23 +1,12 @@
-jasmineui.define('logger', ['globals'], function (globals) {
+jasmineui.define('logger', ['globals', 'config'], function (globals, config) {
     function log(msg) {
-        if (enabled()) {
+        if (config.logEnabled) {
             globals.console.log(msg);
         }
     }
 
-    var _enabled;
-
-    function enabled(value) {
-        if (value === undefined) {
-            return _enabled;
-        } else {
-            _enabled = value;
-        }
-    }
-
     return {
-        log:log,
-        enabled: enabled
-    }
+        log:log
+    };
 
 });

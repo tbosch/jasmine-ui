@@ -1,20 +1,21 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-  <groupId>com.opitzconsulting.html5</groupId>
-  <artifactId>jasmine-ui</artifactId>
-  <version>1.0.0</version>
-  <name>Jasmine UI</name>
-  <packaging>jar</packaging>
-  <description>UI Tests with Jasmine</description>
-  
-  <properties>
-      <browser>/Applications/Google Chrome.app/Contents/MacOS/Google Chrome</browser>
-  </properties>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.opitzconsulting.html5</groupId>
+    <artifactId>jasmine-ui</artifactId>
+    <version>1.0.0</version>
+    <name>Jasmine UI</name>
+    <packaging>jar</packaging>
+    <description>UI Tests with Jasmine</description>
 
-  <build>
+    <properties>
+        <browser>/Applications/Google Chrome.app/Contents/MacOS/Google Chrome</browser>
+    </properties>
 
-      <plugins>
-               <plugin>
+    <build>
+
+        <plugins>
+            <plugin>
                 <groupId>com.google.jstestdriver</groupId>
                 <artifactId>maven-jstestdriver-plugin</artifactId>
                 <version>1.3.2.1</version>
@@ -59,7 +60,7 @@
                     <stopPort>9999</stopPort>
                     <webAppSourceDirectory>${basedir}</webAppSourceDirectory>
                     <webAppConfig>
-                      <contextPath>/jasmine-ui</contextPath>
+                        <contextPath>/jasmine-ui</contextPath>
                     </webAppConfig>
                 </configuration>
                 <executions>
@@ -82,6 +83,26 @@
                         </goals>
                     </execution>
                 </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>1.1.1</version>
+                <executions>
+                    <execution>
+                        <id>some-execution</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                <configuration>
+                    <executable>node</executable>
+                    <arguments>
+                        <argument>build.js</argument>
+                    </arguments>
+                </configuration>
             </plugin>
         </plugins>
     </build>
@@ -108,5 +129,5 @@
             <name>JsTestDriver Maven Plugin Repository</name>
             <url>http://jstd-maven-plugin.googlecode.com/svn/maven2</url>
         </pluginRepository>
-    </pluginRepositories>  
+    </pluginRepositories>
 </project>

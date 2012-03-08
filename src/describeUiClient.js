@@ -1,6 +1,12 @@
 jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadEventSupport', 'globals', 'loadUrl', 'jasmineUtils'], function (jasmineApi, persistentData, waitsForAsync, loadEventSupport, globals, loadUrl, jasmineUtils) {
-    var remoteSpec = persistentData().currentSpec;
-    var missingWaitsForReloadCount = remoteSpec.reloadCount || 0;
+    var remoteSpec = persistentData().specs[persistentData().specIndex];
+    var originalReloadCount = remoteSpec.reloadCount || 0;;
+    var missingWaitsForReloadCount = originalReloadCount;
+    // Note: We need to increment the reloadCount here,
+    // and not in a runs statement in the waitsForReload.
+    // Reason: Jasmine sometimes executes runs statements using window.setTimeout.
+    // After location.reload() was called, those timeouts may not be executed!
+    remoteSpec.reloadCount = originalReloadCount+1;
 
     function describeUi(name, url, callback) {
         jasmineApi.describe(name, callback);
@@ -8,7 +14,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
 
     function beforeEach(callback) {
         // Do not execute beforeEach if we are in a reload situation.
-        if (!remoteSpec.reloadCount) {
+        if (!originalReloadCount) {
             jasmineApi.beforeEach.apply(this, arguments);
         }
     }
@@ -34,42 +40,27 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
 
     function waitsForReload() {
         if (missingWaitsForReloadCount === 0) {
-            jasmineApi.runs(function() {
-                remoteSpec.reloadCount = (remoteSpec.reloadCount || 0) + 1;
-            });
             // Wait for a reload of the page...
-            jasmineUtils.createInfiniteWaitsBlock(jasmineApi.jasmine.getEnv().currentSpec);
+            var spec = jasmineApi.jasmine.getEnv().currentSpec;
+            jasmineUtils.createInfiniteWaitsBlock(spec);
         } else {
             missingWaitsForReloadCount--;
         }
     }
 
 
-    var beforeLoadCallbacks = [];
-
-    function beforeLoad(callback) {
-        var suite = jasmineApi.jasmine.getEnv().currentSuite;
-        var suitePath = jasmineUtils.suitePath(suite);
-        var remoteSpecPath = remoteSpec.specPath;
+    function isSubList(list, suitePath) {
+        var execute = true;
         for (var i = 0; i < suitePath.length; i++) {
-            if (i >= remoteSpecPath.length || remoteSpecPath[i] != suitePath[i]) {
-                return;
+            if (i >= list.length || list[i] != suitePath[i]) {
+                execute = false;
+                break;
             }
         }
-        beforeLoadCallbacks.push(callback);
+        return execute;
     }
 
-    loadEventSupport.addBeforeLoadListener(function () {
-        for (var i = 0; i < beforeLoadCallbacks.length; i++) {
-            // TODO add try/catch here,
-            // catch the error and save it as an expectationresult in the spec...
-            // TODO get the spec...
-            beforeLoadCallbacks[i]();
-        }
-    });
-
-    loadEventSupport.addLoadListener(function () {
-        jasmineApi.beforeEach(waitsForAsync);
+    function findRemoteSpecLocally() {
         var specs = jasmineApi.jasmine.getEnv().currentRunner().specs();
         var spec;
         var remoteSpecId = remoteSpec.specPath.join('#');
@@ -83,25 +74,49 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         if (!spec) {
             throw new Error("could not find spec with path " + remoteSpec.specPath);
         }
-        if (remoteSpec.specResults) {
-            // If we had existing results, load them into the spec.
-            spec.results_ = jasmineUtils.nestedResultsFromJson(remoteSpec.specResults);
+        return spec;
+    }
+
+    var beforeLoadCallbacks = [];
+
+    function beforeLoad(callback) {
+        var suite = jasmineApi.jasmine.getEnv().currentSuite;
+        var suitePath = jasmineUtils.suitePath(suite);
+        var remoteSpecPath = remoteSpec.specPath;
+        if (isSubList(remoteSpecPath, suitePath)) {
+            beforeLoadCallbacks.push(callback);
+        }
+    }
+
+    loadEventSupport.addBeforeLoadListener(function () {
+        var localSpec = findRemoteSpecLocally();
+        for (var i = 0; i < beforeLoadCallbacks.length; i++) {
+            try {
+                beforeLoadCallbacks[i]();
+            } catch (e) {
+                localSpec.fail(e);
+            }
+        }
+    });
+
+    loadEventSupport.addLoadListener(function () {
+        jasmineApi.beforeEach(waitsForAsync);
+        var spec = findRemoteSpecLocally();
+        if (remoteSpec.results) {
+            // If we had existing results from a reload situation, load them into the spec.
+            spec.results_ = jasmineUtils.nestedResultsFromJson(remoteSpec.results);
         }
         remoteSpec.results = spec.results_;
         spec.execute(function () {
             var pd = persistentData();
+            pd.specIndex = pd.specIndex + 1;
             if (globals.opener) {
                 globals.opener.jasmineui.require(['describeUiServer'], function (describeUiServer) {
                     describeUiServer.setPopupSpecResults(spec.results_);
                 });
             } else {
-                pd.specResults = pd.specResults || [];
-                pd.specResults.push(pd.currentSpec);
-                delete pd.currentSpec;
-                var nextEntry = pd.specQueue.shift();
-                if (nextEntry) {
-                    pd.currentSpec = nextEntry;
-                    loadUrl(globals.window, nextEntry.url);
+                if (pd.specIndex < pd.specs.length) {
+                    loadUrl(globals.window, pd.specs[pd.specIndex].url);
                 } else {
                     loadUrl(globals.window, pd.reporterUrl);
                 }
@@ -109,6 +124,10 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
 
         });
     }, false);
+
+    function utilityScript(callback) {
+        callback();
+    }
 
     return {
         describe:describe,
@@ -118,6 +137,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         beforeLoad:beforeLoad,
         waits:waits,
         waitsFor:waitsFor,
-        runs:runs
+        runs:runs,
+        utilityScript: utilityScript
     }
 });

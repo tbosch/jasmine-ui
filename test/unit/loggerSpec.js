@@ -1,24 +1,28 @@
 jasmineui.require(['factory!logger'], function (loggerFactory) {
     describe('logger', function () {
-        var logger, console;
+        var logger, console, config;
         beforeEach(function () {
             console = {
                 log: jasmine.createSpy('console')
             };
+            config = {
+                logEnabled: true
+            };
             logger = loggerFactory({
                 'globals': {
                     console: console
-                }
+                },
+                config: config
             });
         });
         it('should log to the console if enabled', function () {
-            logger.enabled(true);
+            config.logEnabled = true;
             logger.log("hello");
             expect(console.log).toHaveBeenCalledWith("hello");
         });
 
         it('should not log to the console if disabled', function () {
-            logger.enabled(false);
+            config.logEnabled = false;
             logger.log("hello");
             expect(console.log).not.toHaveBeenCalled();
         })

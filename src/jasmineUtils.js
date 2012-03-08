@@ -87,6 +87,7 @@ jasmineui.define('jasmineUtils', ['jasmineApi'], function (jasmineApi) {
                 res.onComplete = onComplete;
             }
         };
+        spec.addToQueue(res);
         return res;
     }
 

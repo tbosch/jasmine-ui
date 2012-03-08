@@ -1,6 +1,4 @@
-jasmineui.define('waitsForAsync', ['asyncSensor', 'jasmineApi', 'logger'], function (asyncSensor, jasmineApi, logger) {
-    var waitsForAsyncTimeout = 5000;
-
+jasmineui.define('waitsForAsync', ['config', 'asyncSensor', 'jasmineApi', 'logger'], function (config, asyncSensor, jasmineApi, logger) {
     /**
      * Waits for the end of all asynchronous actions.
      */
@@ -17,15 +15,11 @@ jasmineui.define('waitsForAsync', ['asyncSensor', 'jasmineApi', 'logger'], funct
         jasmineApi.waitsFor(
             function () {
                 return !asyncSensor();
-            }, "async work", waitsForAsyncTimeout);
+            }, "async work", config.waitsForAsyncTimeout);
         jasmineApi.runs(function () {
             logger.log("end async waiting");
         });
     }
-
-    waitsForAsync.setTimeout = function (_timeout) {
-        waitsForAsyncTimeout = _timeout;
-    };
 
     return waitsForAsync;
 });

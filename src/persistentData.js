@@ -5,12 +5,10 @@ jasmineui.define('persistentData', ['globals'], function (globals) {
         var helper = function () {
             window.jasmineui = window.jasmineui || {};
             var pd = window.jasmineui.persistent = MARKER || {};
-            var currentSpec = pd.currentSpec;
+            var currentSpec = pd.specs && pd.specs[pd.specIndex];
             if (currentSpec) {
                 var scripts = currentSpec.loadScripts;
-                if (currentSpec.index) {
-                    console.log("Jasmineui: Spec " + (currentSpec.index + 1) + "/" + pd.specCount + ": " + currentSpec.specPath.join(" "));
-                }
+                console.log("Jasmineui: Spec " + (pd.specIndex + 1) + "/" + pd.specs.length + ": " + currentSpec.specPath.join(" "));
                 for (var i = 0; i < scripts.length; i++) {
                     window.document.writeln('<script type="text/javascript" src="' + scripts[i] + '"></script>');
                 }

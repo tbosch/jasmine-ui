@@ -4,98 +4,107 @@ Jasmine-Ui
 Description
 -------------
 
-Jasmine-UI provides ui tests for jasmine. It loads a html page in a new window and instruments it,
-so it knows whether there currently is asynchronous work going on. This does not use
-an iframe so there is minimal layout inteference with the page to be tested, which
-is especially useful for mobile applications.
+Jasmine-UI provides ui tests for jasmine, i.e. written in javascript in jasmine syntax.
 
-By this, a test is able to test the ui functionality of a html page.
+Features:
+
+* It can load a html page and inject tests into that page. By this, the tests run in the same window
+  as the page to test and can call any function there or modify any object there.
+  This is especially useful if you want to mock some parts of your application (like XHR requests)
+  during the test. This is the main difference to tools like selenium, ... which test webapps only
+  from the outside.
+* It has a special ability to wait for the end of asynchronous work. Right now, this is
+  XHR, setTimeout, setInterval, page loading, css3 animations and css3 transitions.
+  All ui specs will not start until the end of all asynchronous work,
+  and waiting will also be applied before all jasmine `runs` statements.
+* Supports jasmine specs that span multiple page reloads.
+* If run with the normal jasmine html runner, it does not create an iframe or popup, but reuses
+  the current window. This makes debugging errors very easy, as you only have one browser inspector
+  open. Furthermore, the application gets the whole size of the window. By this, layout dependent
+  logic can also be tested (e.g. especially useful during mobile development).
+* If run with js-test-driver, this does use a popup, as js-test-driver does not allow
+  a test to change the current page url.
+* Supports Firefox, Chrome, Safari and IE9+.
+
 
 Usage:
 
 1. include jasmine-ui.js as library into your test-code.
 2. In the pages that should be tests, include the following line as first line in the header:
-   `<script>opener && opener.instrument && opener.instrument(window);</script>`
+   `<script type="text/javascript">sessionStorage.jasmineui && eval(sessionStorage.jasmineui);</script>`
 2. write asynchronous jasmine tests, using the functions below.
 3. For debugging run the tests with the standalone html runner,
    and for continous integration use the js-test-driver runner.
 
 Preconditions:
-The page to be tested must be loaded from the same domain as the test code.
 
+* The page to be tested must be loaded from the same domain as the test code.
+
+Dependencies:
+
+* jasmine (included in the released file)
+* js-test-driver Adapter for Jasmine (adapter included in the released file)
 
 Sample
 ------------
-See project [phonecat-mobile](https://github.com/tigbro/phonecat-mobile).
+See project [js-fadein](https://github.com/stefanscheidt/js-fadein).
 
+Build
+--------------
+* run the tests:
+    * Run `mvn integration-test` from a command line
+    * Use the jasmine html runner:
+        1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
+        2. Enter `http://localhost:8080/jasmine-ui/test/UnitSpecRunner.html` rep. `http://localhost:8080/jasmine-ui/test/UiSpecRunner.html` in the browser of your choice
+* Create a new version:
+    * set the version in the pom.xml
+    * execute `mvn clean package`. This will create a file in the `compiled` folder
 
-Features
-----------
+Directory structure
+----------------
 
-* wait until end of asynchronous operations
-* mock the loaded application with callbacks from the test.
-* works well with single and multi page applications
-* Supports Firefox, Chrome, Safari and IE7+.
-* Supports mobile Safari, mobile Chrome and mobile IE 7+.
+- compiled: The created versions of jasmine-ui
+- src: The main files of jasmine-ui
+- test/ui: The ui self tests for jasmine-ui
+- test/unit: The unit tests of jasmine-ui
+
 
 Functions
 -----------
 
-#### `loadHtml(<your-html-file>, callback1, callback2)`
-Loads the given html file and waits until it is fully loaded (e.g. it's document is ready).
-If only one callback is given, the callback will be called right before the ready event.
-If two callbacks are given, the first callback will be called when the document is created
-and the second right before the ready event.
+#### `describeUi(suiteName, pageUrl, callback)`
+Creates a jasmine suite for the given page. For all specs contained in this suite
+first the page will be loaded and then the spec will be injected into that page and executed there.
+This includes all `beforeEach` and `afterEach` callbacks that are defined in this suite or parent suites.
 
-The callbacks get the frame as parameter.
+#### `beforeLoad(callback)`
+Creates a callback that will be executed right before the `DOMContentLoaded` event. By this,
+all your application javascript files have been loaded and can be changed, before your application starts.
+This is very nice e.g. for mocking backend calls, ...
 
-To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
+To be placed where you would place `beforeEach` in jasmine.
 
-#### `jasmine.ui.addLoadHtmlListener(listener1,listener2)`
-* Adds listeners for all loadHtml calls in the current spec. This will also
-  execute the listeners if the testwindow() is reloaded, e.g. by a form submit, ...
-* If only one callback is given, the callback will be called right before the ready event. If two callbacks are given, the first callback will be called when the document is created
-  and the second right before the ready event.
-  The callbacks get the frame as parameter.
-
-#### `waitsForAsync()`
-* Waits until the end of all asynchronous work in the test window:
-    * reload if an unload happened (experimental).
-    * end of all timeouts
-    * end of all intervals
-    * end of all xhr calls (independent of a framework like jquery, ...)
-    * end of all css3 animations and transitions, if someone waits for them via jquery plugins
-      `animationComplete` or `transitionComplete`.
-* To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
-* Note that this can be extended by custom plugins.
-
+#### `jasmineui.utilityScript(callback)`
+This will registers the current javascript file as a utility script needed by the ui tests. I.e.
+the script will be loaded into every page that is tests with describeUi.
+The callback will only be executed in the page, and not in the jasmine spec runner.
 
 #### `waitsForReload()`
-* Waits until a new page is loaded in the test window. To be called after a form submit, external navigation, ...
-* If a reload is know to happen, prefer this function over waitsForAsync.
-* To be placed where the run and waits functions can be placed in asynchronous jasmine tests.
+This is needed whenever the test executed a part of the application that does a page reload.
+E.g.
 
-
-#### `testwindow()`
-* Returns the loaded frame / window.
-* May be used anywhere after loadHtml was called.
-
-#### `jasmine.ui.normalizeExternalArray(array, window)`
-Clones the given array using the Array-Function in the given window.
-This is useful when mocking objects in the testframe.
-
-
-#### `jasmine.ui.normalizeExternalObject(obj, window)`
-* Normalizes the given object if it originates from another window or iframe.
-* Traverses through the object graph and calls normalizeExternalArray where needed.
-* Note that this changes the object itself if it is no array. If it is an array, a new instance will be created.
-* Attention: This does not work on cyclic graphs!
-* This is useful when mocking objects in the testframe.
+    runs(function() {
+      window.location.reload();
+    };
+    waitsForReload();
+    runs(function() {
+      // Will be called after the reload.
+    });
 
 
 Integration with js-test-driver for Continuous Integration
 --------------
-* Be sure to use the jstd-jasmine-async-adapter
+* This already includes jasmine and the jasmine adapter for js-test-driver
 * configure a js-test-driver proxy that delegates all requests to the webserver that contains
   the pages that should be tests. This is important so that the pages to be tested are
   from the same domain as the test code.
@@ -105,9 +114,7 @@ Example configuration:
 
     server: http://localhost:42442
     load:
-    - src/test/webapp/lib/jasmine.js
     - src/test/webapp/lib/jasmine-ui.js
-    - src/test/webapp/lib/jstd-jasmine-async-adapter.js
     - src/test/webapp/ui/*.js
 
     proxy:
@@ -120,9 +127,9 @@ Simulation of Browser-Events
 
 To simulate browser events, there are two ways:
 
-#### Use `jasmine.ui.simulate(element, type, options)`
+#### Use `simulate(element, type, options)`
 This will simulate the real browser event of the given type, fire it on the given element and dispatch it.
-The options argument is optionla and contains detail-information for the event. See the browser documentation
+The options argument is optional and contains detail-information for the event. See the browser documentation
 for this. However, this should not very often be needed as meaningful defaults are provided.
 
 
@@ -143,16 +150,4 @@ firing the event.
 This does _not_ fire the underlying browser event, but only triggers
 event handlers registered by jquery. I.e. this can not be used for
 event listeners attached without jquery! Also, this does not do the default navigation of anchor links!
-
-Running the self-tests for jasmine-ui
---------------
-To run the self-tests for the jasmine-ui.js file, there are two possibilities:
-
-- Using maven:
-     1. change the property `browser` in the pom.xml to point to a browser of your choice.
-      2. Run `mvn integration-test` from a command line
-
-- Using the Jasmine HTML Runner:
-      1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
-      2. Enter `http://localhost:8080/jasmine-ui/test/SpecRunner.html` in the browser of your choice
 

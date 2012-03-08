@@ -1,4 +1,4 @@
-jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 'loadUrl', 'scriptAccessor', 'globals', 'jasmineUtils'], function (logger, jasmineApi, persistentData, loadUrl, scriptAccessor, globals, jasmineUtils) {
+jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'loadUrl', 'scriptAccessor', 'globals', 'jasmineUtils'], function (config, jasmineApi, persistentData, loadUrl, scriptAccessor, globals, jasmineUtils) {
 
     var utilityScripts = [];
 
@@ -23,22 +23,25 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
         addWithoutDuplicates(utilityScripts, scriptAccessor.currentScriptUrl());
     }
 
-    var itHandler, modeSet;
+    var itHandler;
 
-    if (persistentData().specResults) {
-        setResultsMode(persistentData().specResults);
+    if (persistentData().specs) {
+        setResultsMode(persistentData().specs);
+    } else if (config.popupMode) {
+        setPopupMode();
+    } else {
+        setInplaceMode();
     }
     persistentData.clean();
 
-    function setResultsMode(specResults) {
-        modeSet = true;
+
+
+    function setResultsMode(remoteSpecs) {
         itHandler = function (spec) {
-            // find the specResults...
-            var pd = persistentData();
-            for (var i = 0; i < specResults.length; i++) {
-                var sr = specResults[i];
-                if (sr.specPath.join('#') === jasmineUtils.specPath(spec).join('#')) {
-                    spec.results_ = jasmineUtils.nestedResultsFromJson(sr.results);
+            for (var i = 0; i < remoteSpecs.length; i++) {
+                var executedSpec = remoteSpecs[i];
+                if (executedSpec.specPath.join('#') === jasmineUtils.specPath(spec).join('#')) {
+                    spec.results_ = jasmineUtils.nestedResultsFromJson(executedSpec.results);
                     break;
                 }
             }
@@ -46,57 +49,49 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
     }
 
     function setInplaceMode() {
-        if (modeSet) {
-            return;
-        }
-        modeSet = true;
-        jasmineApi.jasmine.getEnv().currentRunner().finishCallback = function () {
+        jasmineApi.jasmine.Runner.prototype.finishCallback = function () {
             var pd = persistentData();
-            var specQueue = pd.specQueue;
-            pd.specCount = specQueue.length;
-            pd.currentSpec = specQueue.shift();
+            pd.specIndex = 0;
             pd.reporterUrl = globals.window.location.pathname;
-            loadUrl(globals.window, pd.currentSpec.url);
+            loadUrl(globals.window, pd.specs[0].url);
         };
         itHandler = function (spec, pageUrl, currentScriptUrl) {
-            var specStartData = {
+            var remoteSpec = {
                 loadScripts:utilityScripts.concat([currentScriptUrl]),
                 specPath:jasmineUtils.specPath(spec),
                 url:pageUrl
             };
             var pd = persistentData();
-            var specQueue = pd.specQueue = pd.specQueue || [];
-            specStartData.index = specQueue.length;
-            specQueue.push(specStartData);
+            var remoteSpecs = pd.specs = pd.specs || [];
+            remoteSpecs.push(remoteSpec);
         }
 
     }
 
     function setPopupMode() {
-        if (modeSet) {
-            return;
-        }
-        modeSet = true;
         var remoteWindow;
-        var runner = jasmineApi.jasmine.getEnv().currentRunner();
-        var _finishCallback = runner.finishCallback;
-        runner.finishCallback = function () {
+        // Note: js-test-driver creates an own Runner, so we need to
+        // modify the prototype of the runner!
+        var _finishCallback = jasmineApi.jasmine.Runner.prototype.finishCallback;
+        jasmineApi.jasmine.Runner.prototype.finishCallback = function () {
             remoteWindow.close();
             return _finishCallback.apply(this, arguments);
         };
         itHandler = function (spec, pageUrl, currentScriptUrl) {
-            var specStartData = {
+            var remoteSpec = {
                 loadScripts:utilityScripts.concat([currentScriptUrl]),
-                specPath:jasmineUtils.specPath(spec)
+                specPath:jasmineUtils.specPath(spec),
+                url: pageUrl
             };
             if (!remoteWindow) {
                 remoteWindow = globals.window.open(null, 'jasmineui');
             }
             loadUrl(remoteWindow, pageUrl);
             var pd = persistentData(remoteWindow);
-            pd.currentSpec = specStartData;
+            pd.specs = [remoteSpec];
+            pd.specIndex = 0;
 
-            spec.addToQueue(jasmineUtils.createInfiniteWaitsBlock(spec));
+            jasmineUtils.createInfiniteWaitsBlock(spec);
         };
     }
 
@@ -153,7 +148,7 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
     }
 
     function describeUi(name, _pageUrl, callback) {
-        jasmineApi.describe(name, function () {
+        describe(name, function () {
             pageUrl(jasmineApi.jasmine.getEnv().currentSuite, _pageUrl);
             callback();
         });
@@ -178,13 +173,16 @@ jasmineui.define('describeUiServer', ['logger', 'jasmineApi', 'persistentData', 
         }
     }
 
+    function beforeLoad(callback) {
+        // do nothing on the server side!
+    }
+
     return {
         describeUi:describeUi,
         describe:describe,
         it:it,
         utilityScript:utilityScript,
         setPopupSpecResults:setPopupSpecResults,
-        setInplaceMode:setInplaceMode,
-        setPopupMode:setPopupMode
+        beforeLoad: beforeLoad
     }
 });

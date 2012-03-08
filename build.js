@@ -2,9 +2,8 @@ var fs  = require("fs");
 var carrier = require('carrier');
 
 function readVersion() {
-    var res = fs.readFileSync('version.txt', 'utf-8');
-    res = res.replace(/\s/g,'');
-    return res;
+    var pom = fs.readFileSync('pom.xml', 'utf-8');
+    return /<version>(.*)<\/version>/.exec(pom)[1];
 }
 
 var versionPlaceholder = "${project.version}";
