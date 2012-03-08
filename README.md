@@ -58,7 +58,7 @@ Build
         2. Enter `http://localhost:8080/jasmine-ui/test/UnitSpecRunner.html` rep. `http://localhost:8080/jasmine-ui/test/UiSpecRunner.html` in the browser of your choice
 * Create a new version:
     * set the version in the pom.xml
-    * execute `mvn clean package`. This will create a file in the `compiled` folder
+    * execute `mvn clean install`. This will create a file in the `compiled` folder and also execute the tests.
 
 Directory structure
 ----------------

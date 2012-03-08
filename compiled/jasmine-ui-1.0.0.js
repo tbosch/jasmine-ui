@@ -3852,7 +3852,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
 
 
 
-    jasmineui.require(['simulateEvent'], function (logger, simulate) {
+    jasmineui.require(['simulateEvent'], function (simulate) {
         window.simulate = simulate;
     });
 
