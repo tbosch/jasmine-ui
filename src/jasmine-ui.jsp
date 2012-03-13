@@ -17,15 +17,15 @@ if (window.jstestdriver) {
 }
 <jsp:include page="simpleRequire.js"/>
 <jsp:include page="config.js"/>
+<jsp:include page="urlParser.js"/>
 <jsp:include page="scriptAccessor.js"/>
 <jsp:include page="logger.js"/>
 <jsp:include page="globals.js"/>
 <jsp:include page="persistentData.js"/>
 <jsp:include page="jasmineApi.js"/>
-<jsp:include page="loadUrl.js"/>
 <jsp:include page="asyncSensor.js"/>
 <jsp:include page="waitsForAsync.js"/>
-<jsp:include page="loadEventSupport.js"/>
+<jsp:include page="loadListener.js"/>
 <jsp:include page="simulateEvent.js"/>
 <jsp:include page="jasmineUtils.js"/>
 <jsp:include page="describeUiServer.js"/>

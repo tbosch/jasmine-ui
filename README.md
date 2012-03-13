@@ -25,6 +25,7 @@ Features:
 * If run with js-test-driver, this does use a popup, as js-test-driver does not allow
   a test to change the current page url.
 * Supports Firefox, Chrome, Safari and IE9+.
+* Does not need any additional test server, only a browser to execute the tests
 
 
 Usage:

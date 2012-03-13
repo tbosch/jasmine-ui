@@ -1,4 +1,4 @@
-jasmineui.define('loadEventSupport', ['globals'], function (globals) {
+jasmineui.define('loadListener', ['globals'], function (globals) {
     var window = globals.window;
     var document = globals.document;
 

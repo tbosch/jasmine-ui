@@ -1,13 +1,59 @@
-jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactory) {
+jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], function (describeUiClientFactory, persistentDataFactory) {
     describe('describeUiClient', function () {
-        var jasmineApi, describeUi, globals, persistentData, waitsForAsync, loadEventSupport, loadUrl;
+        var jasmineApi, describeUi, globals, waitsForAsync, loadListener, sessionStorage, location, persistentDataAccessor, persistentData;
         beforeEach(function () {
-            persistentData = {
-                specs:[],
-                specIndex:0
+            location = {
+                href:''
             };
+            sessionStorage = {};
         });
-        function createDescribeUi() {
+
+        function createGlobalsWithSharedLocationAndSessionStorage() {
+            return {
+                window:{
+                    location:location,
+                    sessionStorage:sessionStorage,
+                    eval:window.eval,
+                    removeEventListener:jasmine.createSpy('removeEventListener'),
+                    addEventListener:jasmine.createSpy('addEventListener')
+                }
+            };
+        }
+
+        function simulateUnload() {
+            var argsForCall = globals.window.addEventListener.argsForCall;
+            for (var i=argsForCall.length-1; i>=0; i--) {
+                var args = argsForCall[i];
+                if (args[0]==='beforeunload') {
+                    args[1]();
+                    break;
+                }
+            }
+        }
+
+        function simulateServerLoad() {
+            var tmpGlobals = createGlobalsWithSharedLocationAndSessionStorage();
+            persistentDataAccessor = persistentDataFactory({
+                globals:tmpGlobals
+            });
+            persistentData = persistentDataAccessor();
+        }
+
+        function simulateServerWrite(data) {
+            var tmpGlobals = createGlobalsWithSharedLocationAndSessionStorage();
+            if (data) {
+                var tmpPersistentData = persistentDataFactory({
+                    globals:tmpGlobals
+                });
+                for (var x in data) {
+                    tmpPersistentData()[x] = data[x];
+                }
+                tmpPersistentData.saveAndNavigateTo(tmpGlobals.window, 'someUrl');
+                delete tmpGlobals.window.jasmineui.persistent;
+            }
+        }
+
+        function simulateClientLoad(data) {
             runs(function () {
                 jasmineApi = null;
                 newJasmineApi(function (instance) {
@@ -18,32 +64,38 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                 return jasmineApi;
             });
             runs(function () {
-                globals = {
-                    window:{}
-                };
+                if (data) {
+                    simulateServerWrite(data);
+                }
+                globals = createGlobalsWithSharedLocationAndSessionStorage();
                 waitsForAsync = jasmine.createSpy('waitsForAsync');
-                loadEventSupport = {
+                loadListener = {
                     addBeforeLoadListener:jasmine.createSpy('addBeforeLoadListener'),
                     addLoadListener:jasmine.createSpy('addLoadListener')
                 };
-                loadUrl = jasmine.createSpy('loadUrl');
+                persistentDataAccessor = persistentDataFactory({
+                    globals:globals
+                });
                 describeUi = describeUiClientFactory({
                     globals:globals,
                     jasmineApi:jasmineApi,
-                    persistentData:jasmine.createSpy('persistentData').andReturn(persistentData),
                     waitsForAsync:waitsForAsync,
-                    loadEventSupport:loadEventSupport,
-                    loadUrl:loadUrl
+                    loadListener:loadListener,
+                    persistentData: persistentDataAccessor
                 });
+                persistentData = persistentDataAccessor();
             });
         }
 
         describe("spec execution", function () {
-            var persistentCurrentSpec;
             beforeEach(function () {
-                persistentCurrentSpec = {specPath:['someSuite', 'someSpec']};
-                persistentData.specs.push(persistentCurrentSpec);
-                createDescribeUi();
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
+                });
             });
             it("should run the current spec from persistentData after the load event", function () {
                 var specCallback = jasmine.createSpy('specCallback');
@@ -51,27 +103,27 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                     jasmineApi.it('someSpec', specCallback);
                 });
                 expect(specCallback).not.toHaveBeenCalled();
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(specCallback).toHaveBeenCalled();
             });
-
             it("should not run other specs than then current spec after the load event", function () {
                 var specCallback = jasmine.createSpy('specCallback');
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec');
                     jasmineApi.it('someSpec2', specCallback);
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(specCallback).not.toHaveBeenCalled();
             });
 
             it("should save the spec results into the persistentData", function () {
+                var persistentCurrentSpec = persistentData.specs[0];
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
                         jasmineApi.expect(1).toBe(2);
                     });
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 var results = persistentCurrentSpec.results;
                 expect(results.getItems().length).toBe(1);
                 var result = results.getItems()[0];
@@ -82,14 +134,15 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
             });
 
             it("should load the next spec when the current spec is finished", function () {
-                persistentData.specs.push({specPath:['someSuite', 'someSpec2'], url:'someUrl'});
+                persistentData.specs.push({specPath:['someSuite', 'someSpec2'], url:'someNewUrl'});
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec');
                 });
                 expect(persistentData.specIndex).toBe(0);
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
+                simulateServerLoad();
                 expect(persistentData.specIndex).toBe(1);
-                expect(loadUrl).toHaveBeenCalledWith(globals.window, 'someUrl');
+                expect(globals.window.location.href).toBe('someNewUrl?&juir=2#');
             });
 
             it("should load the reporter url when the spec is finished and there are no more specs to run", function () {
@@ -98,12 +151,14 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                     jasmineApi.it('someSpec');
                 });
                 expect(persistentData.specIndex).toBe(0);
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
+                simulateServerLoad();
                 expect(persistentData.specIndex).toBe(1);
-                expect(loadUrl).toHaveBeenCalledWith(globals.window, persistentData.reporterUrl);
+                expect(globals.window.location.href).toBe('someRepoterUrl?&juir=2#');
             });
 
-            it("should report the spec results to the opener.describeUiServer.setPopupResults", function () {
+            it("should report the spec results to the opener via hashchange", function () {
+                // TODO
                 var describeUiServer = {
                     setPopupSpecResults:jasmine.createSpy('setPopupSpecResults')
                 };
@@ -114,14 +169,13 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                         })
                     }
                 };
-                // persistentData.reporterUrl = 'someRepoterUrl';
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
                         jasmineApi.expect(1).toBe(2);
                     });
                 });
                 expect(persistentData.specIndex).toBe(0);
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(persistentData.specIndex).toBe(1);
                 var openerRequire = globals.opener.jasmineui.require;
                 expect(openerRequire).toHaveBeenCalled();
@@ -134,43 +188,56 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
             });
         });
 
-
         describe("waitsForAsync integration", function () {
             beforeEach(function () {
-                persistentData.specs.push({specPath:['someSuite', 'someSpec']});
-                createDescribeUi();
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
+                });
             });
 
             it("should call waitsForAsync before the spec ", function () {
+                var called = false;
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.beforeEach(function () {
+                        called = true;
                         expect(waitsForAsync).toHaveBeenCalled();
                     });
                     jasmineApi.it('someSpec');
                 });
                 expect(waitsForAsync).not.toHaveBeenCalled();
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
+                expect(called).toBe(true);
             });
 
             it("should call waitsForAsync before a runs statement", function () {
+                var called = false;
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
                         waitsForAsync.reset();
                         describeUi.runs(function () {
+                            called = true;
                             expect(waitsForAsync).toHaveBeenCalled();
                         });
                     });
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
+                expect(called).toBe(true);
             });
         });
 
         describe('multi reload specs before the first reload', function () {
             beforeEach(function () {
-                runs(function () {
-                    persistentData.specs.push({specPath:['someSuite', 'someSpec']});
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
                 });
-                createDescribeUi();
             });
             it("should wait infinitely after waitsForReload", function () {
                 var callback = jasmine.createSpy('callback');
@@ -180,29 +247,34 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                         jasmineApi.runs(callback);
                     });
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(callback).not.toHaveBeenCalled();
             });
         });
 
         describe('multi reload specs after the first reload', function () {
             beforeEach(function () {
-                runs(function () {
-                    persistentData.specs.push({specPath:['someSuite', 'someSpec']});
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
                 });
-                createDescribeUi();
                 runs(function () {
                     describeUi.describeUi('someSuite', 'someUrl', function () {
                         jasmineApi.it('someSpec', function () {
                             describeUi.runs(function () {
                                 jasmineApi.expect(1).toBe(2);
+                                simulateUnload();
                             });
                             describeUi.waitsForReload();
+
                         });
                     });
-                    loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                    loadListener.addLoadListener.mostRecentCall.args[0]();
                 });
-                createDescribeUi();
+                simulateClientLoad();
             });
             it("should ignore beforeEach even if registered after a spec with waitsForReload", function () {
                 var callback = jasmine.createSpy('callback');
@@ -212,7 +284,7 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                     });
                     describeUi.beforeEach(callback);
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(callback).not.toHaveBeenCalled();
             });
             it("should ignore runs, waits, waitsFor before waitsForReload", function () {
@@ -228,11 +300,12 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                         describeUi.waitsForReload();
                     });
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(jasmineApi.runs).not.toHaveBeenCalled();
                 expect(jasmineApi.waits).not.toHaveBeenCalled();
                 expect(jasmineApi.waitsFor).not.toHaveBeenCalled();
             });
+
             it("should execute runs, waits, waitsFor after waitsForReload", function () {
                 var callback = jasmine.createSpy('callback');
                 spyOn(jasmineApi, 'waits');
@@ -246,7 +319,7 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                         describeUi.waitsFor(callback);
                     });
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(jasmineApi.runs).toHaveBeenCalled();
                 expect(jasmineApi.waits).toHaveBeenCalled();
                 expect(jasmineApi.waitsFor).toHaveBeenCalled();
@@ -259,7 +332,7 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                         jasmineApi.expect(2).toBe(3);
                     });
                 });
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 var results = persistentCurrentSpec.results;
                 expect(results.getItems().length).toBe(2);
                 var result = results.getItems()[0];
@@ -277,11 +350,14 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
         });
 
         describe('beforeLoad handling', function () {
-            var persistentCurrentSpec;
             beforeEach(function () {
-                persistentCurrentSpec = {specPath:['someParentSuite', 'someSuite', 'someSpec']};
-                persistentData.specs.push(persistentCurrentSpec);
-                createDescribeUi();
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someParentSuite', 'someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
+                });
             });
             it("should execute beforeLoad callbacks in the beforeLoad event that are in one of the suites of the current spec", function () {
                 var beforeLoadCallback1 = jasmine.createSpy('beforeLoadCallback1');
@@ -295,7 +371,7 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                 });
                 expect(beforeLoadCallback1).not.toHaveBeenCalled();
                 expect(beforeLoadCallback2).not.toHaveBeenCalled();
-                loadEventSupport.addBeforeLoadListener.mostRecentCall.args[0]();
+                loadListener.addBeforeLoadListener.mostRecentCall.args[0]();
                 expect(beforeLoadCallback1).toHaveBeenCalled();
                 expect(beforeLoadCallback2).toHaveBeenCalled();
             });
@@ -312,11 +388,12 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                     });
                 });
                 expect(beforeLoadCallback).not.toHaveBeenCalled();
-                loadEventSupport.addBeforeLoadListener.mostRecentCall.args[0]();
+                loadListener.addBeforeLoadListener.mostRecentCall.args[0]();
                 expect(beforeLoadCallback).not.toHaveBeenCalled();
             });
 
             it("should catch errors, save them in the spec result and still execute the other beforeLoad callbacks", function () {
+                var persistentCurrentSpec = persistentData.specs[0];
                 var beforeLoadCallback1 = jasmine.createSpy('beforeLoadCallback1').andThrow(new Error("someError1"));
                 var beforeLoadCallback2 = jasmine.createSpy('beforeLoadCallback2').andThrow(new Error("someError2"));
                 jasmineApi.describe('someParentSuite', function () {
@@ -328,10 +405,10 @@ jasmineui.require(['factory!describeUiClient'], function (describeUiClientFactor
                 });
                 expect(beforeLoadCallback1).not.toHaveBeenCalled();
                 expect(beforeLoadCallback2).not.toHaveBeenCalled();
-                loadEventSupport.addBeforeLoadListener.mostRecentCall.args[0]();
+                loadListener.addBeforeLoadListener.mostRecentCall.args[0]();
                 expect(beforeLoadCallback1).toHaveBeenCalled();
                 expect(beforeLoadCallback2).toHaveBeenCalled();
-                loadEventSupport.addLoadListener.mostRecentCall.args[0]();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
                 var results = persistentCurrentSpec.results;
                 expect(results.getItems().length).toBe(2);
                 var result = results.getItems()[0];

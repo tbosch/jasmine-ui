@@ -1,4 +1,4 @@
-jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'loadUrl', 'scriptAccessor', 'globals', 'jasmineUtils'], function (config, jasmineApi, persistentData, loadUrl, scriptAccessor, globals, jasmineUtils) {
+jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils) {
 
     var utilityScripts = [];
 
@@ -52,8 +52,8 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         jasmineApi.jasmine.Runner.prototype.finishCallback = function () {
             var pd = persistentData();
             pd.specIndex = 0;
-            pd.reporterUrl = globals.window.location.pathname;
-            loadUrl(globals.window, pd.specs[0].url);
+            pd.reporterUrl = globals.window.location.href;
+            persistentData.saveAndNavigateTo(globals.window, pd.specs[0].url);
         };
         itHandler = function (spec, pageUrl, currentScriptUrl) {
             var remoteSpec = {
@@ -86,10 +86,10 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
             if (!remoteWindow) {
                 remoteWindow = globals.window.open(null, 'jasmineui');
             }
-            loadUrl(remoteWindow, pageUrl);
-            var pd = persistentData(remoteWindow);
+            var pd = persistentData();
             pd.specs = [remoteSpec];
             pd.specIndex = 0;
+            persistentData.saveAndNavigateTo(remoteWindow, pageUrl);
 
             jasmineUtils.createInfiniteWaitsBlock(spec);
         };

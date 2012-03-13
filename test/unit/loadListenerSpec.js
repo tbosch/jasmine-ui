@@ -1,4 +1,4 @@
-jasmineui.require(['factory!loadEventSupport'], function (loadEventSupportFactory) {
+jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
     describe('loadEventSupport', function () {
         var loadEventSupport, globals;
         beforeEach(function () {
@@ -11,7 +11,7 @@ jasmineui.require(['factory!loadEventSupport'], function (loadEventSupportFactor
 
                 }
             };
-            loadEventSupport = loadEventSupportFactory({globals:globals});
+            loadEventSupport = loadLlistenerFactory({globals:globals});
         });
 
         describe('addBeforeLoadListener', function () {

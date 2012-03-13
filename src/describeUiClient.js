@@ -1,6 +1,6 @@
-jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadEventSupport', 'globals', 'loadUrl', 'jasmineUtils'], function (jasmineApi, persistentData, waitsForAsync, loadEventSupport, globals, loadUrl, jasmineUtils) {
+jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils) {
     var remoteSpec = persistentData().specs[persistentData().specIndex];
-    var originalReloadCount = remoteSpec.reloadCount || 0;;
+    var originalReloadCount = remoteSpec.reloadCount || 0;
     var missingWaitsForReloadCount = originalReloadCount;
     // Note: We need to increment the reloadCount here,
     // and not in a runs statement in the waitsForReload.
@@ -39,6 +39,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
     }
 
     function waitsForReload() {
+        persistentData.enableSaveToSession();
         if (missingWaitsForReloadCount === 0) {
             // Wait for a reload of the page...
             var spec = jasmineApi.jasmine.getEnv().currentSpec;
@@ -88,7 +89,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         }
     }
 
-    loadEventSupport.addBeforeLoadListener(function () {
+    loadListener.addBeforeLoadListener(function () {
         var localSpec = findRemoteSpecLocally();
         for (var i = 0; i < beforeLoadCallbacks.length; i++) {
             try {
@@ -99,7 +100,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         }
     });
 
-    loadEventSupport.addLoadListener(function () {
+    loadListener.addLoadListener(function () {
         jasmineApi.beforeEach(waitsForAsync);
         var spec = findRemoteSpecLocally();
         if (remoteSpec.results) {
@@ -109,17 +110,20 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         remoteSpec.results = spec.results_;
         spec.execute(function () {
             var pd = persistentData();
+            persistentData.disableSaveToSession();
             pd.specIndex = pd.specIndex + 1;
             if (globals.opener) {
                 globals.opener.jasmineui.require(['describeUiServer'], function (describeUiServer) {
                     describeUiServer.setPopupSpecResults(spec.results_);
                 });
             } else {
+                var url;
                 if (pd.specIndex < pd.specs.length) {
-                    loadUrl(globals.window, pd.specs[pd.specIndex].url);
+                    url = pd.specs[pd.specIndex].url;
                 } else {
-                    loadUrl(globals.window, pd.reporterUrl);
+                    url = pd.reporterUrl;
                 }
+                persistentData.saveAndNavigateTo(globals.window, url);
             }
 
         });

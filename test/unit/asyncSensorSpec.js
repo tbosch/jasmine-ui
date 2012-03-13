@@ -1,6 +1,6 @@
 jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
     describe("asyncSensor", function () {
-        var asyncSensor, mockWindow, loadEventSupport, globals,
+        var asyncSensor, mockWindow, loadListener, globals,
             setTimeoutSpy, setIntervalSpy, XMLHttpRequestMock,
             animationCompleteSpy, transitionCompleteSpy;
         beforeEach(function () {
@@ -18,7 +18,7 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
                 clearInterval:jasmine.createSpy('clearInterval'),
                 XMLHttpRequest:XMLHttpRequestMock,
             };
-            loadEventSupport = {
+            loadListener = {
                 addBeforeLoadListener:jasmine.createSpy('addBeforeLoadListener'),
                 loaded:jasmine.createSpy('loaded')
             };
@@ -33,12 +33,12 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
             };
             asyncSensor = asyncSensorFactory({
                 globals:globals,
-                'loadEventSupport':loadEventSupport,
+                loadListener:loadListener,
                 logger: {
                     log: jasmine.createSpy('log')
                 }
             });
-            loadEventSupport.loaded.andReturn(true);
+            loadListener.loaded.andReturn(true);
         });
         describe("timeout handling", function () {
             var callback;
@@ -169,15 +169,15 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
         });
 
         it("should detect document loading", function () {
-            loadEventSupport.loaded.andReturn(false);
+            loadListener.loaded.andReturn(false);
             expect(asyncSensor()).toBe(true);
-            loadEventSupport.loaded.andReturn(true);
+            loadListener.loaded.andReturn(true);
             expect(asyncSensor()).toBe(false);
 
         });
 
         it('should detect jquery animation waiting', function () {
-            var beforeLoadListenerCalls = loadEventSupport.addBeforeLoadListener.argsForCall;
+            var beforeLoadListenerCalls = loadListener.addBeforeLoadListener.argsForCall;
             for (var i = 0; i < beforeLoadListenerCalls.length; i++) {
                 beforeLoadListenerCalls[i][0]();
             }
@@ -189,7 +189,7 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
             expect(callback).toHaveBeenCalled();
         });
         it('should detect jquery transition waiting', function () {
-            var beforeLoadListenerCalls = loadEventSupport.addBeforeLoadListener.argsForCall;
+            var beforeLoadListenerCalls = loadListener.addBeforeLoadListener.argsForCall;
             for (var i = 0; i < beforeLoadListenerCalls.length; i++) {
                 beforeLoadListenerCalls[i][0]();
             }

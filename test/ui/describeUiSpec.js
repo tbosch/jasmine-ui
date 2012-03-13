@@ -38,7 +38,6 @@ describe('describeUi', function () {
             expect(jasmine).toBeDefined();
         });
     });
-
     describeUi("hook functions, even in incorrect order", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
         var state = 0;
         afterEach(function () {
@@ -94,12 +93,14 @@ describe('describeUi', function () {
         it("should be able to continue executing after a page reload, however by loosing state", function () {
             runs(function () {
                 localCounter++;
+                jasmineui.persistent.multiPageFlag = 1;
                 location.reload();
             });
             waitsForReload();
             runs(function () {
                 expect(document.readyState).toBe("complete");
                 expect(localCounter).toBe(0);
+                expect(jasmineui.persistent.multiPageFlag).toBe(1);
             });
 
         });
@@ -121,5 +122,5 @@ describe('describeUi', function () {
         it("should execute them", function() {
             expect(1).toBe(1);
         });
-    })
+    });
 });
