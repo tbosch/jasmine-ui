@@ -11,7 +11,9 @@ Features:
 * It can load a html page and inject tests into that page. By this, the tests run in the same window
   as the page to test and can call any function there or modify any object there.
   This is especially useful if you want to mock some parts of your application (like XHR requests)
-  during the test. This is the main difference to tools like selenium, ... which test webapps only
+  during the test. By this, you don't have trouble with different Object prototypes of different iframes...
+  (e.g. for Array or Date...).
+  This is the main difference to tools like selenium, ... which test webapps only
   from the outside.
 * It has a special ability to wait for the end of asynchronous work. Right now, this is
   XHR, setTimeout, setInterval, page loading, css3 animations and css3 transitions.
@@ -24,8 +26,9 @@ Features:
   logic can also be tested (e.g. especially useful during mobile development).
 * If run with js-test-driver, this does use a popup, as js-test-driver does not allow
   a test to change the current page url.
-* Supports Firefox, Chrome, Safari and IE9+.
+* Supports cross origin tests: The spec runner may be in another domain than the page that should be tested!
 * Does not need any additional test server, only a browser to execute the tests
+* Supports Firefox, Chrome, Safari and IE9+.
 
 
 Usage:

@@ -113,9 +113,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
             persistentData.disableSaveToSession();
             pd.specIndex = pd.specIndex + 1;
             if (globals.opener) {
-                globals.opener.jasmineui.require(['describeUiServer'], function (describeUiServer) {
-                    describeUiServer.setPopupSpecResults(spec.results_);
-                });
+                persistentData.saveToHashAndNavigateTo(globals.opener, pd.reporterUrl);
             } else {
                 var url;
                 if (pd.specIndex < pd.specs.length) {
@@ -123,7 +121,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
                 } else {
                     url = pd.reporterUrl;
                 }
-                persistentData.saveAndNavigateTo(globals.window, url);
+                persistentData.saveAndNavigateWithReloadTo(globals.window, url);
             }
 
         });

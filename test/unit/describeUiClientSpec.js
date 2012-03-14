@@ -8,7 +8,7 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
             sessionStorage = {};
         });
 
-        function createGlobalsWithSharedLocationAndSessionStorage() {
+        function createGlobals(location, sessionStorage) {
             return {
                 window:{
                     location:location,
@@ -31,16 +31,15 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
             }
         }
 
-        function simulateServerLoad() {
-            var tmpGlobals = createGlobalsWithSharedLocationAndSessionStorage();
-            persistentDataAccessor = persistentDataFactory({
+        function simulateServerLoad(location, sessionStorage) {
+            var tmpGlobals = createGlobals(location, sessionStorage);
+            return persistentDataFactory({
                 globals:tmpGlobals
-            });
-            persistentData = persistentDataAccessor();
+            })();
         }
 
         function simulateServerWrite(data) {
-            var tmpGlobals = createGlobalsWithSharedLocationAndSessionStorage();
+            var tmpGlobals = createGlobals(location, sessionStorage);
             if (data) {
                 var tmpPersistentData = persistentDataFactory({
                     globals:tmpGlobals
@@ -48,7 +47,7 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 for (var x in data) {
                     tmpPersistentData()[x] = data[x];
                 }
-                tmpPersistentData.saveAndNavigateTo(tmpGlobals.window, 'someUrl');
+                tmpPersistentData.saveAndNavigateWithReloadTo(tmpGlobals.window, 'someUrl');
                 delete tmpGlobals.window.jasmineui.persistent;
             }
         }
@@ -67,7 +66,7 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 if (data) {
                     simulateServerWrite(data);
                 }
-                globals = createGlobalsWithSharedLocationAndSessionStorage();
+                globals = createGlobals(location, sessionStorage);
                 waitsForAsync = jasmine.createSpy('waitsForAsync');
                 loadListener = {
                     addBeforeLoadListener:jasmine.createSpy('addBeforeLoadListener'),
@@ -140,9 +139,9 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 });
                 expect(persistentData.specIndex).toBe(0);
                 loadListener.addLoadListener.mostRecentCall.args[0]();
-                simulateServerLoad();
-                expect(persistentData.specIndex).toBe(1);
-                expect(globals.window.location.href).toBe('someNewUrl?&juir=2#');
+                var serverData = simulateServerLoad(location, sessionStorage);
+                expect(serverData.specIndex).toBe(1);
+                expect(globals.window.location.href).toBe('someNewUrl?juir=2#');
             });
 
             it("should load the reporter url when the spec is finished and there are no more specs to run", function () {
@@ -152,22 +151,17 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 });
                 expect(persistentData.specIndex).toBe(0);
                 loadListener.addLoadListener.mostRecentCall.args[0]();
-                simulateServerLoad();
-                expect(persistentData.specIndex).toBe(1);
-                expect(globals.window.location.href).toBe('someRepoterUrl?&juir=2#');
+                var serverData = simulateServerLoad(location, sessionStorage);
+                expect(serverData.specIndex).toBe(1);
+                expect(globals.window.location.href).toBe('someRepoterUrl?juir=2#');
             });
 
-            it("should report the spec results to the opener via hashchange", function () {
-                // TODO
-                var describeUiServer = {
-                    setPopupSpecResults:jasmine.createSpy('setPopupSpecResults')
+            it("should report the spec results to the opener via setting it's href using the reporterUrl", function () {
+                var openerLocation = {
+                    href: ''
                 };
                 globals.opener = {
-                    jasmineui:{
-                        require:jasmine.createSpy('require').andCallFake(function (deps, callback) {
-                            callback(describeUiServer);
-                        })
-                    }
+                    location: openerLocation
                 };
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
@@ -177,14 +171,17 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 expect(persistentData.specIndex).toBe(0);
                 loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(persistentData.specIndex).toBe(1);
-                var openerRequire = globals.opener.jasmineui.require;
-                expect(openerRequire).toHaveBeenCalled();
-                expect(openerRequire.mostRecentCall.args[0]).toEqual(['describeUiServer']);
-                expect(describeUiServer.setPopupSpecResults).toHaveBeenCalled();
-                var reportedResults = describeUiServer.setPopupSpecResults.mostRecentCall.args[0];
-                expect(reportedResults.items_.length).toBe(1);
-                expect(reportedResults.items_[0].actual).toBe(1);
-                expect(reportedResults.items_[0].expected).toBe(2);
+                var serverData = simulateServerLoad(openerLocation, {});
+                expect(openerLocation.href).toBe(persistentData.reporterUrl+'#');
+                expect(serverData.specIndex).toBe(1);
+                expect(serverData.specs[0].results).toBeTruthy();
+                var results = serverData.specs[0].results;
+                expect(results.items_.length).toBe(1);
+                var result = results.items_[0];
+                expect(result.actual).toBe(1);
+                expect(result.expected).toBe(2);
+                expect(result.passed_).toBe(false);
+                expect(result.matcherName).toBe('toBe');
             });
         });
 

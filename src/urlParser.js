@@ -15,7 +15,7 @@ jasmineui.define('urlParser', function () {
         return {
             baseUrl:url,
             hash:hash,
-            query:query.split('&')
+            query:query?query.split('&'):[]
         }
     }
 

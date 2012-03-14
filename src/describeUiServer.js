@@ -35,35 +35,49 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
     persistentData.clean();
 
 
+    function findRemoteSpec(localSpec, remoteSpecs) {
+        for (var i = 0; i < remoteSpecs.length; i++) {
+            var executedSpec = remoteSpecs[i];
+            if (executedSpec.specPath.join('#') === jasmineUtils.specPath(localSpec).join('#')) {
+                return executedSpec;
+            }
+        }
+        return null;
+    }
 
     function setResultsMode(remoteSpecs) {
         itHandler = function (spec) {
-            for (var i = 0; i < remoteSpecs.length; i++) {
-                var executedSpec = remoteSpecs[i];
-                if (executedSpec.specPath.join('#') === jasmineUtils.specPath(spec).join('#')) {
-                    spec.results_ = jasmineUtils.nestedResultsFromJson(executedSpec.results);
-                    break;
-                }
-            }
+            var executedSpec = findRemoteSpec(spec, remoteSpecs);
+            spec.results_ = jasmineUtils.nestedResultsFromJson(executedSpec.results);
         }
     }
 
     function setInplaceMode() {
-        jasmineApi.jasmine.Runner.prototype.finishCallback = function () {
+        var _execute = jasmineApi.jasmine.Runner.prototype.execute;
+        jasmineApi.jasmine.Runner.prototype.execute = function () {
             var pd = persistentData();
-            pd.specIndex = 0;
-            pd.reporterUrl = globals.window.location.href;
-            persistentData.saveAndNavigateTo(globals.window, pd.specs[0].url);
+            pd.specs = [];
+            var specs = this.specs();
+            for (var i=0; i<specs.length; i++) {
+                var spec = specs[i];
+                var _pageUrl = pageUrl(spec.suite);
+                if (_pageUrl) {
+                    pd.specs.push({
+                        loadScripts:utilityScripts.concat([scriptUrl(spec.suite)]),
+                        specPath:jasmineUtils.specPath(spec),
+                        url:_pageUrl
+                    });
+                }
+            }
+            if (pd.specs.length===0) {
+                return _execute.apply(this, arguments);
+            } else {
+                pd.specIndex = 0;
+                pd.reporterUrl = globals.window.location.href;
+                persistentData.saveAndNavigateWithReloadTo(globals.window, pd.specs[0].url);
+            }
         };
         itHandler = function (spec, pageUrl, currentScriptUrl) {
-            var remoteSpec = {
-                loadScripts:utilityScripts.concat([currentScriptUrl]),
-                specPath:jasmineUtils.specPath(spec),
-                url:pageUrl
-            };
-            var pd = persistentData();
-            var remoteSpecs = pd.specs = pd.specs || [];
-            remoteSpecs.push(remoteSpec);
         }
 
     }
@@ -74,9 +88,23 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         // modify the prototype of the runner!
         var _finishCallback = jasmineApi.jasmine.Runner.prototype.finishCallback;
         jasmineApi.jasmine.Runner.prototype.finishCallback = function () {
-            remoteWindow.close();
+            if (remoteWindow) {
+                remoteWindow.close();
+            }
             return _finishCallback.apply(this, arguments);
         };
+        persistentData.addChangeListener(function() {
+            var spec = jasmineApi.jasmine.getEnv().currentSpec;
+            var pd = persistentData();
+            var remoteSpec = findRemoteSpec(spec, pd.specs);
+            if (remoteSpec) {
+                var queue = spec.queue;
+                var currentWaitsBlock = queue.blocks[queue.index];
+                spec.results_ = jasmineUtils.nestedResultsFromJson(remoteSpec.results);
+                currentWaitsBlock.onComplete();
+            }
+        });
+
         itHandler = function (spec, pageUrl, currentScriptUrl) {
             var remoteSpec = {
                 loadScripts:utilityScripts.concat([currentScriptUrl]),
@@ -89,18 +117,11 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
             var pd = persistentData();
             pd.specs = [remoteSpec];
             pd.specIndex = 0;
-            persistentData.saveAndNavigateTo(remoteWindow, pageUrl);
+            pd.reporterUrl = globals.window.location.href;
+            persistentData.saveAndNavigateWithReloadTo(remoteWindow, pageUrl);
 
             jasmineUtils.createInfiniteWaitsBlock(spec);
         };
-    }
-
-    function setPopupSpecResults(results) {
-        var spec = jasmineApi.jasmine.getEnv().currentSpec;
-        var queue = spec.queue;
-        var currentWaitsBlock = queue.blocks[queue.index];
-        spec.results_ = jasmineUtils.nestedResultsFromJson(results);
-        currentWaitsBlock.onComplete();
     }
 
     function pageUrl(suite) {
@@ -182,7 +203,6 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         describe:describe,
         it:it,
         utilityScript:utilityScript,
-        setPopupSpecResults:setPopupSpecResults,
         beforeLoad: beforeLoad
     }
 });
