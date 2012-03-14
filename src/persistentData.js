@@ -6,6 +6,7 @@ jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, 
             window.jasmineui = window.jasmineui || {};
             var pd = window.jasmineui.persistent = MARKER || {};
             window.location.href = window.location.href.replace(/#.*/, '') + "#" + pd.originalHash;
+            delete window.sessionStorage.jasmineui;
             var currentSpec = pd.specs && pd.specs[pd.specIndex];
             if (currentSpec) {
                 var output = '[';
@@ -33,12 +34,10 @@ jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, 
 
     var refreshUrlAttribute = 'juir';
 
-    function saveToHashAndNavigateTo(win, url) {
-        var data = get();
-        var parsedUrl = urlParser.parseUrl(url);
-        data.originalHash = parsedUrl.hash || "";
-        parsedUrl.hash = encodeURI(serialize(data));
-        win.location.href = urlParser.serializeUrl(parsedUrl);
+    function postDataToWindow(target) {
+        target.postMessage({
+            persistentData: JSON.stringify(get())
+        }, '*');
     }
 
     function saveAndNavigateWithReloadTo(win, url) {
@@ -93,28 +92,16 @@ jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, 
 
     var changeListeners = [];
 
-    function isEmpty(obj) {
-        for (var x in obj) {
-            return false;
-        }
-        return true;
-    }
-
-    globals.window.addEventListener('hashchange', function () {
+    globals.window.addEventListener('message', function(e) {
         var win = globals.window;
-        var oldPersistent = win.jasmineui.persistent;
-        delete win.jasmineui.persistent;
-        // Note: This will change the hash again!
-        get();
-
-        if (!isEmpty(win.jasmineui.persistent)) {
+        if (e.data.persistentData) {
+            delete win.jasmineui.persistent;
+            win.jasmineui.persistent = JSON.parse(e.data.persistentData);
             for (var i = 0; i < changeListeners.length; i++) {
                 changeListeners[i]();
             }
-        } else {
-            win.jasmineui.persistent = oldPersistent;
         }
-    });
+    }, false);
 
     function addChangeListener(listener) {
         changeListeners.push(listener);
@@ -122,11 +109,11 @@ jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, 
 
     get.clean = clean;
 
-    get.saveToHashAndNavigateTo = saveToHashAndNavigateTo;
     get.saveAndNavigateWithReloadTo = saveAndNavigateWithReloadTo;
     get.enableSaveToSession = enableSaveToSession;
     get.disableSaveToSession = disableSaveToSession;
     get.addChangeListener = addChangeListener;
+    get.postDataToWindow = postDataToWindow;
 
     return get;
 });

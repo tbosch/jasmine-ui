@@ -1,26 +1,32 @@
 describe('describeUi', function () {
-    describeUi("base functions", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+    var fixtureAddress =  'http://localhost:8080/jasmine-ui/test/ui/jasmine-uiSpec.html';
+
+    describeUi("base functions", fixtureAddress, function () {
+        function currentBaseUrl() {
+            return window.location.origin + window.location.pathname;
+        }
+
         it("should open the popup with the given url", function () {
             runs(function () {
-                expect(window.location.pathname).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
+                expect(currentBaseUrl()).toBe(fixtureAddress);
             });
         });
         it("should execute it callbacks in the url defined by describeUi", function () {
-            expect(window.location.pathname).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
+            expect(currentBaseUrl()).toBe(fixtureAddress);
         });
         it("should execute runs callbacks in the url defined by describeUi", function () {
             runs(function () {
-                expect(window.location.pathname).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
+                expect(currentBaseUrl()).toBe(fixtureAddress);
             });
         });
         it("should execute waitFor callbacks in the url defined by describeUi", function () {
             var urlInWaitsFor;
             waitsFor(function () {
-                urlInWaitsFor = window.location.pathname;
+                urlInWaitsFor = currentBaseUrl();
                 return true;
             });
             runs(function () {
-                expect(urlInWaitsFor).toBe('/jasmine-ui/test/ui/jasmine-uiSpec.html');
+                expect(urlInWaitsFor).toBe(fixtureAddress);
             });
         });
         it("should execute waits", function () {
@@ -38,7 +44,7 @@ describe('describeUi', function () {
             expect(jasmine).toBeDefined();
         });
     });
-    describeUi("hook functions, even in incorrect order", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+    describeUi("hook functions, even in incorrect order", fixtureAddress, function () {
         var state = 0;
         afterEach(function () {
             expect(state).toBe(4);
@@ -70,7 +76,7 @@ describe('describeUi', function () {
         });
     });
 
-    describeUi("repeating hooks", '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+    describeUi("repeating hooks", fixtureAddress, function () {
         var called1, called2;
         beforeEach(function () {
             called1 = true;
@@ -88,7 +94,7 @@ describe('describeUi', function () {
         });
     });
 
-    describeUi('multi page handling', '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+    describeUi('multi page handling', fixtureAddress, function () {
         var localCounter = 0;
         it("should be able to continue executing after a page reload, however by loosing state", function () {
             runs(function () {
@@ -106,7 +112,7 @@ describe('describeUi', function () {
         });
     });
 
-    describeUi('utilityScript execution in the client', '/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+    describeUi('utilityScript execution in the client', fixtureAddress, function () {
         it("should execute utilityScript functions", function () {
             expect(utilityScriptCalled).toBe(true);
         });

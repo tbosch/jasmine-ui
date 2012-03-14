@@ -19,6 +19,13 @@
     <script type="text/javascript" src="../test/ui/sampleUtilityScript.js"></script>
 
     <!-- ################################################################################################# -->
+    <script type="text/javascript">
+        describeUi('someInlineJavaScript', '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+            it("should execute inline javascript tests", function() {
+                expect(1).toBe(1);
+            });
+        });
+    </script>
 
 </head>
 <body>

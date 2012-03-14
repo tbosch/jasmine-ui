@@ -33,29 +33,31 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
             })();
         }
 
-        function simulateClientWrite(data) {
+        function simulateClientPostMessage(data) {
             var tmpGlobals = createGlobals(location, sessionStorage);
-            if (data) {
-                var tmpPersistentData = persistentDataFactory({
-                    globals:tmpGlobals
-                });
-                for (var x in data) {
-                    tmpPersistentData()[x] = data[x];
-                }
-                tmpPersistentData.saveToHashAndNavigateTo(tmpGlobals.window, data.reporterUrl);
-            }
+            var message;
+            tmpGlobals.window.postMessage = function(_message) {
+                message = _message;
+            };
+            var tmpPersistentData = persistentDataFactory({
+                globals:tmpGlobals
+            });
+            tmpGlobals.window.jasmineui = {
+                persistent: data
+            };
+            tmpPersistentData.postDataToWindow(tmpGlobals.window);
+            callEventListener(globals, 'message', {data: message});
         }
 
-        function simulateServerHashChange() {
+        function callEventListener(globals, name, event) {
             var argsForCall = globals.window.addEventListener.argsForCall;
             for (var i=argsForCall.length-1; i>=0; i--) {
                 var args = argsForCall[i];
-                if (args[0]==='hashchange') {
-                    args[1]();
+                if (args[0]===name) {
+                    args[1](event);
                     break;
                 }
             }
-
         }
 
         function simulateServerLoad(data) {
@@ -70,7 +72,14 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
             });
             runs(function () {
                 if (data) {
-                    simulateClientWrite(data);
+                    var tmpGlobals = createGlobals(location, sessionStorage);
+                    var tmpPersistentData = persistentDataFactory({
+                        globals:tmpGlobals
+                    });
+                    tmpGlobals.window.jasmineui = {
+                        persistent: data
+                    };
+                    tmpPersistentData.saveAndNavigateWithReloadTo(tmpGlobals.window, data.reporterUrl);
                 }
                 globals = createGlobals(location, sessionStorage);
                 waitsForAsync = jasmine.createSpy('waitsForAsync');
@@ -274,7 +283,7 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 jasmineApi.jasmine.getEnv().execute();
                 expect(globals.window.open).toHaveBeenCalledWith(null, 'jasmineui');
             });
-            it("should save the current specin the popups's location and not change the location of the calling window", function() {
+            it("should save the current spec in the popups's location and not change the location of the calling window", function() {
                 var runnerUrl = "runnerUrl";
                 location.href = runnerUrl;
                 var someScriptUrl = 'someScriptUrl';
@@ -299,12 +308,12 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 jasmineApi.jasmine.getEnv().execute();
                 expect(reporter.reportRunnerResults).not.toHaveBeenCalled();
             });
-            it("should continue the execution of an ui spec when the result is given by a hashchange", function() {
+            it("should continue the execution of an ui spec when the result is given by a message", function() {
                 describeUi.describeUi('someSuite', 'someUrl', function() {
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                simulateClientWrite({
+                simulateClientPostMessage({
                     reporterUrl: 'someReporterUrl',
                     specs: [{
                         specPath: ['someSuite', 'someSpec'],
@@ -315,7 +324,6 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     }],
                     specIndex: 1
                 });
-                simulateServerHashChange();
                 expect(reporter.reportRunnerResults).toHaveBeenCalled();
             });
             it("should close the popup after the ui spec is finished", function() {
@@ -323,7 +331,7 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                simulateClientWrite({
+                simulateClientPostMessage({
                     reporterUrl: 'someReporterUrl',
                     specs: [{
                         specPath: ['someSuite', 'someSpec'],
@@ -334,7 +342,6 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     }],
                     specIndex: 1
                 });
-                simulateServerHashChange();
                 expect(popup.close).toHaveBeenCalled();
             });
             it("should report the results from a hashchange", function() {
@@ -342,7 +349,7 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                simulateClientWrite({
+                simulateClientPostMessage({
                     reporterUrl: 'someReporterUrl',
                     specs: [{
                         specPath: ['someSuite', 'someSpec'],
@@ -354,7 +361,6 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     }],
                     specIndex: 1
                 });
-                simulateServerHashChange();
                 expect(reporter.reportRunnerResults).toHaveBeenCalled();
                 expect(reporter.reportSuiteResults).toHaveBeenCalled();
                 expect(reporter.reportSpecResults.callCount).toBe(1);

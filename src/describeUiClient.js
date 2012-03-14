@@ -113,7 +113,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
             persistentData.disableSaveToSession();
             pd.specIndex = pd.specIndex + 1;
             if (globals.opener) {
-                persistentData.saveToHashAndNavigateTo(globals.opener, pd.reporterUrl);
+                persistentData.postDataToWindow(globals.opener);
             } else {
                 var url;
                 if (pd.specIndex < pd.specs.length) {
