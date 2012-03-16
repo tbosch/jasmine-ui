@@ -15,12 +15,10 @@
             window.xdescribeUi = window.xdescribe;
             window.describe = describeUi.describe;
             window.describeUi = describeUi.describeUi;
-            window.beforeEach = describeUi.beforeEach;
             window.beforeLoad = describeUi.beforeLoad;
             window.runs = describeUi.runs;
             window.waitsFor = describeUi.waitsFor;
             window.waits = describeUi.waits;
-            window.waitsForReload = describeUi.waitsForReload;
             jasmineui.utilityScript = describeUi.utilityScript;
         });
     } else {

@@ -1,4 +1,4 @@
-jasmineui.define('urlParser', function () {
+jasmineui.define('urlLoader', ['persistentData'], function (persistentData) {
     function parseUrl(url) {
         var hashIndex = url.indexOf('#');
         var hash;
@@ -42,9 +42,18 @@ jasmineui.define('urlParser', function () {
         query.push(newQueryEntry);
     }
 
+    var refreshUrlAttribute = 'juir';
+
+    function navigateWithReloadTo(win, url) {
+        var data = persistentData();
+        var parsedUrl = parseUrl(url);
+        var refreshCount = data.refreshCount = (data.refreshCount || 0) + 1;
+        setOrReplaceQueryAttr(parsedUrl, refreshUrlAttribute, refreshCount);
+        persistentData.saveDataToWindow(win);
+        win.location.href = serializeUrl(parsedUrl);
+    }
+
     return {
-        parseUrl: parseUrl,
-        serializeUrl: serializeUrl,
-        setOrReplaceQueryAttr: setOrReplaceQueryAttr
+        navigateWithReloadTo: navigateWithReloadTo
     };
 });

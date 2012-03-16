@@ -1,4 +1,4 @@
-jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils) {
+jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils', 'urlLoader'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils, urlLoader) {
 
     var utilityScripts = [];
 
@@ -32,7 +32,6 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
     } else {
         setInplaceMode();
     }
-    persistentData.clean();
 
 
     function findRemoteSpec(localSpec, remoteSpecs) {
@@ -49,7 +48,7 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         itHandler = function (spec) {
             var executedSpec = findRemoteSpec(spec, remoteSpecs);
             spec.results_ = jasmineUtils.nestedResultsFromJson(executedSpec.results);
-        }
+        };
     }
 
     function setInplaceMode() {
@@ -74,7 +73,7 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
             } else {
                 pd.specIndex = 0;
                 pd.reporterUrl = globals.window.location.href;
-                persistentData.saveAndNavigateWithReloadTo(globals.window, pd.specs[0].url);
+                urlLoader.navigateWithReloadTo(globals.window, pd.specs[0].url, pd.loadCounter++);
             }
         };
         itHandler = function (spec, pageUrl, currentScriptUrl) {
@@ -111,14 +110,21 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
                 specPath:jasmineUtils.specPath(spec),
                 url: pageUrl
             };
+            var createdRemoteWindow = false;
             if (!remoteWindow) {
-                remoteWindow = globals.window.open(null, 'jasmineui');
+                remoteWindow = globals.window.open(pageUrl, 'jasmineui');
+                createdRemoteWindow = true;
             }
             var pd = persistentData();
             pd.specs = [remoteSpec];
             pd.specIndex = 0;
             pd.reporterUrl = globals.window.location.href;
-            persistentData.saveAndNavigateWithReloadTo(remoteWindow, pageUrl);
+            if (!createdRemoteWindow) {
+                urlLoader.navigateWithReloadTo(remoteWindow, pageUrl);
+            } else {
+                persistentData.saveDataToWindow(remoteWindow);
+            }
+
 
             jasmineUtils.createInfiniteWaitsBlock(spec);
         };

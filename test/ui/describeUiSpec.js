@@ -1,9 +1,9 @@
 describe('describeUi', function () {
-    var fixtureAddress =  'http://localhost:8080/jasmine-ui/test/ui/jasmine-uiSpec.html';
+    var fixtureAddress =  '/jasmine-ui/test/ui/jasmine-uiSpec.html';
 
     describeUi("base functions", fixtureAddress, function () {
         function currentBaseUrl() {
-            return window.location.origin + window.location.pathname;
+            return window.location.pathname;
         }
 
         it("should open the popup with the given url", function () {
@@ -95,20 +95,42 @@ describe('describeUi', function () {
     });
 
     describeUi('multi page handling', fixtureAddress, function () {
-        var localCounter = 0;
         it("should be able to continue executing after a page reload, however by loosing state", function () {
+            var localCounter = 0;
             runs(function () {
                 localCounter++;
                 jasmineui.persistent.multiPageFlag = 1;
-                location.reload();
+                location.href = fixtureAddress+'?test=1';
             });
-            waitsForReload();
             runs(function () {
                 expect(document.readyState).toBe("complete");
                 expect(localCounter).toBe(0);
                 expect(jasmineui.persistent.multiPageFlag).toBe(1);
+                jasmineui.persistent.multiPageFlag = 2;
             });
-
+        });
+        it("check results", function() {
+            expect(jasmineui.persistent.multiPageFlag).toBe(2);
+        });
+        it("should handle navigation by clicks to links correctly", function () {
+            var localCounter = 0;
+            runs(function () {
+                localCounter++;
+                jasmineui.persistent.multiPageFlag = 1;
+                var link = document.createElement('a');
+                link.href= fixtureAddress+'?test=1';
+                document.body.appendChild(link);
+                simulate(link, 'click');
+            });
+            runs(function () {
+                expect(document.readyState).toBe("complete");
+                expect(localCounter).toBe(0);
+                expect(jasmineui.persistent.multiPageFlag).toBe(1);
+                jasmineui.persistent.multiPageFlag = 2;
+            });
+        });
+        it("check results", function() {
+            expect(jasmineui.persistent.multiPageFlag).toBe(2);
         });
     });
 

@@ -1,54 +1,53 @@
-jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils) {
+jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils', 'urlLoader'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils, urlLoader) {
     var remoteSpec = persistentData().specs[persistentData().specIndex];
-    var originalReloadCount = remoteSpec.reloadCount || 0;
-    var missingWaitsForReloadCount = originalReloadCount;
-    // Note: We need to increment the reloadCount here,
-    // and not in a runs statement in the waitsForReload.
-    // Reason: Jasmine sometimes executes runs statements using window.setTimeout.
-    // After location.reload() was called, those timeouts may not be executed!
-    remoteSpec.reloadCount = originalReloadCount+1;
+    remoteSpec.lastRunsIndex = remoteSpec.lastRunsIndex || 0;
+
+    var skipRunsCounter = remoteSpec.lastRunsIndex;
+    var reloadHappened = false;
 
     function describeUi(name, url, callback) {
         jasmineApi.describe(name, callback);
     }
 
-    function beforeEach(callback) {
-        // Do not execute beforeEach if we are in a reload situation.
-        if (!originalReloadCount) {
-            jasmineApi.beforeEach.apply(this, arguments);
-        }
-    }
+    globals.window.addEventListener('beforeunload', function() {
+        // Note: on iOS beforeunload is NOT supported.
+        // In that case we rely on the fact, that timeouts no more executed
+        // when a navigation change occurs. And we do wait some milliseconds between
+        // every two runs statements using waitsForAsync.
+        // On all other browsers, we use this flag to stop test execution.
+        reloadHappened = true;
+    });
 
     function runs(callback) {
-        if (missingWaitsForReloadCount === 0) {
+        if (skipRunsCounter===0) {
             waitsForAsync();
-            jasmineApi.runs.apply(this, arguments);
+            jasmineApi.runs.call(this, function() {
+                if (reloadHappened) {
+                    jasmineUtils.createInfiniteWaitsBlock(jasmineApi.jasmine.getEnv().currentSpec);
+                } else {
+                    callback();
+                    // save the current state of the specs. Needed for specs that contain multiple reloads.
+                    // As beforeunload does not work in iOS :-(
+                    remoteSpec.lastRunsIndex++;
+                    persistentData.saveDataToWindow(globals.window);
+                }
+            });
+        } else {
+            skipRunsCounter--;
         }
     }
 
     function waitsFor(callback) {
-        if (missingWaitsForReloadCount === 0) {
+        if (skipRunsCounter === 0) {
             jasmineApi.waitsFor.apply(this, arguments);
         }
     }
 
     function waits(callback) {
-        if (missingWaitsForReloadCount === 0) {
+        if (skipRunsCounter === 0) {
             jasmineApi.waits.apply(this, arguments);
         }
     }
-
-    function waitsForReload() {
-        persistentData.enableSaveToSession();
-        if (missingWaitsForReloadCount === 0) {
-            // Wait for a reload of the page...
-            var spec = jasmineApi.jasmine.getEnv().currentSpec;
-            jasmineUtils.createInfiniteWaitsBlock(spec);
-        } else {
-            missingWaitsForReloadCount--;
-        }
-    }
-
 
     function isSubList(list, suitePath) {
         var execute = true;
@@ -110,10 +109,9 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         remoteSpec.results = spec.results_;
         spec.execute(function () {
             var pd = persistentData();
-            persistentData.disableSaveToSession();
             pd.specIndex = pd.specIndex + 1;
             if (globals.opener) {
-                persistentData.postDataToWindow(globals.opener);
+                persistentData.saveDataToWindow(globals.opener);
             } else {
                 var url;
                 if (pd.specIndex < pd.specs.length) {
@@ -121,7 +119,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
                 } else {
                     url = pd.reporterUrl;
                 }
-                persistentData.saveAndNavigateWithReloadTo(globals.window, url);
+                urlLoader.navigateWithReloadTo(globals.window, url);
             }
 
         });
@@ -134,8 +132,6 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
     return {
         describe:describe,
         describeUi:describeUi,
-        beforeEach:beforeEach,
-        waitsForReload:waitsForReload,
         beforeLoad:beforeLoad,
         waits:waits,
         waitsFor:waitsFor,

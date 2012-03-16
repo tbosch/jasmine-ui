@@ -26,19 +26,17 @@ Features:
   logic can also be tested (e.g. especially useful during mobile development).
 * If run with js-test-driver, this does use a popup, as js-test-driver does not allow
   a test to change the current page url.
-* Supports cross origin tests: The spec runner may be in another domain than the page that should be tested!
 * Does not need any additional test server, only a browser to execute the tests
-* Supports Firefox, Chrome, Safari and IE9+.
-
+* Supports: Chrome, Firefox, IE9+, Safari, Mobile Safari, Android Browser.
 
 Usage:
 
 1. include jasmine-ui.js as library into your test-code.
 2. In the pages that should be tests, include the following line as first line in the header:
-   `<script type="text/javascript">sessionStorage.jasmineui && eval(sessionStorage.jasmineui);</script>`
-2. write asynchronous jasmine tests, using the functions below.
+   `<script type="text/javascript">eval(sessionStorage.jasmineui);</script>`
+2. write asynchronous jasmine tests (using `runs`).
 3. For debugging run the tests with the standalone html runner,
-   and for continous integration use the js-test-driver runner.
+   and for continuous integration use the js-test-driver runner.
 
 Preconditions:
 
@@ -93,37 +91,6 @@ This will registers the current javascript file as a utility script needed by th
 the script will be loaded into every page that is tests with describeUi.
 The callback will only be executed in the page, and not in the jasmine spec runner.
 
-#### `waitsForReload()`
-This is needed whenever the test executed a part of the application that does a page reload.
-E.g.
-
-    runs(function() {
-      window.location.reload();
-    };
-    waitsForReload();
-    runs(function() {
-      // Will be called after the reload.
-    });
-
-
-Integration with js-test-driver for Continuous Integration
---------------
-* This already includes jasmine and the jasmine adapter for js-test-driver
-* configure a js-test-driver proxy that delegates all requests to the webserver that contains
-  the pages that should be tests. This is important so that the pages to be tested are
-  from the same domain as the test code.
-
-Example configuration:
-
-
-    server: http://localhost:42442
-    load:
-    - src/test/webapp/lib/jasmine-ui.js
-    - src/test/webapp/ui/*.js
-
-    proxy:
-    - {matcher: "/<my-app>/*", server: "http://localhost:8080/<myapp>/"}
-
 
 
 Simulation of Browser-Events
@@ -154,4 +121,38 @@ firing the event.
 This does _not_ fire the underlying browser event, but only triggers
 event handlers registered by jquery. I.e. this can not be used for
 event listeners attached without jquery! Also, this does not do the default navigation of anchor links!
+
+
+Multi page specs
+------------
+This plays nicely with specs that do a reload of the page during their execution: It will save the index
+of the last runs statement before the reload and continue at that runs statement after the reload.
+
+Notes:
+- all local variables that were set by runs before the reload are lost.
+- You can safe data persistently over reloads by assigning values ot `jasmineui.persistent`.
+- To prevent code from beeing executed twice, put all
+  code in the specs into runs statements.
+
+Integration with js-test-driver for Continuous Integration
+--------------
+* This already includes jasmine and the jasmine adapter for js-test-driver
+* configure a js-test-driver proxy that delegates all requests to the webserver that contains
+  the pages that should be tests. This is important so that the pages to be tested are
+  from the same domain as the test code.
+
+Example configuration:
+
+
+    server: http://localhost:42442
+    load:
+    - src/test/webapp/lib/jasmine-ui.js
+    - src/test/webapp/ui/*.js
+
+    proxy:
+    - {matcher: "/<my-app>/*", server: "http://localhost:8080/<myapp>/"}
+
+
+
+
 

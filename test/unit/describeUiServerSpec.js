@@ -1,63 +1,57 @@
 jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], function (describeUiServerFactory, persistentDataFactory) {
     describe('describeUiServer', function () {
-        var jasmineApi, describeUi, globals, waitsForAsync, scriptAccessor, sessionStorage, location, persistentDataAccessor, persistentData, jstestdriver;
+        var jasmineApi, describeUi, globals, waitsForAsync, scriptAccessor, sessionStorage, persistentDataAccessor, persistentData, jstestdriver;
         beforeEach(function () {
-            location = {
-                href:''
-            };
             sessionStorage = {};
             jstestdriver = undefined;
         });
 
-        function createGlobals(location, sessionStorage) {
-            return {
+        function createGlobals(sessionStorage) {
+            var res = {
                 jstestdriver: jstestdriver,
                 window:{
-                    location:location,
+                    location:{
+                        href: ''
+                    },
                     sessionStorage:sessionStorage,
-                    eval:window.eval,
+                    eval:function(string) {
+                        // these variables are used by the eval!
+                        var window =  res.window;
+                        var sessionStorage = res.window.sessionStorage;
+                        eval(string);
+                    },
                     removeEventListener:jasmine.createSpy('removeEventListener'),
                     addEventListener:jasmine.createSpy('addEventListener'),
                     document: {
                         writeln: jasmine.createSpy('writeln')
                     },
-                    open: jasmine.createSpy('open')
+                    open: jasmine.createSpy('open'),
+                    close: jasmine.createSpy('close')
                 }
             };
+            return res;
         }
 
-        function simulateClientLoad(location, sessionStorage) {
-            var tmpGlobals = createGlobals(location, sessionStorage);
+        function simulateClientLoad(sessionStorage) {
+            var tmpGlobals = createGlobals(sessionStorage);
             return persistentDataFactory({
                 globals:tmpGlobals
             })();
         }
 
-        function simulateClientPostMessage(data) {
-            var tmpGlobals = createGlobals(location, sessionStorage);
-            var message;
-            tmpGlobals.window.postMessage = function(_message) {
-                message = _message;
-            };
+        function saveDataToWindow(target, data) {
+            var tmpGlobals = createGlobals({});
             var tmpPersistentData = persistentDataFactory({
                 globals:tmpGlobals
             });
             tmpGlobals.window.jasmineui = {
                 persistent: data
             };
-            tmpPersistentData.postDataToWindow(tmpGlobals.window);
-            callEventListener(globals, 'message', {data: message});
+            tmpPersistentData.saveDataToWindow(target);
         }
 
-        function callEventListener(globals, name, event) {
-            var argsForCall = globals.window.addEventListener.argsForCall;
-            for (var i=argsForCall.length-1; i>=0; i--) {
-                var args = argsForCall[i];
-                if (args[0]===name) {
-                    args[1](event);
-                    break;
-                }
-            }
+        function simulateClientSaveData(data) {
+            saveDataToWindow(globals.window, data);
         }
 
         function simulateServerLoad(data) {
@@ -71,31 +65,22 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 return jasmineApi;
             });
             runs(function () {
+                globals = createGlobals(sessionStorage);
                 if (data) {
-                    var tmpGlobals = createGlobals(location, sessionStorage);
-                    var tmpPersistentData = persistentDataFactory({
-                        globals:tmpGlobals
-                    });
-                    tmpGlobals.window.jasmineui = {
-                        persistent: data
-                    };
-                    tmpPersistentData.saveAndNavigateWithReloadTo(tmpGlobals.window, data.reporterUrl);
+                    saveDataToWindow(globals.window, data);
                 }
-                globals = createGlobals(location, sessionStorage);
                 waitsForAsync = jasmine.createSpy('waitsForAsync');
                 scriptAccessor = {
                     currentScriptUrl:jasmine.createSpy('currentScriptUrl').andReturn('someJasmineUiScriptUrl')
                 };
-                persistentDataAccessor = persistentDataFactory({
-                    globals:globals
-                });
-                describeUi = describeUiServerFactory({
+                var moduleCache = {
                     globals:globals,
                     jasmineApi:jasmineApi,
-                    scriptAccessor:scriptAccessor,
-                    persistentData: persistentDataAccessor
-                });
+                    scriptAccessor:scriptAccessor
+                };
+                persistentDataAccessor = persistentDataFactory(moduleCache);
                 persistentData = persistentDataAccessor();
+                describeUi = describeUiServerFactory(moduleCache);
             });
         }
 
@@ -113,14 +98,14 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     jasmineApi.jasmine.getEnv().addReporter(reporter);
                 });
             });
-            it("should save the specs of describeUis to be executed in the current window's location", function() {
+            it("should save the specs of describeUis to be executed in the current window's sessionStorage", function() {
                 var someScriptUrl = 'someScriptUrl';
                 scriptAccessor.currentScriptUrl.andReturn(someScriptUrl);
                 describeUi.describeUi('someSuite', 'someUrl', function() {
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                var clientData = simulateClientLoad(location, sessionStorage);
+                var clientData = simulateClientLoad(sessionStorage);
                 expect(clientData.specs.length).toBe(1);
                 expect(clientData.specIndex).toBe(0);
                 var spec = clientData.specs[0];
@@ -133,8 +118,8 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                var clientData = simulateClientLoad(location, sessionStorage);
-                expect(location.href).toBe('someUrl?juir=1#');
+                var clientData = simulateClientLoad(sessionStorage);
+                expect(globals.window.location.href).toBe('someUrl?juir=1');
             });
             it("should not call the reporter", function() {
                 describeUi.describeUi('someSuite', 'someUrl', function() {
@@ -262,12 +247,7 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     reporterUrl: 'someReporterUrl'
                 });
                 runs(function() {
-                    popup = {
-                        location: {
-                            href: ''
-                        },
-                        close: jasmine.createSpy('close')
-                    };
+                    popup = createGlobals({}).window;
                     globals.window.open.andReturn(popup);
                     reporter = new jasmineApi.jasmine.JsApiReporter();
                     spyOn(reporter, 'reportRunnerResults');
@@ -281,19 +261,16 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                expect(globals.window.open).toHaveBeenCalledWith(null, 'jasmineui');
+                expect(globals.window.open).toHaveBeenCalledWith('someUrl', 'jasmineui');
             });
-            it("should save the current spec in the popups's location and not change the location of the calling window", function() {
-                var runnerUrl = "runnerUrl";
-                location.href = runnerUrl;
+            it("should save the current spec in the popups's sessionStorage", function() {
                 var someScriptUrl = 'someScriptUrl';
                 scriptAccessor.currentScriptUrl.andReturn(someScriptUrl);
                 describeUi.describeUi('someSuite', 'someUrl', function() {
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                expect(location.href).toBe(runnerUrl);
-                var clientData = simulateClientLoad(popup.location, {});
+                var clientData = simulateClientLoad(popup.sessionStorage);
                 expect(clientData.specs.length).toBe(1);
                 expect(clientData.specIndex).toBe(0);
                 var spec = clientData.specs[0];
@@ -308,12 +285,13 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 jasmineApi.jasmine.getEnv().execute();
                 expect(reporter.reportRunnerResults).not.toHaveBeenCalled();
             });
-            it("should continue the execution of an ui spec when the result is given by a message", function() {
+
+            it("should continue the execution of an ui spec when the popup is finished", function() {
                 describeUi.describeUi('someSuite', 'someUrl', function() {
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                simulateClientPostMessage({
+                simulateClientSaveData({
                     reporterUrl: 'someReporterUrl',
                     specs: [{
                         specPath: ['someSuite', 'someSpec'],
@@ -331,7 +309,7 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                simulateClientPostMessage({
+                simulateClientSaveData({
                     reporterUrl: 'someReporterUrl',
                     specs: [{
                         specPath: ['someSuite', 'someSpec'],
@@ -349,7 +327,7 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                     describeUi.it('someSpec');
                 });
                 jasmineApi.jasmine.getEnv().execute();
-                simulateClientPostMessage({
+                simulateClientSaveData({
                     reporterUrl: 'someReporterUrl',
                     specs: [{
                         specPath: ['someSuite', 'someSpec'],

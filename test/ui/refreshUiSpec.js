@@ -1,5 +1,5 @@
 describe("page refresh", function() {
-    var fixtureAddress =  'http://localhost:8080/jasmine-ui/test/ui/jasmine-uiSpec.html';
+    var fixtureAddress =  '/jasmine-ui/test/ui/jasmine-uiSpec.html';
 
     describe('refresh when the exact same page is loaded', function() {
         var data = 0;

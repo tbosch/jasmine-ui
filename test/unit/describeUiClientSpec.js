@@ -1,23 +1,28 @@
 jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], function (describeUiClientFactory, persistentDataFactory) {
     describe('describeUiClient', function () {
-        var jasmineApi, describeUi, globals, waitsForAsync, loadListener, sessionStorage, location, persistentDataAccessor, persistentData;
+        var jasmineApi, describeUi, globals, waitsForAsync, loadListener, sessionStorage, persistentDataAccessor, persistentData;
         beforeEach(function () {
-            location = {
-                href:''
-            };
             sessionStorage = {};
         });
 
-        function createGlobals(location, sessionStorage) {
-            return {
+        function createGlobals(sessionStorage) {
+            var res = {
                 window:{
-                    location:location,
+                    location:{
+                        href: ''
+                    },
                     sessionStorage:sessionStorage,
-                    eval:window.eval,
+                    eval:function(string) {
+                        // these variables are used by the eval!
+                        var window =  res.window;
+                        var sessionStorage = res.window.sessionStorage;
+                        eval(string);
+                    },
                     removeEventListener:jasmine.createSpy('removeEventListener'),
                     addEventListener:jasmine.createSpy('addEventListener')
                 }
             };
+            return res;
         }
 
         function callEventListener(globals, name, event) {
@@ -35,20 +40,8 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
             callEventListener(globals, 'beforeunload', {});
         }
 
-        function simulateServerUpdateViaPostMessage(message) {
-            var tmpGlobals = createGlobals(location, sessionStorage);
-            var module = persistentDataFactory({
-                globals:tmpGlobals
-            });
-            module();
-            callEventListener(tmpGlobals, 'message', {
-                data:message
-            });
-            return module();
-        }
-
-        function simulateServerLoad(location, sessionStorage) {
-            var tmpGlobals = createGlobals(location, sessionStorage);
+        function simulateServerLoad(sessionStorage) {
+            var tmpGlobals = createGlobals(sessionStorage);
             return persistentDataFactory({
                 globals:tmpGlobals
             })();
@@ -66,33 +59,30 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
             });
             runs(function () {
                 if (data) {
-                    var tmpGlobals = createGlobals(location, sessionStorage);
+                    var tmpGlobals = createGlobals(sessionStorage);
                     var tmpPersistentData = persistentDataFactory({
                         globals:tmpGlobals
                     });
                     tmpGlobals.window.jasmineui = {
                         persistent: data
                     };
-                    tmpPersistentData.saveAndNavigateWithReloadTo(tmpGlobals.window, 'someUrl');
-                    delete tmpGlobals.window.jasmineui.persistent;
+                    tmpPersistentData.saveDataToWindow(tmpGlobals.window);
                 }
-                globals = createGlobals(location, sessionStorage);
+                globals = createGlobals(sessionStorage);
                 waitsForAsync = jasmine.createSpy('waitsForAsync');
                 loadListener = {
                     addBeforeLoadListener:jasmine.createSpy('addBeforeLoadListener'),
                     addLoadListener:jasmine.createSpy('addLoadListener')
                 };
-                persistentDataAccessor = persistentDataFactory({
-                    globals:globals
-                });
-                describeUi = describeUiClientFactory({
+                var moduleCache = {
                     globals:globals,
                     jasmineApi:jasmineApi,
                     waitsForAsync:waitsForAsync,
-                    loadListener:loadListener,
-                    persistentData:persistentDataAccessor
-                });
+                    loadListener:loadListener
+                };
+                persistentDataAccessor = persistentDataFactory(moduleCache);
                 persistentData = persistentDataAccessor();
+                describeUi = describeUiClientFactory(moduleCache);
             });
         }
 
@@ -149,9 +139,9 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 });
                 expect(persistentData.specIndex).toBe(0);
                 loadListener.addLoadListener.mostRecentCall.args[0]();
-                var serverData = simulateServerLoad(location, sessionStorage);
+                var serverData = simulateServerLoad(sessionStorage);
                 expect(serverData.specIndex).toBe(1);
-                expect(globals.window.location.href).toBe('someNewUrl?juir=2#');
+                expect(globals.window.location.href).toBe('someNewUrl?juir=1');
             });
 
             it("should load the reporter url when the spec is finished and there are no more specs to run", function () {
@@ -161,18 +151,15 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 });
                 expect(persistentData.specIndex).toBe(0);
                 loadListener.addLoadListener.mostRecentCall.args[0]();
-                var serverData = simulateServerLoad(location, sessionStorage);
+                var serverData = simulateServerLoad(sessionStorage);
                 expect(serverData.specIndex).toBe(1);
-                expect(globals.window.location.href).toBe('someRepoterUrl?juir=2#');
+                expect(globals.window.location.href).toBe('someRepoterUrl?juir=1');
             });
 
-            it("should report the spec results to the opener via postMessage", function () {
-                var openerLocation = {
-                    href:''
-                };
-                globals.opener = {
-                    location:openerLocation,
-                    postMessage:jasmine.createSpy('postMessage')
+            it("should report the spec results to the opener", function () {
+                globals.opener = createGlobals({}).window;
+                globals.opener.jasmineui = {
+                    notifyChange: jasmine.createSpy('notifyChange')
                 };
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
@@ -182,7 +169,8 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 expect(persistentData.specIndex).toBe(0);
                 loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(persistentData.specIndex).toBe(1);
-                var serverData = simulateServerUpdateViaPostMessage(globals.opener.postMessage.mostRecentCall.args[0]);
+                expect(globals.opener.jasmineui.notifyChange).toHaveBeenCalled();
+                var serverData = simulateServerLoad(globals.opener.sessionStorage);
                 expect(serverData.specIndex).toBe(1);
                 expect(serverData.specs[0].results).toBeTruthy();
                 var results = serverData.specs[0].results;
@@ -246,12 +234,14 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                     reporterUrl:'someReporterUrl'
                 });
             });
-            it("should wait infinitely after waitsForReload", function () {
+            it("should wait infinitely after an unload event", function () {
                 var callback = jasmine.createSpy('callback');
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
-                        describeUi.waitsForReload();
-                        jasmineApi.runs(callback);
+                        describeUi.runs(function() {
+                            simulateUnload();
+                        });
+                        describeUi.runs(callback);
                     });
                 });
                 loadListener.addLoadListener.mostRecentCall.args[0]();
@@ -273,38 +263,27 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                         jasmineApi.it('someSpec', function () {
                             describeUi.runs(function () {
                                 jasmineApi.expect(1).toBe(2);
-                                simulateUnload();
                             });
-                            describeUi.waitsForReload();
-
+                            describeUi.waits(Infinity);
                         });
                     });
                     loadListener.addLoadListener.mostRecentCall.args[0]();
                 });
                 simulateClientLoad();
             });
-            it("should ignore beforeEach even if registered after a spec with waitsForReload", function () {
-                var callback = jasmine.createSpy('callback');
-                describeUi.describeUi('someSuite', 'someUrl', function () {
-                    jasmineApi.it('someSpec', function () {
-                        describeUi.waitsForReload();
-                    });
-                    describeUi.beforeEach(callback);
-                });
-                loadListener.addLoadListener.mostRecentCall.args[0]();
-                expect(callback).not.toHaveBeenCalled();
-            });
-            it("should ignore runs, waits, waitsFor before waitsForReload", function () {
+            it("should ignore runs, waits, waitsFor before runs that have already been executed", function () {
                 var callback = jasmine.createSpy('callback');
                 spyOn(jasmineApi, 'waits');
                 spyOn(jasmineApi, 'waitsFor');
                 spyOn(jasmineApi, 'runs');
+                // Note: For this test it is important to mock waitsForAsync,
+                // as that would also call runs, waitsFor and waits!
+                expect(waitsForAsync.callCount).toBe(0);
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
-                        describeUi.runs(callback);
                         describeUi.waits(100);
                         describeUi.waitsFor(callback);
-                        describeUi.waitsForReload();
+                        describeUi.runs(callback);
                     });
                 });
                 loadListener.addLoadListener.mostRecentCall.args[0]();
@@ -313,14 +292,17 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 expect(jasmineApi.waitsFor).not.toHaveBeenCalled();
             });
 
-            it("should execute runs, waits, waitsFor after waitsForReload", function () {
+            it("should execute runs, waits, waitsFor after runs that have already been executed", function () {
                 var callback = jasmine.createSpy('callback');
                 spyOn(jasmineApi, 'waits');
                 spyOn(jasmineApi, 'waitsFor');
                 spyOn(jasmineApi, 'runs');
+                // Note: For this test it is important to mock waitsForAsync,
+                // as that would also call runs, waitsFor and waits!
+                expect(waitsForAsync.callCount).toBe(0);
                 describeUi.describeUi('someSuite', 'someUrl', function () {
                     jasmineApi.it('someSpec', function () {
-                        describeUi.waitsForReload();
+                        describeUi.runs();
                         describeUi.runs(callback);
                         describeUi.waits(100);
                         describeUi.waitsFor(callback);

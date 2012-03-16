@@ -40,6 +40,9 @@ jasmineui.require(['factory!jasmineApi'], function (jasmineApiFactory) {
         var frame = frames[frameId];
         // prevent asynchronous calls. This makes our tests easier...
         frame.setTimeout = function(callback, time) {
+            if (time==Infinity) {
+                return;
+            }
             callback();
         };
         var script = frame.document.createElement("script");

@@ -17,7 +17,7 @@ if (window.jstestdriver) {
 }
 <jsp:include page="simpleRequire.js"/>
 <jsp:include page="config.js"/>
-<jsp:include page="urlParser.js"/>
+<jsp:include page="urlLoader.js"/>
 <jsp:include page="scriptAccessor.js"/>
 <jsp:include page="logger.js"/>
 <jsp:include page="globals.js"/>
