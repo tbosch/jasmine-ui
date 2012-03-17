@@ -435,5 +435,46 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 expect(reporter.reportSpecResults).toHaveBeenCalled();
             });
         });
+
+        describe('jasmineui.inject', function() {
+            beforeEach(function() {
+                simulateServerLoad({
+                    reporterUrl: 'someReporterUrl'
+                });
+            });
+            it('should add the current script url to the scripts to be loaded in the client if a callback is given', function() {
+                var callback = jasmine.createSpy('callback');
+                var someInjectedScriptUrl = 'someInjectedScriptUrl';
+                scriptAccessor.currentScriptUrl.andReturn(someInjectedScriptUrl);
+                describeUi.inject(callback);
+                var someSpecUrl = 'someSpecUrl';
+                scriptAccessor.currentScriptUrl.andReturn(someSpecUrl);
+                describeUi.describeUi('someSuite', 'someUrl', function() {
+                    describeUi.it('someSpec');
+                });
+                jasmineApi.jasmine.getEnv().execute();
+                var clientData = simulateClientLoad(sessionStorage);
+                var spec = clientData.specs[0];
+                expect(spec.loadScripts).toEqual(['someJasmineUiScriptUrl', someInjectedScriptUrl, someSpecUrl]);
+                expect(callback).not.toHaveBeenCalled();
+            });
+            it('should add the given url as absolute url to the scripts to be loaded in the client if a string is given', function() {
+                var callback = jasmine.createSpy('callback');
+                var someInjectedScriptUrl = 'someInjectedScriptUrl';
+                scriptAccessor.currentScriptUrl.andReturn('somePath/someCurrentScript.js');
+                describeUi.inject(someInjectedScriptUrl);
+                var someSpecUrl = 'someSpecUrl';
+                scriptAccessor.currentScriptUrl.andReturn(someSpecUrl);
+                describeUi.describeUi('someSuite', 'someUrl', function() {
+                    describeUi.it('someSpec');
+                });
+                jasmineApi.jasmine.getEnv().execute();
+                var clientData = simulateClientLoad(sessionStorage);
+                var spec = clientData.specs[0];
+                expect(spec.loadScripts).toEqual(['someJasmineUiScriptUrl', 'somePath/'+someInjectedScriptUrl, someSpecUrl]);
+            });
+        });
+
     });
+
 });

@@ -337,6 +337,40 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
 
             });
         });
+        describe('suite execution', function () {
+            beforeEach(function () {
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someParentSuite', 'someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
+                });
+            });
+            it("should execute the describes of the current spec", function() {
+                var cb1 = jasmine.createSpy('callback1');
+                var cb2 = jasmine.createSpy('callback2');
+                describeUi.describe('someParentSuite', cb1.andCallFake(function () {
+                    describeUi.describeUi('someSuite', 'someUrl', cb2.andCallFake(function() {
+                        describeUi.it('someSpec');
+                    }));
+                }));
+                expect(cb1).toHaveBeenCalled();
+                expect(cb2).toHaveBeenCalled();
+            });
+            it("should not execute the describes of other specs than the current spec", function() {
+                var cb1 = jasmine.createSpy('callback1');
+                var cb2 = jasmine.createSpy('callback2');
+                describeUi.describe('someParentSuite', function () {
+                    describeUi.describeUi('someSuite2', 'someUrl', cb2.andCallFake(function() {
+                        describeUi.it('someSpec');
+                    }));
+                });
+                describeUi.describe('someParentSuite2', cb1);
+                expect(cb1).not.toHaveBeenCalled();
+                expect(cb2).not.toHaveBeenCalled();
+            });
+        });
 
         describe('beforeLoad handling', function () {
             beforeEach(function () {
@@ -401,11 +435,29 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 var results = persistentCurrentSpec.results;
                 expect(results.getItems().length).toBe(2);
                 var result = results.getItems()[0];
-                expect(result.message).toBe("Error: someError1");
+                expect(result.message.indexOf('Error: someError1')).not.toBe(-1);
                 result = results.getItems()[1];
-                expect(result.message).toBe("Error: someError2");
+                expect(result.message.indexOf("Error: someError2")).not.toBe(-1);
 
             });
         });
+
+        describe('jasmineui.inject', function() {
+            beforeEach(function() {
+                simulateClientLoad({
+                    specs:[
+                        {specPath:['someSuite', 'someSpec']}
+                    ],
+                    specIndex:0,
+                    reporterUrl:'someReporterUrl'
+                });
+            });
+            it('execute all callbacks given', function() {
+                var callback = jasmine.createSpy('callback');
+                describeUi.inject('someString', callback);
+                expect(callback).toHaveBeenCalled();
+            });
+        });
     });
+
 });

@@ -23,7 +23,7 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
                 loaded:jasmine.createSpy('loaded')
             };
             globals = {
-                window: mockWindow,
+                window:mockWindow,
                 $:{
                     fn:{
                         animationComplete:animationCompleteSpy,
@@ -34,11 +34,25 @@ jasmineui.require(["factory!asyncSensor"], function (asyncSensorFactory) {
             asyncSensor = asyncSensorFactory({
                 globals:globals,
                 loadListener:loadListener,
-                logger: {
-                    log: jasmine.createSpy('log')
+                logger:{
+                    log:jasmine.createSpy('log')
                 }
             });
             loadListener.loaded.andReturn(true);
+        });
+        describe('custom handlers', function () {
+            it("should expose existing handlers using jasmineui.asyncSensors", function () {
+                var handlers = globals.window.jasmineui.asyncSensors;
+                expect(handlers.timeout).toBeDefined();
+            });
+            it("should use custom handlers", function () {
+                var handlers = globals.window.jasmineui.asyncSensors;
+                var handler = jasmine.createSpy('handler').andReturn(true);
+                handlers.test = handler;
+                expect(asyncSensor()).toBe(true);
+                handler.andReturn(false);
+                expect(asyncSensor()).toBe(false);
+            });
         });
         describe("timeout handling", function () {
             var callback;

@@ -38,6 +38,7 @@ jasmineui.require(['factory!jasmineApi'], function (jasmineApiFactory) {
         frameElementsOfLastSpec.push(frameElement);
 
         var frame = frames[frameId];
+        frame.document.open();
         // prevent asynchronous calls. This makes our tests easier...
         frame.setTimeout = function(callback, time) {
             if (time==Infinity) {
@@ -45,14 +46,12 @@ jasmineui.require(['factory!jasmineApi'], function (jasmineApiFactory) {
             }
             callback();
         };
-        var script = frame.document.createElement("script");
-        script.onload = function () {
+        frame.document.write('<html><head><script type="text/javascript" src="'+jasmineScriptUrl()+'"></script>' +
+            '</head><body></body></html>');
+        frame.document.addEventListener('DOMContentLoaded', function() {
             readyCallback(createJasmineApi(frame));
-        };
-        script.type = "text/javascript";
-        script.src = jasmineScriptUrl();
-        frame.document.head.appendChild(script);
-
+        }, false);
+        frame.document.close();
     }
 
     window.newJasmineApi = newJasmineApi;

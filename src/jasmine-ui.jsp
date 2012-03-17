@@ -30,5 +30,6 @@ if (window.jstestdriver) {
 <jsp:include page="jasmineUtils.js"/>
 <jsp:include page="describeUiServer.js"/>
 <jsp:include page="describeUiClient.js"/>
+<jsp:include page="utils.js"/>
 <jsp:include page="main.js"/>
 

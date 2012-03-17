@@ -1,26 +1,26 @@
-jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils', 'urlLoader'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils, urlLoader) {
+jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils', 'urlLoader', 'utils'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils, urlLoader, utils) {
 
     var utilityScripts = [];
 
     // Always add jasmine ui.
     utilityScripts.push(scriptAccessor.currentScriptUrl());
 
-    function addWithoutDuplicates(list, entry) {
-        for (var i = 0; i < list.length; i++) {
-            if (list[i] == entry) {
-                return;
+    /**
+     * If given a function, registers the current script as a utility script for ui tests.
+     * The callback will only be executed on the client.
+     * If given a string, this will interpret the string as an url (relative to the current script) and
+     * add that url to the scripts that should be loaded in the client.
+     */
+    function inject() {
+        var currentScriptUrl = scriptAccessor.currentScriptUrl();
+        for (var i=0; i<arguments.length; i++) {
+            var arg = arguments[i];
+            if (typeof arg === 'function') {
+                utils.addWithoutDuplicates(utilityScripts, currentScriptUrl);
+            } else {
+                utils.addWithoutDuplicates(utilityScripts, utils.makeAbsoluteUrl(currentScriptUrl, arg));
             }
         }
-        list.push(entry);
-    }
-
-    /**
-     * Registers the current script as a utility script for ui tests.
-     * The callback will only be executed on the client.
-     * @param callback
-     */
-    function utilityScript(callback) {
-        addWithoutDuplicates(utilityScripts, scriptAccessor.currentScriptUrl());
     }
 
     var itHandler;
@@ -208,7 +208,7 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         describeUi:describeUi,
         describe:describe,
         it:it,
-        utilityScript:utilityScript,
+        inject:inject,
         beforeLoad: beforeLoad
     }
 });

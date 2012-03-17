@@ -2796,7 +2796,7 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
         clientMode:clientMode
     }
 });
-jasmineui.define('urlParser', function () {
+jasmineui.define('urlLoader', ['persistentData'], function (persistentData) {
     function parseUrl(url) {
         var hashIndex = url.indexOf('#');
         var hash;
@@ -2840,10 +2840,19 @@ jasmineui.define('urlParser', function () {
         query.push(newQueryEntry);
     }
 
+    var refreshUrlAttribute = 'juir';
+
+    function navigateWithReloadTo(win, url) {
+        var data = persistentData();
+        var parsedUrl = parseUrl(url);
+        var refreshCount = data.refreshCount = (data.refreshCount || 0) + 1;
+        setOrReplaceQueryAttr(parsedUrl, refreshUrlAttribute, refreshCount);
+        persistentData.saveDataToWindow(win);
+        win.location.href = serializeUrl(parsedUrl);
+    }
+
     return {
-        parseUrl: parseUrl,
-        serializeUrl: serializeUrl,
-        setOrReplaceQueryAttr: setOrReplaceQueryAttr
+        navigateWithReloadTo: navigateWithReloadTo
     };
 });
 jasmineui.define('scriptAccessor', ['globals'], function (globals) {
@@ -2880,14 +2889,13 @@ jasmineui.define('logger', ['globals', 'config'], function (globals, config) {
 jasmineui.define('globals', function () {
     return window;
 });
-jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, urlParser) {
+jasmineui.define('persistentData', ['globals'], function (globals) {
 
     function serialize(data) {
         var MARKER;
         var helper = function () {
             window.jasmineui = window.jasmineui || {};
             var pd = window.jasmineui.persistent = MARKER || {};
-            window.location.href = window.location.href.replace(/#.*/, '') + "#" + pd.originalHash;
             delete window.sessionStorage.jasmineui;
             var currentSpec = pd.specs && pd.specs[pd.specIndex];
             if (currentSpec) {
@@ -2901,7 +2909,9 @@ jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, 
                     output += state;
                 }
                 output += ']';
-                console.log("Jasmineui: " + output + ": " + currentSpec.specPath.join(" "));
+                if (window.console) {
+                    window.console.log("Jasmineui: " + output + ": " + currentSpec.specPath.join(" "));
+                }
                 var scripts = currentSpec.loadScripts;
                 if (scripts) {
                     for (var i = 0; i < scripts.length; i++) {
@@ -2914,88 +2924,50 @@ jasmineui.define('persistentData', ['globals', 'urlParser'], function (globals, 
         return string.replace("MARKER", JSON.stringify(data));
     }
 
-    var refreshUrlAttribute = 'juir';
-
-    function postDataToWindow(target) {
-        target.postMessage({
-            persistentData: JSON.stringify(get())
-        }, '*');
-    }
-
-    function saveAndNavigateWithReloadTo(win, url) {
-        var data = get();
-        var parsedUrl = urlParser.parseUrl(url);
-        var refreshCount = data.refreshCount = (data.refreshCount || 0) + 1;
-        urlParser.setOrReplaceQueryAttr(parsedUrl, refreshUrlAttribute, refreshCount);
-        data.originalHash = parsedUrl.hash || "";
-        parsedUrl.hash = encodeURI(serialize(data));
-        win.location.href = urlParser.serializeUrl(parsedUrl);
-    }
-
     function get() {
         var win = globals.window;
         if (!win.jasmineui || !win.jasmineui.persistent) {
-            // This variable is used by the eval!
+            // Note: This variable is used by the eval! By this, we can
+            // isolate the eval call during unit tests!
             var window = win;
             eval(win.sessionStorage.jasmineui);
-            eval(decodeURI(win.location.href.match(/\(function.*\)/)));
             win.jasmineui = win.jasmineui || {};
             win.jasmineui.persistent = win.jasmineui.persistent || {};
         }
         return win.jasmineui.persistent;
     }
 
-    function saveToSession() {
-        var win = globals.window;
-        win.sessionStorage.jasmineui = serialize(get());
-    }
-
-    function enableSaveToSession() {
-        var data = get();
-        var win = globals.window;
-        if (!win.jasmineui.persistentUnload) {
-            win.jasmineui.persistentUnload = true;
-            win.addEventListener('beforeunload', saveToSession, false);
+    function saveDataToWindow(target) {
+        if (target === globals.window) {
+            target.sessionStorage.jasmineui = serialize(get());
+        } else {
+            // Note: in IE9 we cannot access target.sessionStorage directly,
+            // so we need to use eval to set it :-(
+            target.tmp = serialize(get());
+            target.eval("sessionStorage.jasmineui = window.tmp;");
+            if (target.jasmineui) {
+                delete target.jasmineui.persistent;
+                if (target.jasmineui.notifyChange) {
+                    target.jasmineui.notifyChange();
+                }
+            }
         }
-    }
-
-    function disableSaveToSession() {
-        var win = globals.window;
-        win.jasmineui.persistentUnload = false;
-        delete win.sessionStorage.jasmineui;
-        win.removeEventListener('beforeunload', saveToSession, false);
-    }
-
-
-    function clean() {
-        var win = globals.window;
-        win.jasmineui.persistent = {};
     }
 
     var changeListeners = [];
-
-    globals.window.addEventListener('message', function(e) {
-        var win = globals.window;
-        if (e.data.persistentData) {
-            delete win.jasmineui.persistent;
-            win.jasmineui.persistent = JSON.parse(e.data.persistentData);
-            for (var i = 0; i < changeListeners.length; i++) {
-                changeListeners[i]();
-            }
+    globals.window.jasmineui = globals.window.jasmineui || {};
+    globals.window.jasmineui.notifyChange = function () {
+        for (var i = 0; i < changeListeners.length; i++) {
+            changeListeners[i]();
         }
-    }, false);
+    };
 
     function addChangeListener(listener) {
         changeListeners.push(listener);
     }
 
-    get.clean = clean;
-
-    get.saveAndNavigateWithReloadTo = saveAndNavigateWithReloadTo;
-    get.enableSaveToSession = enableSaveToSession;
-    get.disableSaveToSession = disableSaveToSession;
     get.addChangeListener = addChangeListener;
-    get.postDataToWindow = postDataToWindow;
+    get.saveDataToWindow = saveDataToWindow;
 
     return get;
 });
@@ -3018,7 +2990,8 @@ jasmineui.define('jasmineApi', ['globals'], function (globals) {
 });
 jasmineui.define('asyncSensor', ['globals', 'logger', 'loadListener'], function (globals, logger, loadListener) {
     var window = globals.window;
-    var asyncSensors = {};
+    window.jasmineui = window.jasmineui || {};
+    var asyncSensors = window.jasmineui.asyncSensors = window.jasmineui.asyncSensors || {};
 
     /**
      * Adds a sensor.
@@ -3603,29 +3576,29 @@ jasmineui.define('jasmineUtils', ['jasmineApi'], function (jasmineApi) {
     }
 
 });
-jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils) {
+jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 'scriptAccessor', 'globals', 'jasmineUtils', 'urlLoader', 'utils'], function (config, jasmineApi, persistentData, scriptAccessor, globals, jasmineUtils, urlLoader, utils) {
 
     var utilityScripts = [];
 
     // Always add jasmine ui.
     utilityScripts.push(scriptAccessor.currentScriptUrl());
 
-    function addWithoutDuplicates(list, entry) {
-        for (var i = 0; i < list.length; i++) {
-            if (list[i] == entry) {
-                return;
+    /**
+     * If given a function, registers the current script as a utility script for ui tests.
+     * The callback will only be executed on the client.
+     * If given a string, this will interpret the string as an url (relative to the current script) and
+     * add that url to the scripts that should be loaded in the client.
+     */
+    function inject() {
+        var currentScriptUrl = scriptAccessor.currentScriptUrl();
+        for (var i=0; i<arguments.length; i++) {
+            var arg = arguments[i];
+            if (typeof arg === 'function') {
+                utils.addWithoutDuplicates(utilityScripts, currentScriptUrl);
+            } else {
+                utils.addWithoutDuplicates(utilityScripts, utils.makeAbsoluteUrl(currentScriptUrl, arg));
             }
         }
-        list.push(entry);
-    }
-
-    /**
-     * Registers the current script as a utility script for ui tests.
-     * The callback will only be executed on the client.
-     * @param callback
-     */
-    function utilityScript(callback) {
-        addWithoutDuplicates(utilityScripts, scriptAccessor.currentScriptUrl());
     }
 
     var itHandler;
@@ -3637,7 +3610,6 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
     } else {
         setInplaceMode();
     }
-    persistentData.clean();
 
 
     function findRemoteSpec(localSpec, remoteSpecs) {
@@ -3654,7 +3626,7 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         itHandler = function (spec) {
             var executedSpec = findRemoteSpec(spec, remoteSpecs);
             spec.results_ = jasmineUtils.nestedResultsFromJson(executedSpec.results);
-        }
+        };
     }
 
     function setInplaceMode() {
@@ -3679,7 +3651,7 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
             } else {
                 pd.specIndex = 0;
                 pd.reporterUrl = globals.window.location.href;
-                persistentData.saveAndNavigateWithReloadTo(globals.window, pd.specs[0].url);
+                urlLoader.navigateWithReloadTo(globals.window, pd.specs[0].url, pd.loadCounter++);
             }
         };
         itHandler = function (spec, pageUrl, currentScriptUrl) {
@@ -3716,14 +3688,21 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
                 specPath:jasmineUtils.specPath(spec),
                 url: pageUrl
             };
+            var createdRemoteWindow = false;
             if (!remoteWindow) {
-                remoteWindow = globals.window.open(null, 'jasmineui');
+                remoteWindow = globals.window.open(pageUrl, 'jasmineui');
+                createdRemoteWindow = true;
             }
             var pd = persistentData();
             pd.specs = [remoteSpec];
             pd.specIndex = 0;
             pd.reporterUrl = globals.window.location.href;
-            persistentData.saveAndNavigateWithReloadTo(remoteWindow, pageUrl);
+            if (!createdRemoteWindow) {
+                urlLoader.navigateWithReloadTo(remoteWindow, pageUrl);
+            } else {
+                persistentData.saveDataToWindow(remoteWindow);
+            }
+
 
             jasmineUtils.createInfiniteWaitsBlock(spec);
         };
@@ -3807,71 +3786,68 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
         describeUi:describeUi,
         describe:describe,
         it:it,
-        utilityScript:utilityScript,
+        inject:inject,
         beforeLoad: beforeLoad
     }
 });
-jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils) {
+jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils', 'urlLoader', 'utils'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils, urlLoader, utils) {
     var remoteSpec = persistentData().specs[persistentData().specIndex];
-    var originalReloadCount = remoteSpec.reloadCount || 0;
-    var missingWaitsForReloadCount = originalReloadCount;
-    // Note: We need to increment the reloadCount here,
-    // and not in a runs statement in the waitsForReload.
-    // Reason: Jasmine sometimes executes runs statements using window.setTimeout.
-    // After location.reload() was called, those timeouts may not be executed!
-    remoteSpec.reloadCount = originalReloadCount+1;
+    remoteSpec.lastRunsIndex = remoteSpec.lastRunsIndex || 0;
+
+    var skipRunsCounter = remoteSpec.lastRunsIndex;
+    var reloadHappened = false;
 
     function describeUi(name, url, callback) {
-        jasmineApi.describe(name, callback);
+        describe(name, callback);
     }
 
-    function beforeEach(callback) {
-        // Do not execute beforeEach if we are in a reload situation.
-        if (!originalReloadCount) {
-            jasmineApi.beforeEach.apply(this, arguments);
+    function describe(name, callback) {
+        var suite = jasmineApi.jasmine.getEnv().currentSuite;
+        var suitePath = jasmineUtils.suitePath(suite);
+        var remoteSpecPath = remoteSpec.specPath;
+        if (utils.isSubList(remoteSpecPath, suitePath.concat(name))) {
+            jasmineApi.describe(name, callback);
         }
     }
 
+    globals.window.addEventListener('beforeunload', function() {
+        // Note: on iOS beforeunload is NOT supported.
+        // In that case we rely on the fact, that timeouts no more executed
+        // when a navigation change occurs. And we do wait some milliseconds between
+        // every two runs statements using waitsForAsync.
+        // On all other browsers, we use this flag to stop test execution.
+        reloadHappened = true;
+    });
+
     function runs(callback) {
-        if (missingWaitsForReloadCount === 0) {
+        if (skipRunsCounter===0) {
             waitsForAsync();
-            jasmineApi.runs.apply(this, arguments);
+            jasmineApi.runs.call(this, function() {
+                if (reloadHappened) {
+                    jasmineUtils.createInfiniteWaitsBlock(jasmineApi.jasmine.getEnv().currentSpec);
+                } else {
+                    callback();
+                    // save the current state of the specs. Needed for specs that contain multiple reloads.
+                    // As beforeunload does not work in iOS :-(
+                    remoteSpec.lastRunsIndex++;
+                    persistentData.saveDataToWindow(globals.window);
+                }
+            });
+        } else {
+            skipRunsCounter--;
         }
     }
 
     function waitsFor(callback) {
-        if (missingWaitsForReloadCount === 0) {
+        if (skipRunsCounter === 0) {
             jasmineApi.waitsFor.apply(this, arguments);
         }
     }
 
     function waits(callback) {
-        if (missingWaitsForReloadCount === 0) {
+        if (skipRunsCounter === 0) {
             jasmineApi.waits.apply(this, arguments);
         }
-    }
-
-    function waitsForReload() {
-        persistentData.enableSaveToSession();
-        if (missingWaitsForReloadCount === 0) {
-            // Wait for a reload of the page...
-            var spec = jasmineApi.jasmine.getEnv().currentSpec;
-            jasmineUtils.createInfiniteWaitsBlock(spec);
-        } else {
-            missingWaitsForReloadCount--;
-        }
-    }
-
-
-    function isSubList(list, suitePath) {
-        var execute = true;
-        for (var i = 0; i < suitePath.length; i++) {
-            if (i >= list.length || list[i] != suitePath[i]) {
-                execute = false;
-                break;
-            }
-        }
-        return execute;
     }
 
     function findRemoteSpecLocally() {
@@ -3894,12 +3870,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
     var beforeLoadCallbacks = [];
 
     function beforeLoad(callback) {
-        var suite = jasmineApi.jasmine.getEnv().currentSuite;
-        var suitePath = jasmineUtils.suitePath(suite);
-        var remoteSpecPath = remoteSpec.specPath;
-        if (isSubList(remoteSpecPath, suitePath)) {
-            beforeLoadCallbacks.push(callback);
-        }
+        beforeLoadCallbacks.push(callback);
     }
 
     loadListener.addBeforeLoadListener(function () {
@@ -3923,10 +3894,9 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         remoteSpec.results = spec.results_;
         spec.execute(function () {
             var pd = persistentData();
-            persistentData.disableSaveToSession();
             pd.specIndex = pd.specIndex + 1;
             if (globals.opener) {
-                persistentData.postDataToWindow(globals.opener);
+                persistentData.saveDataToWindow(globals.opener);
             } else {
                 var url;
                 if (pd.specIndex < pd.specs.length) {
@@ -3934,29 +3904,73 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
                 } else {
                     url = pd.reporterUrl;
                 }
-                persistentData.saveAndNavigateWithReloadTo(globals.window, url);
+                urlLoader.navigateWithReloadTo(globals.window, url);
             }
 
         });
     }, false);
 
-    function utilityScript(callback) {
-        callback();
+    function inject() {
+        for (var i=0; i<arguments.length; i++) {
+            var arg = arguments[i];
+            if (typeof arg === 'function') {
+                arg();
+            }
+        }
     }
 
     return {
         describe:describe,
         describeUi:describeUi,
-        beforeEach:beforeEach,
-        waitsForReload:waitsForReload,
         beforeLoad:beforeLoad,
         waits:waits,
         waitsFor:waitsFor,
         runs:runs,
-        utilityScript: utilityScript
+        inject: inject
     }
 });
 
+jasmineui.define('utils', function() {
+
+    function isSubList(list, suitePath) {
+        var execute = true;
+        for (var i = 0; i < suitePath.length; i++) {
+            if (i >= list.length || list[i] != suitePath[i]) {
+                execute = false;
+                break;
+            }
+        }
+        return execute;
+    }
+
+    function addWithoutDuplicates(list, entry) {
+        for (var i = 0; i < list.length; i++) {
+            if (list[i] == entry) {
+                return;
+            }
+        }
+        list.push(entry);
+    }
+
+    function makeAbsoluteUrl(currentScriptUrl, url) {
+        if (url.indexOf('://')!=-1) {
+            return url;
+        }
+        if (url.charAt(0) === '/') {
+            return url;
+        }
+        var res = currentScriptUrl;
+        var lastSlash = res.lastIndexOf('/');
+        return res.substring(0, lastSlash+1)+url;
+    }
+
+    return {
+        isSubList: isSubList,
+        makeAbsoluteUrl: makeAbsoluteUrl,
+        addWithoutDuplicates: addWithoutDuplicates
+    }
+
+});
 (function () {
 
 
@@ -3974,13 +3988,11 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
             window.xdescribeUi = window.xdescribe;
             window.describe = describeUi.describe;
             window.describeUi = describeUi.describeUi;
-            window.beforeEach = describeUi.beforeEach;
             window.beforeLoad = describeUi.beforeLoad;
             window.runs = describeUi.runs;
             window.waitsFor = describeUi.waitsFor;
             window.waits = describeUi.waits;
-            window.waitsForReload = describeUi.waitsForReload;
-            jasmineui.utilityScript = describeUi.utilityScript;
+            jasmineui.inject = describeUi.inject;
         });
     } else {
         jasmineui.require(['describeUiServer'], function (describeUi) {
@@ -3989,7 +4001,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
             window.beforeLoad = describeUi.beforeLoad;
             window.describe = describeUi.describe;
             window.xdescribeUi = window.xdescribe;
-            jasmineui.utilityScript = describeUi.utilityScript;
+            jasmineui.inject = describeUi.inject;
 
         });
     }

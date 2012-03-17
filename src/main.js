@@ -19,7 +19,7 @@
             window.runs = describeUi.runs;
             window.waitsFor = describeUi.waitsFor;
             window.waits = describeUi.waits;
-            jasmineui.utilityScript = describeUi.utilityScript;
+            jasmineui.inject = describeUi.inject;
         });
     } else {
         jasmineui.require(['describeUiServer'], function (describeUi) {
@@ -28,7 +28,7 @@
             window.beforeLoad = describeUi.beforeLoad;
             window.describe = describeUi.describe;
             window.xdescribeUi = window.xdescribe;
-            jasmineui.utilityScript = describeUi.utilityScript;
+            jasmineui.inject = describeUi.inject;
 
         });
     }

@@ -38,6 +38,8 @@ Usage:
 3. For debugging run the tests with the standalone html runner,
    and for continuous integration use the js-test-driver runner.
 
+See `test/ui/baseFunctionalitySpec.js` for an example.
+
 Preconditions:
 
 * The page to be tested must be loaded from the same domain as the test code.
@@ -79,17 +81,45 @@ Creates a jasmine suite for the given page. For all specs contained in this suit
 first the page will be loaded and then the spec will be injected into that page and executed there.
 This includes all `beforeEach` and `afterEach` callbacks that are defined in this suite or parent suites.
 
+See `test/ui/baseFunctionalitySpec.js` for an example.
+
+
 #### `beforeLoad(callback)`
 Creates a callback that will be executed right before the `DOMContentLoaded` event. By this,
 all your application javascript files have been loaded and can be changed, before your application starts.
 This is very nice e.g. for mocking backend calls, ...
 
-To be placed where you would place `beforeEach` in jasmine.
+See `test/ui/beforeLoadSpec.js` for an example.
 
-#### `jasmineui.utilityScript(callback)`
+#### `jasmineui.inject(callback)`
 This will registers the current javascript file as a utility script needed by the ui tests. I.e.
 the script will be loaded into every page that is tests with describeUi.
 The callback will only be executed in the page, and not in the jasmine spec runner.
+
+See `test/ui/inject/sampleInjectedCallback.js` for an example.
+
+#### `jasmineui.inject(url1, url2)`
+This will registers the given urls as utility scripts needed by the ui tests. I.e.
+the script will be loaded into every page that is tests with describeUi.
+If the urls are relative, they will be resolved relative to the url of the script that executed this function.
+
+See `test/ui/inject/sampleInjectedCallback.js` for an example.
+
+Detecting and waiting for asynchronous actions
+-----------
+Jasmine-Ui automatically waits for the end of all asynchronous actions between runs statements.
+The calculation is based on so called `sensors`: An asynchronous sensor is a function that returns
+true if some asynchronous action is beeing executed.
+
+All asynchronous sensors are stored in the object `jasmineui.asyncSensors`. By modifying this object,
+you can remove sensors or add custom sensors on your own.
+
+Please note, that this needs to be configured in a script that is injected into the page to be tested using
+`jasmineui.inject` e.g.
+
+    jasmineui.inject(function() {
+        jasmineui.asyncSensors.customSensor = function() { ... }
+    });
 
 
 
@@ -123,16 +153,20 @@ event handlers registered by jquery. I.e. this can not be used for
 event listeners attached without jquery! Also, this does not do the default navigation of anchor links!
 
 
-Multi page specs
+Multiple load specs
 ------------
-This plays nicely with specs that do a reload of the page during their execution: It will save the index
+Jasmine ui plays nicely with specs that do a reload of the page during their execution: It will save the index
 of the last runs statement before the reload and continue at that runs statement after the reload.
 
 Notes:
+
 - all local variables that were set by runs before the reload are lost.
 - You can safe data persistently over reloads by assigning values ot `jasmineui.persistent`.
 - To prevent code from beeing executed twice, put all
   code in the specs into runs statements.
+
+See `test/ui/multiLoadSpec.js` for an example.
+
 
 Integration with js-test-driver for Continuous Integration
 --------------

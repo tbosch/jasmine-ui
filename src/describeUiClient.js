@@ -1,4 +1,4 @@
-jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils', 'urlLoader'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils, urlLoader) {
+jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForAsync', 'loadListener', 'globals', 'jasmineUtils', 'urlLoader', 'utils'], function (jasmineApi, persistentData, waitsForAsync, loadListener, globals, jasmineUtils, urlLoader, utils) {
     var remoteSpec = persistentData().specs[persistentData().specIndex];
     remoteSpec.lastRunsIndex = remoteSpec.lastRunsIndex || 0;
 
@@ -6,7 +6,16 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
     var reloadHappened = false;
 
     function describeUi(name, url, callback) {
-        jasmineApi.describe(name, callback);
+        describe(name, callback);
+    }
+
+    function describe(name, callback) {
+        var suite = jasmineApi.jasmine.getEnv().currentSuite;
+        var suitePath = jasmineUtils.suitePath(suite);
+        var remoteSpecPath = remoteSpec.specPath;
+        if (utils.isSubList(remoteSpecPath, suitePath.concat(name))) {
+            jasmineApi.describe(name, callback);
+        }
     }
 
     globals.window.addEventListener('beforeunload', function() {
@@ -49,17 +58,6 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         }
     }
 
-    function isSubList(list, suitePath) {
-        var execute = true;
-        for (var i = 0; i < suitePath.length; i++) {
-            if (i >= list.length || list[i] != suitePath[i]) {
-                execute = false;
-                break;
-            }
-        }
-        return execute;
-    }
-
     function findRemoteSpecLocally() {
         var specs = jasmineApi.jasmine.getEnv().currentRunner().specs();
         var spec;
@@ -80,12 +78,7 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
     var beforeLoadCallbacks = [];
 
     function beforeLoad(callback) {
-        var suite = jasmineApi.jasmine.getEnv().currentSuite;
-        var suitePath = jasmineUtils.suitePath(suite);
-        var remoteSpecPath = remoteSpec.specPath;
-        if (isSubList(remoteSpecPath, suitePath)) {
-            beforeLoadCallbacks.push(callback);
-        }
+        beforeLoadCallbacks.push(callback);
     }
 
     loadListener.addBeforeLoadListener(function () {
@@ -125,8 +118,13 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         });
     }, false);
 
-    function utilityScript(callback) {
-        callback();
+    function inject() {
+        for (var i=0; i<arguments.length; i++) {
+            var arg = arguments[i];
+            if (typeof arg === 'function') {
+                arg();
+            }
+        }
     }
 
     return {
@@ -136,6 +134,6 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
         waits:waits,
         waitsFor:waitsFor,
         runs:runs,
-        utilityScript: utilityScript
+        inject: inject
     }
 });

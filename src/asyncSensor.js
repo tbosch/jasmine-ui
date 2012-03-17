@@ -1,6 +1,7 @@
 jasmineui.define('asyncSensor', ['globals', 'logger', 'loadListener'], function (globals, logger, loadListener) {
     var window = globals.window;
-    var asyncSensors = {};
+    window.jasmineui = window.jasmineui || {};
+    var asyncSensors = window.jasmineui.asyncSensors = window.jasmineui.asyncSensors || {};
 
     /**
      * Adds a sensor.
