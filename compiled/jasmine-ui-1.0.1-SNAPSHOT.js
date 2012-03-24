@@ -1,5 +1,5 @@
 /**
-* Jasmine-Ui v1.0.1
+* Jasmine-Ui v1.0.1-SNAPSHOT
 * http://github.com/tigbro/jasmine-ui
 *
 * Copyright 2011, Tobias Bosch (OPITZ CONSULTING GmbH)
