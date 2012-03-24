@@ -222,6 +222,22 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(called).toBe(true);
             });
+
+            it("should call waitsForAsync after the spec ", function () {
+                var called = false;
+                describeUi.describeUi('someSuite', 'someUrl', function () {
+                    jasmineApi.it('someSpec', function() {
+                        waitsForAsync.reset();
+                        called = true;
+                    });
+                });
+                expect(waitsForAsync).not.toHaveBeenCalled();
+                loadListener.addLoadListener.mostRecentCall.args[0]();
+                expect(waitsForAsync).toHaveBeenCalled();
+                expect(called).toBe(true);
+            });
+
+
         });
 
         describe('multi reload specs before the first reload', function () {
@@ -247,6 +263,17 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 loadListener.addLoadListener.mostRecentCall.args[0]();
                 expect(callback).not.toHaveBeenCalled();
             });
+            it("should wait infinitely after an unload event in the last spec", function () {
+                var callback = jasmine.createSpy('callback');
+                describeUi.describeUi('someSuite', 'someUrl', function () {
+                    jasmineApi.it('someSpec', function () {
+                        simulateUnload();
+                    });
+                });
+                loadListener.addLoadListener.mostRecentCall.args[0]();
+                expect(persistentData.specIndex).toBe(0);
+            });
+
         });
 
         describe('multi reload specs after the first reload', function () {
@@ -276,6 +303,7 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 spyOn(jasmineApi, 'waits');
                 spyOn(jasmineApi, 'waitsFor');
                 spyOn(jasmineApi, 'runs');
+                spyOn(jasmineApi, 'afterEach');
                 // Note: For this test it is important to mock waitsForAsync,
                 // as that would also call runs, waitsFor and waits!
                 expect(waitsForAsync.callCount).toBe(0);
@@ -297,6 +325,7 @@ jasmineui.require(['factory!describeUiClient', 'factory!persistentData'], functi
                 spyOn(jasmineApi, 'waits');
                 spyOn(jasmineApi, 'waitsFor');
                 spyOn(jasmineApi, 'runs');
+                spyOn(jasmineApi, 'afterEach'); // Important, as the loadListener adds an own runs statement in afterEach...
                 // Note: For this test it is important to mock waitsForAsync,
                 // as that would also call runs, waitsFor and waits!
                 expect(waitsForAsync.callCount).toBe(0);

@@ -94,6 +94,14 @@ jasmineui.define('describeUiClient', ['jasmineApi', 'persistentData', 'waitsForA
 
     loadListener.addLoadListener(function () {
         jasmineApi.beforeEach(waitsForAsync);
+        jasmineApi.afterEach(function() {
+            waitsForAsync();
+            jasmineApi.runs.call(this, function() {
+                if (reloadHappened) {
+                    jasmineUtils.createInfiniteWaitsBlock(jasmineApi.jasmine.getEnv().currentSpec);
+                }
+            });
+        });
         var spec = findRemoteSpecLocally();
         if (remoteSpec.results) {
             // If we had existing results from a reload situation, load them into the spec.
