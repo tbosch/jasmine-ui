@@ -59,6 +59,9 @@ jasmineui.define('describeUiServer', ['config', 'jasmineApi', 'persistentData', 
             var specs = this.specs();
             for (var i=0; i<specs.length; i++) {
                 var spec = specs[i];
+                if (!spec.env.specFilter(spec)) {
+                    continue;
+                }
                 var _pageUrl = pageUrl(spec.suite);
                 if (_pageUrl) {
                     pd.specs.push({

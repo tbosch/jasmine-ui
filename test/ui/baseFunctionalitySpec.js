@@ -14,6 +14,7 @@ describe('base functions', function () {
                 expect(currentBaseUrl()).toBe(fixtureAddress);
             });
         });
+
         it("should execute waitFor callbacks in the url defined by describeUi", function () {
             var urlInWaitsFor;
             waitsFor(function () {

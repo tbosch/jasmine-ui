@@ -113,6 +113,23 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 expect(spec.url).toBe('someUrl');
                 expect(spec.loadScripts).toEqual(['someJasmineUiScriptUrl', someScriptUrl]);
             });
+            it("should use the env.specFilter for filtering the specs", function() {
+                var someScriptUrl = 'someScriptUrl';
+                scriptAccessor.currentScriptUrl.andReturn(someScriptUrl);
+                describeUi.describeUi('someSuite', 'someUrl', function() {
+                    describeUi.it('someSpec1');
+                    describeUi.it('someSpec2');
+                });
+                jasmineApi.jasmine.getEnv().specFilter = function(spec) {
+                    return spec.description === 'someSpec2';
+                };
+                jasmineApi.jasmine.getEnv().execute();
+                var clientData = simulateClientLoad(sessionStorage);
+                expect(clientData.specs.length).toBe(1);
+                expect(clientData.specIndex).toBe(0);
+                var spec = clientData.specs[0];
+                expect(spec.specPath).toEqual(['someSuite', 'someSpec2']);
+            });
             it("should navigate to the url of the first ui spec", function() {
                 describeUi.describeUi('someSuite', 'someUrl', function() {
                     describeUi.it('someSpec');
@@ -275,6 +292,25 @@ jasmineui.require(['factory!describeUiServer', 'factory!persistentData'], functi
                 expect(clientData.specIndex).toBe(0);
                 var spec = clientData.specs[0];
                 expect(spec.specPath).toEqual(['someSuite', 'someSpec']);
+                expect(spec.url).toBe('someUrl');
+                expect(spec.loadScripts).toEqual(['someJasmineUiScriptUrl', someScriptUrl]);
+            });
+            it("should use the env.specFilter", function() {
+                var someScriptUrl = 'someScriptUrl';
+                scriptAccessor.currentScriptUrl.andReturn(someScriptUrl);
+                describeUi.describeUi('someSuite', 'someUrl', function() {
+                    describeUi.it('someSpec2');
+                    describeUi.it('someSpec2');
+                });
+                jasmineApi.jasmine.getEnv().specFilter = function(spec) {
+                    return spec.description === 'someSpec2';
+                };
+                jasmineApi.jasmine.getEnv().execute();
+                var clientData = simulateClientLoad(popup.sessionStorage);
+                expect(clientData.specs.length).toBe(1);
+                expect(clientData.specIndex).toBe(0);
+                var spec = clientData.specs[0];
+                expect(spec.specPath).toEqual(['someSuite', 'someSpec2']);
                 expect(spec.url).toBe('someUrl');
                 expect(spec.loadScripts).toEqual(['someJasmineUiScriptUrl', someScriptUrl]);
             });
