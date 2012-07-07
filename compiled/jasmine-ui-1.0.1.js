@@ -3367,12 +3367,17 @@ jasmineui.define('loadListener', ['globals'], function (globals) {
     }
 
     function beforeLoadCallback() {
-        if (scriptLoaderIsReady()) {
-            callBeforeLoadListeners();
+        if (requirejs.isWaiting()) {
+            requirejs.executeBeforeReady(callBeforeLoadListeners);
+        } else if (jquery.isWaiting()) {
+            jquery.executeBeforeReady(callBeforeLoadListeners);
         } else {
-            setScriptLoaderBeforeLoadEvent(callBeforeLoadListeners);
+            callBeforeLoadListeners();
         }
-        return true;
+    }
+
+    function loaded() {
+        return document.readyState == 'complete' && !requirejs.isWaiting() && !jquery.isWaiting();
     }
 
     function isEmptyObj(obj, ignoreKey) {
@@ -3384,44 +3389,67 @@ jasmineui.define('loadListener', ['globals'], function (globals) {
         return true;
     }
 
-    function scriptLoaderIsReady(ignoreModId) {
-        if (globals.require) {
+    var jquery = {
+        isWaiting: function() {
+            // Note: We only wait for extra waiting due to calls to holdReady,
+            // not for the normal DOMContentLoaded event handling of jQuery.
+            // Reason: For the normal DOMContentLoaded handling in jQuery we cannot
+            // install an interceptor resp. we already have an interceptor for that DOM event!
+            if (globals.jQuery) {
+                if (globals.jQuery.readyWait>=2) {
+                    return true;
+                }
+                if (globals.jQuery.isReady && globals.jQuery.readyWait >= 1) {
+                    return true;
+                }
+            }
+            return false;
+        },
+        executeBeforeReady: function(callback) {
+            var _ready = globals.jQuery.ready;
+            globals.jQuery.ready = function() {
+                // Note: This is the border that makes isWaiting() false!
+                if (globals.jQuery.readyWait===1 && globals.jQuery.isReady || globals.jQuery.readyWait===2 && !globals.jQuery.isReady) {
+                    callback();
+                }
+                return _ready.apply(this, arguments);
+            }
+        }
+    };
+
+    var requirejs = {
+        isWaiting: function(ignoreModId) {
+            if (globals.require && globals.require.s) {
+                var contexts = globals.require.s.contexts;
+                for (var ctxName in contexts) {
+                    if (!isEmptyObj(contexts[ctxName].registry, ignoreModId)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        },
+        executeBeforeReady: function(callback) {
             var contexts = globals.require.s.contexts;
             for (var ctxName in contexts) {
-                if (!isEmptyObj(contexts[ctxName].registry, ignoreModId)) {
-                    return false;
+                instrumentRequireJsContext(contexts[ctxName]);
+            }
+
+            function instrumentRequireJsContext(context) {
+                var _execCb = context.execCb;
+                context.execCb = function(modId) {
+                    if (!requirejs.isWaiting(modId)) {
+                        if (jquery.isWaiting()) {
+                            jquery.executeBeforeReady(callback);
+                        } else {
+                            callback();
+                        }
+                    }
+                    return _execCb.apply(this, arguments);
                 }
             }
-            return true;
         }
-        return true;
-    }
-
-    function setScriptLoaderBeforeLoadEvent(listener) {
-        var contexts = globals.require.s.contexts;
-        for (var ctxName in contexts) {
-            instrumentRequireJsContext(contexts[ctxName]);
-        }
-
-        function instrumentRequireJsContext(context) {
-            var _execCb = context.execCb;
-            context.execCb = function(modId) {
-                if (scriptLoaderIsReady(modId)) {
-                    listener();
-                }
-                return _execCb.apply(this, arguments);
-            }
-        }
-    }
-
-
-    function loaded() {
-        var docReady = document.readyState == 'complete';
-        if (docReady) {
-            return scriptLoaderIsReady();
-        }
-        return docReady;
-    }
+    };
 
     var loadListeners = [];
 
@@ -3443,9 +3471,9 @@ jasmineui.define('loadListener', ['globals'], function (globals) {
             });
             function fireIfNeeded() {
                 if (loadEventReceived && scriptLoaderReady) {
-                    // Wait another 10ms so all other load listeners of the application that is being tests
+                    // Wait another 10ms so all other load listeners of the application that is being tested
                     // have a chance to be called. Also, we want to be after the last module call of the script loader!
-                    globals.setTimeout(function() {
+                    globals.jasmine.setTimeout(function() {
                         for (var i=0; i<loadListeners.length; i++) {
                             loadListeners[i](loadEventReceived);
                         }

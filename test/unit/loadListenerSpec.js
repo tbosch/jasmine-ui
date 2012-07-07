@@ -10,7 +10,9 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     addEventListener:jasmine.createSpy('addEventListener')
 
                 },
-                setTimeout: jasmine.createSpy('setTimeout')
+                jasmine: {
+                    setTimeout:jasmine.createSpy('setTimeout')
+                }
             };
             loadEventSupport = loadLlistenerFactory({globals:globals});
         });
@@ -34,43 +36,109 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     expect(listener).toHaveBeenCalled();
                 });
             });
+            describe('with jQuery', function () {
+                var listener, ready;
+                beforeEach(function () {
+                    ready = jasmine.createSpy('ready');
+                    globals.jQuery = {
+                        readyWait:0,
+                        ready:ready
+                    };
+                    listener = jasmine.createSpy('listener');
+                    loadEventSupport.addBeforeLoadListener(listener);
+                });
+                it("should wait for a call to jQuery.ready with readyWait===1 after normal jQuery ready after DOMContentLoaded", function () {
+                    globals.jQuery.readyWait = 1;
+                    globals.jQuery.isReady = true;
+                    globals.document.addEventListener.mostRecentCall.args[1]();
+                    expect(listener).not.toHaveBeenCalled();
+                    globals.jQuery.ready();
+                    expect(listener).toHaveBeenCalled();
+                });
+                it("should wait for a call to jQuery.ready with readyWait===2 before normal jQuery ready after DOMContentLoaded", function () {
+                    globals.jQuery.readyWait = 2;
+                    globals.jQuery.isReady = false;
+                    globals.document.addEventListener.mostRecentCall.args[1]();
+                    expect(listener).not.toHaveBeenCalled();
+                    globals.jQuery.ready();
+                    expect(listener).toHaveBeenCalled();
+                });
+            });
             describe('with requireJs', function () {
                 var listener, reqContext, execCb;
                 beforeEach(function () {
                     execCb = jasmine.createSpy('execCb');
                     reqContext = {
-                        execCb: execCb,
-                        registry: {
-                            someModId: {}
+                        execCb:execCb,
+                        registry:{
+                            someModId:{}
                         }
                     };
                     globals.require = function () {
                     };
                     globals.require.s = {
-                        contexts: {
-                            '_': reqContext
+                        contexts:{
+                            '_':reqContext
                         }
                     };
                     listener = jasmine.createSpy('listener');
                     loadEventSupport.addBeforeLoadListener(listener);
                 });
-                it("should add a capturing event listener for DOMContentLoaded", function() {
-                    var f = globals.document.addEventListener;
-                    expect(f).toHaveBeenCalled();
-                    expect(f.mostRecentCall.args[0]).toBe('DOMContentLoaded');
-                    expect(f.mostRecentCall.args[2]).toBe(true);
-                });
-                it("should wait for the first require to be executed after DOMContentLoaded", function () {
+                it("should wait for the last call to req.execCb after DOMContentLoaded", function () {
                     globals.document.addEventListener.mostRecentCall.args[1]();
                     expect(listener).not.toHaveBeenCalled();
                     reqContext.execCb('someModId');
                     expect(execCb).toHaveBeenCalledWith('someModId');
                     expect(listener).toHaveBeenCalled();
                 });
-                it("should wait for the first require to be executed before DOMContentLoaded", function () {
+                it("should wait for the last call to req.execCb before DOMContentLoaded", function () {
                     expect(listener).not.toHaveBeenCalled();
                     delete reqContext.registry.someModId;
                     globals.document.addEventListener.mostRecentCall.args[1]();
+                    expect(listener).toHaveBeenCalled();
+                });
+            });
+            describe('with requirejs and jquery', function () {
+                var listener, reqContext, execCb, ready;
+                beforeEach(function () {
+                    execCb = jasmine.createSpy('execCb');
+                    reqContext = {
+                        execCb:execCb,
+                        registry:{
+                            someModId:{}
+                        }
+                    };
+                    globals.require = function () {
+                    };
+                    globals.require.s = {
+                        contexts:{
+                            '_':reqContext
+                        }
+                    };
+                    ready = jasmine.createSpy('ready');
+                    globals.jQuery = {
+                        readyWait:0,
+                        ready:ready
+                    };
+                    listener = jasmine.createSpy('listener');
+                    loadEventSupport.addBeforeLoadListener(listener);
+                });
+                it("should wait for the last call to req.execCb when jquery is already ready", function () {
+                    globals.document.addEventListener.mostRecentCall.args[1]();
+                    expect(listener).not.toHaveBeenCalled();
+                    reqContext.execCb('someModId');
+                    expect(execCb).toHaveBeenCalledWith('someModId');
+                    expect(listener).toHaveBeenCalled();
+                });
+                it("should wait for jQuery.ready after the last call to req.execCb when jquery is not ready then", function () {
+                    globals.jQuery.readyWait = 1;
+                    globals.jQuery.isReady = true;
+                    globals.document.addEventListener.mostRecentCall.args[1]();
+                    expect(listener).not.toHaveBeenCalled();
+                    reqContext.execCb('someModId');
+                    expect(execCb).toHaveBeenCalledWith('someModId');
+                    expect(listener).not.toHaveBeenCalled();
+                    globals.jQuery.ready();
                     expect(listener).toHaveBeenCalled();
                 });
             });
@@ -101,25 +169,25 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     expect(listener).not.toHaveBeenCalled();
                     globals.window.addEventListener.mostRecentCall.args[1](someEvent);
                     expect(listener).not.toHaveBeenCalled();
-                    expect(globals.setTimeout).toHaveBeenCalled();
-                    globals.setTimeout.mostRecentCall.args[0]();
+                    expect(globals.jasmine.setTimeout).toHaveBeenCalled();
+                    globals.jasmine.setTimeout.mostRecentCall.args[0]();
                     expect(listener).toHaveBeenCalledWith(someEvent);
                 });
             });
-            describe('with requireJs', function() {
+            describe('with requireJs', function () {
                 var listener, reqContext, execCb;
                 beforeEach(function () {
                     execCb = jasmine.createSpy('execCb');
                     reqContext = {
-                        execCb: execCb,
-                        registry: {
+                        execCb:execCb,
+                        registry:{
                         }
                     };
                     globals.require = function () {
                     };
                     globals.require.s = {
-                        contexts: {
-                            '_': reqContext
+                        contexts:{
+                            '_':reqContext
                         }
                     };
                     listener = jasmine.createSpy('listener');
@@ -131,11 +199,11 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     expect(listener).not.toHaveBeenCalled();
                     globals.window.addEventListener.mostRecentCall.args[1](someEvent);
                     expect(listener).not.toHaveBeenCalled();
-                    expect(globals.setTimeout).toHaveBeenCalled();
-                    globals.setTimeout.mostRecentCall.args[0]();
+                    expect(globals.jasmine.setTimeout).toHaveBeenCalled();
+                    globals.jasmine.setTimeout.mostRecentCall.args[0]();
                     expect(listener).toHaveBeenCalledWith(someEvent);
                 });
-                it("should call the listener not until requirejs is ready", function() {
+                it("should call the listener not until requirejs is ready", function () {
                     reqContext.registry.someModId = true;
 
                     var someEvent = {};
@@ -143,17 +211,17 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     expect(listener).not.toHaveBeenCalled();
                     globals.window.addEventListener.mostRecentCall.args[1](someEvent);
                     expect(listener).not.toHaveBeenCalled();
-                    expect(globals.setTimeout).not.toHaveBeenCalled();
+                    expect(globals.jasmine.setTimeout).not.toHaveBeenCalled();
 
                     reqContext.execCb('someModId');
 
-                    expect(globals.setTimeout).toHaveBeenCalled();
-                    globals.setTimeout.mostRecentCall.args[0]();
+                    expect(globals.jasmine.setTimeout).toHaveBeenCalled();
+                    globals.jasmine.setTimeout.mostRecentCall.args[0]();
                     expect(listener).toHaveBeenCalledWith(someEvent);
 
                 });
-                // TODO
             });
+            // Note: No tests for jquery needed as we internally reuse addBeforeLoadListener
         });
 
 
@@ -172,21 +240,21 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                 var reqContext;
                 beforeEach(function () {
                     reqContext = {
-                        execCb: jasmine.createSpy('execCb'),
-                        registry: {
+                        execCb:jasmine.createSpy('execCb'),
+                        registry:{
                         }
                     };
                     globals.require = function () {
                     };
                     globals.require.s = {
-                        contexts: {
-                            '_': reqContext
+                        contexts:{
+                            '_':reqContext
                         }
                     };
                 });
                 it("should return false when requirejs is not ready", function () {
                     reqContext.registry = {
-                        modId: true
+                        modId:true
                     };
                     globals.document.readyState = "complete";
                     expect(loadEventSupport.loaded()).toBe(false);
@@ -198,6 +266,32 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                 });
                 it("should return true when the document is ready and requirejs is ready", function () {
                     reqContext.registry = {};
+                    globals.document.readyState = "complete";
+                    expect(loadEventSupport.loaded()).toBe(true);
+                });
+            });
+            describe('with jQuery', function () {
+                beforeEach(function () {
+                    globals.jQuery = {};
+                });
+                it("should return false when jQuery has been called with holdReady", function () {
+                    globals.jQuery.readyWait = 2;
+                    globals.document.readyState = "complete";
+                    expect(loadEventSupport.loaded()).toBe(false);
+                });
+                it("should return false when jQuery has been called with holdReady, case 2", function () {
+                    globals.jQuery.readyWait = 1;
+                    globals.jQuery.isReady = true;
+                    globals.document.readyState = "complete";
+                    expect(loadEventSupport.loaded()).toBe(false);
+                });
+                it("should return false when the document is not ready", function () {
+                    globals.jQuery.readyWait = 0;
+                    globals.document.readyState = "loading";
+                    expect(loadEventSupport.loaded()).toBe(false);
+                });
+                it("should return true when the document is ready and jQuery is ready", function () {
+                    globals.jQuery.readyWait = 0;
                     globals.document.readyState = "complete";
                     expect(loadEventSupport.loaded()).toBe(true);
                 });
