@@ -3406,13 +3406,16 @@ jasmineui.define('loadListener', ['globals'], function (globals) {
             return false;
         },
         executeBeforeReady: function(callback) {
-            var _ready = globals.jQuery.ready;
-            globals.jQuery.ready = function() {
+            var _holdReady = globals.jQuery.holdReady;
+            globals.jQuery.holdReady = function(hold) {
+                if (hold) {
+                    return;
+                }
                 // Note: This is the border that makes isWaiting() false!
                 if (globals.jQuery.readyWait===1 && globals.jQuery.isReady || globals.jQuery.readyWait===2 && !globals.jQuery.isReady) {
                     callback();
                 }
-                return _ready.apply(this, arguments);
+                return _holdReady.apply(this, arguments);
             }
         }
     };

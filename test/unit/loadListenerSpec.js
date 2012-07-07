@@ -37,22 +37,22 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                 });
             });
             describe('with jQuery', function () {
-                var listener, ready;
+                var listener, holdReady;
                 beforeEach(function () {
-                    ready = jasmine.createSpy('ready');
+                    holdReady = jasmine.createSpy('holdReady');
                     globals.jQuery = {
                         readyWait:0,
-                        ready:ready
+                        holdReady:holdReady
                     };
                     listener = jasmine.createSpy('listener');
                     loadEventSupport.addBeforeLoadListener(listener);
                 });
-                it("should wait for a call to jQuery.ready with readyWait===1 after normal jQuery ready after DOMContentLoaded", function () {
+                it("should wait for a call to jQuery.holdReady with readyWait===1 after normal jQuery ready after DOMContentLoaded", function () {
                     globals.jQuery.readyWait = 1;
                     globals.jQuery.isReady = true;
                     globals.document.addEventListener.mostRecentCall.args[1]();
                     expect(listener).not.toHaveBeenCalled();
-                    globals.jQuery.ready();
+                    globals.jQuery.holdReady(false);
                     expect(listener).toHaveBeenCalled();
                 });
                 it("should wait for a call to jQuery.ready with readyWait===2 before normal jQuery ready after DOMContentLoaded", function () {
@@ -60,7 +60,7 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     globals.jQuery.isReady = false;
                     globals.document.addEventListener.mostRecentCall.args[1]();
                     expect(listener).not.toHaveBeenCalled();
-                    globals.jQuery.ready();
+                    globals.jQuery.holdReady(false);
                     expect(listener).toHaveBeenCalled();
                 });
             });
@@ -99,7 +99,7 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                 });
             });
             describe('with requirejs and jquery', function () {
-                var listener, reqContext, execCb, ready;
+                var listener, reqContext, execCb, holdReady;
                 beforeEach(function () {
                     execCb = jasmine.createSpy('execCb');
                     reqContext = {
@@ -115,10 +115,10 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                             '_':reqContext
                         }
                     };
-                    ready = jasmine.createSpy('ready');
+                    holdReady = jasmine.createSpy('holdReady');
                     globals.jQuery = {
                         readyWait:0,
-                        ready:ready
+                        holdReady:holdReady
                     };
                     listener = jasmine.createSpy('listener');
                     loadEventSupport.addBeforeLoadListener(listener);
@@ -138,7 +138,7 @@ jasmineui.require(['factory!loadListener'], function (loadLlistenerFactory) {
                     reqContext.execCb('someModId');
                     expect(execCb).toHaveBeenCalledWith('someModId');
                     expect(listener).not.toHaveBeenCalled();
-                    globals.jQuery.ready();
+                    globals.jQuery.holdReady(false);
                     expect(listener).toHaveBeenCalled();
                 });
             });
