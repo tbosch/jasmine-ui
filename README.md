@@ -6,7 +6,12 @@ Description
 
 Jasmine-UI provides ui tests for jasmine, i.e. written in javascript in jasmine syntax.
 
-Features:
+If you are interested in more details about ui tests with jasmine, have a look at the german book
+[Mobile Web-Apps mit JavaScript](http://www.opitz-consulting.com/go_javascriptbuch).
+
+
+Features
+---------
 
 * It can load a html page and inject tests into that page. By this, the tests run in the same window
   as the page to test and can call any function there or modify any object there.
@@ -27,9 +32,12 @@ Features:
 * If run with js-test-driver, this does use a popup, as js-test-driver does not allow
   a test to change the current page url.
 * Does not need any additional test server, only a browser to execute the tests
+* Supports applications that use requirejs 2.x. Note: Ui-Specs themselves cannot be AMD modules yet.
 * Supports: Chrome, Firefox, IE9+, Safari, Mobile Safari, Android Browser.
 
-Usage:
+
+Usage
+----------
 
 1. include jasmine-ui.js as library into your test-code.
 2. In the pages that should be tests, include the following line as first line in the header:
@@ -46,23 +54,28 @@ Preconditions:
 
 Dependencies:
 
-* jasmine (included in the released file)
-* js-test-driver Adapter for Jasmine (adapter included in the released file)
+* jasmine 1.2 (included in the released file)
+* js-test-driver Adapter for Jasmine (adapter included in the released file); jstd-version: 1.3.4
 
 Sample
 ------------
-See project [js-fadein](https://github.com/stefanscheidt/js-fadein).
+- [js-fadein](https://github.com/stefanscheidt/js-fadein): A simple example.
+- [Rent Your Legacy Car](https://github.com/mjswa/rylc-html5): A more complex example from the german book [Mobile Web-Apps mit JavaScript](http://www.opitz-consulting.com/go_javascriptbuch).
+
 
 Build
 --------------
-* run the tests:
-    * Run `mvn integration-test` from a command line
-    * Use the jasmine html runner:
-        1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
-        2. Enter `http://localhost:8080/jasmine-ui/test/UnitSpecRunner.html` rep. `http://localhost:8080/jasmine-ui/test/UiSpecRunner.html` in the browser of your choice
-* Create a new version:
-    * set the version in the pom.xml
-    * execute `mvn clean install`. This will create a file in the `compiled` folder and also execute the tests.
+Run the tests:
+
+* Run `mvn integration-test` from a command line
+* Use the jasmine html runner:
+    1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
+    2. Enter `http://localhost:8080/jasmine-ui/test/UnitSpecRunner.html` rep. `http://localhost:8080/jasmine-ui/test/UiSpecRunner.html` in the browser of your choice
+
+Create a new version:
+
+* set the version in the pom.xml
+* execute `mvn clean install`. This will create a file in the `compiled` folder and also execute the tests.
 
 Directory structure
 ----------------
@@ -178,7 +191,7 @@ Integration with js-test-driver for Continuous Integration
 Example configuration:
 
 
-    server: http://localhost:42442
+    server: http://localhost:9876
     load:
     - src/test/webapp/lib/jasmine-ui.js
     - src/test/webapp/ui/*.js
