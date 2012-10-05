@@ -1,16 +1,16 @@
-jasmineui.define('waitsForAsync', ['config', 'asyncSensor', 'jasmineApi', 'logger'], function (config, asyncSensor, jasmineApi, logger) {
+jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasmine/original', 'logger'], function (config, asyncSensor, jasmineOriginal, logger) {
     function checkAndWait() {
         // This is a loop between waiting 50 ms and checking
         // if any new async work started. This is needed
         // as a timeout might start a transition, which might
         // start another timeout, ...
-        jasmineApi.runs(function() {
+        jasmineOriginal.runs(function() {
             if (asyncSensor()) {
-                jasmineApi.waitsFor(
+                jasmineOriginal.waitsFor(
                     function () {
                         return !asyncSensor();
                     }, "async work", config.waitsForAsyncTimeout);
-                jasmineApi.waits(100);
+                jasmineOriginal.waits(100);
                 checkAndWait();
             }
         });
@@ -20,7 +20,7 @@ jasmineui.define('waitsForAsync', ['config', 'asyncSensor', 'jasmineApi', 'logge
      * Waits for the end of all asynchronous actions.
      */
     function waitsForAsync() {
-        jasmineApi.runs(function () {
+        jasmineOriginal.runs(function () {
             logger.log("begin async waiting");
         });
 
@@ -30,12 +30,22 @@ jasmineui.define('waitsForAsync', ['config', 'asyncSensor', 'jasmineApi', 'logge
         // not fired directly after the animation css is added.
         // There may also be a gap between changing the location hash
         // and the hashchange event (almost none however...).
-        jasmineApi.waits(100);
+        jasmineOriginal.waits(100);
         checkAndWait();
-        jasmineApi.runs(function () {
+        jasmineOriginal.runs(function () {
             logger.log("end async waiting");
         });
     }
 
-    return waitsForAsync;
+    function runs(callback) {
+        waitsForAsync();
+        jasmineOriginal.runs(callback);
+    }
+
+    jasmineOriginal.beforeEach(waitsForAsync);
+
+    return {
+        waitsForAsync: waitsForAsync,
+        runs: runs
+    };
 });

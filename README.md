@@ -25,12 +25,10 @@ Features
   All ui specs will not start until the end of all asynchronous work,
   and waiting will also be applied before all jasmine `runs` statements.
 * Supports jasmine specs that span multiple page reloads.
-* If run with the normal jasmine html runner, it does not create an iframe or popup, but reuses
+* Special "inplace" mode: This does not create an iframe or popup, but reuses
   the current window. This makes debugging errors very easy, as you only have one browser inspector
   open. Furthermore, the application gets the whole size of the window. By this, layout dependent
   logic can also be tested (e.g. especially useful during mobile development).
-* If run with js-test-driver, this does use a popup, as js-test-driver does not allow
-  a test to change the current page url.
 * Does not need any additional test server, only a browser to execute the tests
 * Supports applications that use requirejs 2.x. Note: Ui-Specs themselves cannot be AMD modules yet.
 * Supports: Chrome, Firefox, IE9+, Safari, Mobile Safari, Android Browser.
@@ -55,7 +53,7 @@ Preconditions:
 Dependencies:
 
 * jasmine 1.2 (included in the released file)
-* js-test-driver Adapter for Jasmine (adapter included in the released file); jstd-version: 1.3.4
+
 
 Sample
 ------------
@@ -89,13 +87,12 @@ Directory structure
 Functions
 -----------
 
-#### `describeUi(suiteName, pageUrl, callback)`
-Creates a jasmine suite for the given page. For all specs contained in this suite
-first the page will be loaded and then the spec will be injected into that page and executed there.
+#### `jasmineui.loadUi(pageUrl, [utilityScriptUrls], callback)`
+Loads the given page and executes the given callback in it. For all specs contained within the callback
+first the page will be loaded and then the spec and utilityScripts will be injected into that page and executed there.
 This includes all `beforeEach` and `afterEach` callbacks that are defined in this suite or parent suites.
 
 See `test/ui/baseFunctionalitySpec.js` for an example.
-
 
 #### `beforeLoad(callback)`
 Creates a callback that will be executed right before the `DOMContentLoaded` event. By this,
@@ -104,19 +101,6 @@ This is very nice e.g. for mocking backend calls, ...
 
 See `test/ui/beforeLoadSpec.js` for an example.
 
-#### `jasmineui.inject(callback)`
-This will registers the current javascript file as a utility script needed by the ui tests. I.e.
-the script will be loaded into every page that is tests with describeUi.
-The callback will only be executed in the page, and not in the jasmine spec runner.
-
-See `test/ui/inject/sampleInjectedCallback.js` for an example.
-
-#### `jasmineui.inject(url1, url2)`
-This will registers the given urls as utility scripts needed by the ui tests. I.e.
-the script will be loaded into every page that is tests with describeUi.
-If the urls are relative, they will be resolved relative to the url of the script that executed this function.
-
-See `test/ui/inject/sampleInjectedCallback.js` for an example.
 
 Detecting and waiting for asynchronous actions
 -----------
@@ -127,13 +111,12 @@ true if some asynchronous action is beeing executed.
 All asynchronous sensors are stored in the object `jasmineui.asyncSensors`. By modifying this object,
 you can remove sensors or add custom sensors on your own.
 
-Please note, that this needs to be configured in a script that is injected into the page to be tested using
-`jasmineui.inject` e.g.
+Please note, that this needs to be configured in a script that is injected into the page to be tested.
+E.g.
 
-    jasmineui.inject(function() {
+    jasmineui.loadUi('somePage', function() {
         jasmineui.asyncSensors.customSensor = function() { ... }
     });
-
 
 
 Simulation of Browser-Events
@@ -181,23 +164,47 @@ Notes:
 See `test/ui/multiLoadSpec.js` for an example.
 
 
+Configuration
+------------
+Jasmine ui contains some parameters that have default values and which can be set using the global variable `jasmineuiConfig`,
+e.g.
+
+    `jasmineuiConfig = { ... }`
+
+This needs to be set _before_ jasmine ui is loaded in the document.
+
+Configuration values:
+
+- `loadMode` = [inplace|popup|iframe]: mode to be used for loading the application in `loadUi`.
+- `closeTestWindow` = boolean: for `loadMode=iframe|popup` specifies whether the created popup/iframe should be closed after the tests.
+- `logEnabled` = boolean: Specifies if extended log output should be created
+- `waitsForAsyncTimeout` = int: Specifies the default timeout to be used by the automatic waiting in tests.
+
+
 Integration with js-test-driver for Continuous Integration
 --------------
-* This already includes jasmine and the jasmine adapter for js-test-driver
+* Use the `JasmineAdapter.js`. See the usual integration of jasmine and js-test-driver on this.
+* Be sure to not use `inplace` mode (e.g. `popup` mode instead), as js-test-driver does not like applications
+  that reload the page.
 * configure a js-test-driver proxy that delegates all requests to the webserver that contains
   the pages that should be tests. This is important so that the pages to be tested are
   from the same domain as the test code.
 
 Example configuration:
 
-
     server: http://localhost:9876
     load:
     - src/test/webapp/lib/jasmine-ui.js
+    - src/test/webapp/lib/JasmineAdapter.js
+    - src/test/webapp/lib/jstd-jasmineui-cfg.js
     - src/test/webapp/ui/*.js
 
     proxy:
     - {matcher: "/<my-app>/*", server: "http://localhost:8080/<myapp>/"}
+
+With the following `jstd-jasmineui-cfg.js`:
+
+    jasmineuiConfig = { loadMode: 'popup' };
 
 
 

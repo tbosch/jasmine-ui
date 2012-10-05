@@ -12,9 +12,6 @@
 if (!window.jasmine) {
 <jsp:include page="../lib/jasmine.js"/>
 }
-if (window.jstestdriver) {
-<jsp:include page="../test/lib/JasmineAdapter.js"/>
-}
 <jsp:include page="simpleRequire.js"/>
 <jsp:include page="config.js"/>
 <jsp:include page="urlLoader.js"/>
@@ -22,14 +19,20 @@ if (window.jstestdriver) {
 <jsp:include page="logger.js"/>
 <jsp:include page="globals.js"/>
 <jsp:include page="persistentData.js"/>
-<jsp:include page="jasmineApi.js"/>
 <jsp:include page="asyncSensor.js"/>
-<jsp:include page="waitsForAsync.js"/>
 <jsp:include page="loadListener.js"/>
 <jsp:include page="simulateEvent.js"/>
-<jsp:include page="jasmineUtils.js"/>
-<jsp:include page="describeUiServer.js"/>
-<jsp:include page="describeUiClient.js"/>
-<jsp:include page="utils.js"/>
+<jsp:include page="loadUiClient.js"/>
+<jsp:include page="loadUiServer.js"/>
+
+/* JasmineAdapter */
+<jsp:include page="jasmine/beforeLoad.js"/>
+<jsp:include page="jasmine/multiLoad.js"/>
+<jsp:include page="jasmine/original.js"/>
+<jsp:include page="jasmine/utils.js"/>
+<jsp:include page="jasmine/waitsForAsync.js"/>
+<jsp:include page="jasmine/adapter.js"/>
+
+/* Main */
 <jsp:include page="main.js"/>
 

@@ -1,11 +1,13 @@
-describe('base functions', function () {
-    var fixtureAddress = '/jasmine-ui/test/ui/jasmine-uiSpec.html';
-    describeUi("base functions", fixtureAddress, function () {
-
+jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html#123', function () {
+    describe('base functions', function () {
+        var fixtureAddress = '/jasmine-ui/test/ui/jasmine-uiSpec.html';
         function currentBaseUrl() {
             return window.location.pathname;
         }
 
+        it("should keep the hash in the url", function () {
+            expect(location.hash).toBe('#123');
+        });
         it("should execute it callbacks in the url defined by describeUi", function () {
             expect(currentBaseUrl()).toBe(fixtureAddress);
         });
@@ -38,12 +40,6 @@ describe('base functions', function () {
         it("should allow access to default jasmine functions", function () {
             expect(spyOn).toBeTruthy();
             expect(jasmine).toBeDefined();
-        });
-    });
-
-    describeUi("ui specs with hash", fixtureAddress+'#123', function() {
-        it("should keep the hash in the url", function() {
-            expect(location.hash).toBe('#123');
         });
     });
 });

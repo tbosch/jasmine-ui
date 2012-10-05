@@ -1,6 +1,7 @@
 describe('simpleRequire', function () {
     beforeEach(function () {
         jasmineui.require.cache = {};
+        jasmineui.define.moduleDefs = [];
     });
 
     describe('factory plugin', function () {
@@ -47,6 +48,44 @@ describe('simpleRequire', function () {
             var cache = {someModule:someValue};
             expect(someModuleFactory(cache)).toBe(someValue);
         });
+    });
+
+    describe('conditional modules', function() {
+        it("client should check jasmineui.clientMode", function() {
+            var clientModule = {};
+            var serverModule = {};
+            jasmineui.clientMode = true;
+            jasmineui.define('client?someModule', clientModule);
+            jasmineui.define('server?someModule', serverModule);
+            var someModule;
+            jasmineui.require(['someModule'], function (_someModule) {
+                someModule = _someModule;
+            });
+            expect(someModule).toBe(clientModule);
+
+        });
+        it("server should check !jasmineui.clientMode", function() {
+            var clientModule = {};
+            var serverModule = {};
+            jasmineui.clientMode = false;
+            jasmineui.define('client?someModule', clientModule);
+            jasmineui.define('server?someModule', serverModule);
+            var someModule;
+            jasmineui.require(['someModule'], function (_someModule) {
+                someModule = _someModule;
+            });
+            expect(someModule).toBe(serverModule);
+        });
+
+        it("should throw an error if the conditional is not known", function() {
+            try {
+                jasmineui.define('someUnknownConditional?someModule');
+                throw new Error("Expected an error");
+            } catch (e) {
+                expect(e.message).toEqual('Unknown conditional: someUnknownConditional');
+            }
+        });
+
     });
 
     describe('require', function () {
@@ -100,6 +139,23 @@ describe('simpleRequire', function () {
             });
             jasmineui.require(['someModule2']);
             expect(actualValue).toBe(someValue);
+        });
+
+        it('should instantiate all defined modules and return them', function() {
+            var someValue = {};
+            jasmineui.define('someModule', function () {
+                return someValue;
+            });
+            var allModules;
+            jasmineui.require.all(function(modules) {
+                allModules = modules;
+            });
+            var moduleCount = 0;
+            for (var x in allModules) {
+                moduleCount++;
+            }
+            expect(moduleCount).toBe(1);
+            expect(allModules.someModule).toBe(someValue);
         });
     });
 });

@@ -1,6 +1,13 @@
 Changelog
 =====================
 
+1.1.0
+-------------
+- Separated `describeUi` into `loadUi` and `describe`.
+- Removed `jasmineui.inject`. Use the second parameter in `loadUi` instead.
+- Added configuration via `jasmineuiConfig` global variable.
+- Internal refactoring so that we can easily use QUnit and other testframeworks.
+
 1.0.1
 -------------
 Updated to jasmine 1.2 and js-test-driver 1.3.4

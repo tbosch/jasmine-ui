@@ -1,4 +1,4 @@
-jasmineui.define('jasmineApi', ['globals'], function (globals) {
+jasmineui.define('jasmine/original', ['globals'], function (globals) {
 
     /**
      * Save the original values, as we are overwriting them in some modules

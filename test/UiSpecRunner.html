@@ -9,6 +9,11 @@
    #### ADD YOUR LIBS AND SPECS HERE ###############################################################
    ################################################################################################# -->
     <!-- include lib files here... -->
+    <script>
+        jasmineuiConfig = {
+            loadMode: 'popup'
+        };
+    </script>
     <script type="text/javascript" src="../src/jasmine-ui.jsp"></script>
     <script type="text/javascript" src="lib/jasmine-html.js"></script>
 
@@ -16,16 +21,16 @@
     <script type="text/javascript" src="../test/ui/baseFunctionalitySpec.js"></script>
     <script type="text/javascript" src="../test/ui/beforeLoadSpec.js"></script>
     <script type="text/javascript" src="../test/ui/injectSpec.js"></script>
-    <script type="text/javascript" src="../test/ui/multiLoadSpec.js"></script>
     <script type="text/javascript" src="../test/ui/nonUiSpec.js"></script>
-
-    <script type="text/javascript" src="../test/ui/inject/sampleInjectedCallback.js"></script>
+    <script type="text/javascript" src="../test/ui/multiLoadSpec.js"></script>
 
     <!-- ################################################################################################# -->
     <script type="text/javascript">
-        describeUi('someInlineJavaScript', '/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
-            it("should execute inline javascript tests", function() {
-                expect(1).toBe(1);
+        jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function() {
+            describe("inline specs", function() {
+                it("should execute inline javascript tests", function() {
+                    expect(1).toBe(1);
+                });
             });
         });
     </script>

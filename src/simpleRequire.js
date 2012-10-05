@@ -4,6 +4,8 @@
  * after all needed modules have been loaded.
  */
 (function (window) {
+    var ns = window.jasmineui = window.jasmineui || {};
+
     var define = function (name, deps, value) {
         var dotJs = name.indexOf('.js');
         if (dotJs !== -1) {
@@ -13,6 +15,18 @@
             // No deps...
             value = deps;
             deps = [];
+        }
+        var conditionalSeparator = name.indexOf('?');
+        if (conditionalSeparator !== -1) {
+            var conditionName = name.substring(0, conditionalSeparator);
+            var conditional = define.conditionals[conditionName];
+            if (!conditional) {
+                throw new Error("Unknown conditional: "+conditionName);
+            }
+            if (!conditional()) {
+                return;
+            }
+            name = name.substring(conditionalSeparator + 1);
         }
         var def = {
             name:name,
@@ -31,6 +45,14 @@
     define.moduleDefs = [];
     define.plugins = {
         factory:factoryPlugin
+    };
+    define.conditionals = {
+        client: function() {
+            return ns.clientMode;
+        },
+        server: function() {
+            return !define.conditionals.client();
+        }
     };
 
     function findModuleDefinition(name) {
@@ -104,10 +126,17 @@
         }
         return resolvedDeps;
     };
+
+    require.all = function(callback) {
+        for (var i = 0; i < define.moduleDefs.length; i++) {
+            require([define.moduleDefs[i].name]);
+        }
+        callback && callback(require.cache);
+    };
+
     require.cache = {};
 
-    window.jasmineui = window.jasmineui || {};
-    window.jasmineui.require = require;
-    window.jasmineui.define = define;
+    ns.require = require;
+    ns.define = define;
 
 })(window);

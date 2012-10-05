@@ -1,4 +1,4 @@
-jasmineui.define('simulateEvent', function () {
+jasmineui.define('client?simulateEvent', ['globals'], function (globals) {
     /**
      * Functions to simulate events.
      * Based upon https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js
@@ -121,7 +121,7 @@ jasmineui.define('simulateEvent', function () {
     extend(simulate, {
         defaults:{
             speed:'sync',
-            view: window
+            view:window
         },
         VK_TAB:9,
         VK_ENTER:13,
@@ -135,6 +135,8 @@ jasmineui.define('simulateEvent', function () {
         VK_RIGHT:39,
         VK_DOWN:40
     });
+
+    globals.simulate = simulate;
 
     return simulate;
 

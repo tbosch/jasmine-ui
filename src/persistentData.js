@@ -1,11 +1,13 @@
 jasmineui.define('persistentData', ['globals'], function (globals) {
 
-    function serialize(data) {
-        var MARKER;
+    function loaderScript() {
         var helper = function () {
-            window.jasmineui = window.jasmineui || {};
-            var pd = window.jasmineui.persistent = MARKER || {};
+            var ns = window.jasmineui = window.jasmineui || {};
+            ns.clientMode = true;
+
+            var pd = ns.persistent = JSON.parse(sessionStorage.jasmineui_data || '{}');
             delete window.sessionStorage.jasmineui;
+            delete window.sessionStorage.jasmineui_data;
             var currentSpec = pd.specs && pd.specs[pd.specIndex];
             if (currentSpec) {
                 var output = '[';
@@ -19,7 +21,7 @@ jasmineui.define('persistentData', ['globals'], function (globals) {
                 }
                 output += ']';
                 if (window.console) {
-                    window.console.log("Jasmineui: " + output + ": " + currentSpec.specPath.join(" "));
+                    window.console.log("Jasmineui: " + output + ": " + currentSpec.id);
                 }
                 var scripts = currentSpec.loadScripts;
                 if (scripts) {
@@ -29,31 +31,31 @@ jasmineui.define('persistentData', ['globals'], function (globals) {
                 }
             }
         };
-        var string = "(" + helper + ")(window)";
-        return string.replace("MARKER", JSON.stringify(data));
+        return "(" + helper + ")(window)";
     }
 
     function get() {
         var win = globals.window;
         if (!win.jasmineui || !win.jasmineui.persistent) {
-            // Note: This variable is used by the eval! By this, we can
-            // isolate the eval call during unit tests!
-            var window = win;
-            eval(win.sessionStorage.jasmineui);
             win.jasmineui = win.jasmineui || {};
-            win.jasmineui.persistent = win.jasmineui.persistent || {};
+            win.jasmineui.persistent = JSON.parse(win.sessionStorage.jasmineui_data || '{}');
+            delete win.sessionStorage.jasmineui_data;
         }
         return win.jasmineui.persistent;
     }
 
     function saveDataToWindow(target) {
         if (target === globals.window) {
-            target.sessionStorage.jasmineui = serialize(get());
+            target.sessionStorage.jasmineui = loaderScript();
+            target.sessionStorage.jasmineui_data = JSON.stringify(get());
         } else {
             // Note: in IE9 we cannot access target.sessionStorage directly,
             // so we need to use eval to set it :-(
-            target.tmp = serialize(get());
+            target.tmp = loaderScript();
             target.eval("sessionStorage.jasmineui = window.tmp;");
+            target.tmp = JSON.stringify(get());
+            target.eval("sessionStorage.jasmineui_data = window.tmp;");
+
             if (target.jasmineui) {
                 delete target.jasmineui.persistent;
                 if (target.jasmineui.notifyChange) {
