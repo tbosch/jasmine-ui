@@ -186,7 +186,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
             }
         }
         if (!spec) {
-            throw new Error("could not find spec with path " + remoteSpec.specPath);
+            throw new Error("could not find spec with id " + remoteSpecId);
         }
         return spec;
     }
@@ -209,13 +209,15 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
     }
 
     function specId(spec) {
+        return suiteId(spec.suite)+"#"+spec.description;
+    }
+
+    function suiteId(suite) {
         var res = [];
-        var suite = spec.suite;
         while (suite) {
             res.unshift(suite.description);
             suite = suite.parentSuite;
         }
-        res.push(spec.description);
         return res.join('#');
     }
 
@@ -231,7 +233,8 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
         findRemoteSpecLocally:findRemoteSpecLocally,
         executeSpec:executeSpec,
         listSpecIds:listSpecIds,
-        specId:specId
+        specId:specId,
+        suiteId:suiteId
     }
 
 });

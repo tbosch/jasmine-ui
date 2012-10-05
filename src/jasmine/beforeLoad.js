@@ -5,18 +5,27 @@ jasmineui.define('client?jasmine/beforeLoad', ['jasmine/original', 'persistentDa
     var beforeLoadCallbacks = [];
 
     function beforeLoad(callback) {
-        beforeLoadCallbacks.push(callback);
+        // Note: remoteSpec.id is not set yet for the first spec.
+        var suiteId;
+        var currentSuite = jasmine.getEnv().currentSuite;
+        if (currentSuite) {
+            suiteId = jasmineUtils.suiteId(currentSuite);
+        }
+        beforeLoadCallbacks.push({suiteId:suiteId, callback:callback});
     }
 
     loadListener.addBeforeLoadListener(function () {
-        // TODO only execute those beforeLoad callbacks that belong
-        // to a suite of the currently executing spec.
-        var localSpec = jasmineUtils.findRemoteSpecLocally(remoteSpec.id);
-        for (var i = 0; i < beforeLoadCallbacks.length; i++) {
-            try {
-                beforeLoadCallbacks[i]();
-            } catch (e) {
-                localSpec.fail(e);
+        var specId = remoteSpec.id;
+        var i, entry, suite;
+        for (i = 0; i < beforeLoadCallbacks.length; i++) {
+            entry = beforeLoadCallbacks[i];
+            if (!entry.suiteId || specId.indexOf(entry.suiteId) === 0) {
+                try {
+                    entry.callback();
+                } catch (e) {
+                    var localSpec = jasmineUtils.findRemoteSpecLocally(specId);
+                    localSpec.fail(e);
+                }
             }
         }
     });
@@ -24,6 +33,6 @@ jasmineui.define('client?jasmine/beforeLoad', ['jasmine/original', 'persistentDa
     globals.beforeLoad = beforeLoad;
 
     return {
-        beforeLoad: beforeLoad
+        beforeLoad:beforeLoad
     }
 });

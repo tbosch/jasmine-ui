@@ -3,8 +3,8 @@ Changelog
 
 1.1.0
 -------------
-- Separated `describeUi` into `loadUi` and `describe`.
-- Removed `jasmineui.inject`. Use the second parameter in `loadUi` instead.
+- Separated `describeUi` into `jasmineui.loadUi` and `describe`.
+- Removed `jasmineui.inject`. Use the second parameter in `jasmineui.loadUi` instead.
 - Added configuration via `jasmineuiConfig` global variable.
 - Internal refactoring so that we can easily use QUnit and other testframeworks.
 

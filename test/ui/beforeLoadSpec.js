@@ -30,4 +30,28 @@ jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
             });
         });
     });
+
+    var counter = 0;
+    beforeLoad(function() {
+        counter++;
+    });
+    describe('multiple beforeLoads', function() {
+        describe('suite1', function() {
+            beforeLoad(function() {
+                counter++;
+            });
+            it("should increment the counter ignoring other beforeLoads", function() {
+                expect(counter).toBe(2);
+            });
+        });
+        describe('suite2', function() {
+            beforeLoad(function() {
+                counter++;
+            });
+            it("should increment the counter ignoring other beforeLoads", function() {
+                expect(counter).toBe(2);
+            });
+
+        })
+    });
 });
