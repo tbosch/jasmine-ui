@@ -1,4 +1,4 @@
-jasmineui.define('client?asyncSensor', ['globals', 'logger', 'loadListener'], function (globals, logger, loadListener) {
+jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'loadListener'], function (globals, logger, instrumentor, loadListener) {
     var window = globals.window;
     window.jasmineui = window.jasmineui || {};
     var asyncSensors = window.jasmineui.asyncSensors = window.jasmineui.asyncSensors || {};
@@ -177,7 +177,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'loadListener'], fu
      */
     (function () {
         var animationCount = 0;
-        loadListener.addBeforeLoadListener(function () {
+        instrumentor.endCall(function () {
             if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
                 return;
             }
@@ -206,7 +206,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'loadListener'], fu
      */
     (function () {
         var transitionCount = 0;
-        loadListener.addBeforeLoadListener(function () {
+        instrumentor.endCall(function () {
             if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
                 return;
             }

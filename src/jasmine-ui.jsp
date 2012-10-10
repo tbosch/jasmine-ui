@@ -14,6 +14,7 @@ if (!window.jasmine) {
 }
 <jsp:include page="simpleRequire.js"/>
 <jsp:include page="config.js"/>
+<jsp:include page="instrumentor.js"/>
 <jsp:include page="urlLoader.js"/>
 <jsp:include page="scriptAccessor.js"/>
 <jsp:include page="logger.js"/>

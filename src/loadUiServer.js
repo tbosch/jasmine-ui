@@ -1,14 +1,10 @@
-jasmineui.define('server?describeUiServer', ['config', 'persistentData', 'scriptAccessor', 'globals', 'testAdapter', 'urlLoader'], function (config, persistentData, scriptAccessor, globals, testAdapter, urlLoader) {
+jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor', 'globals', 'testAdapter', 'urlLoader'], function (config, persistentData, scriptAccessor, globals, testAdapter, urlLoader) {
 
-    // Always add jasmine ui as first entry
-    var scriptUrls = [scriptAccessor.currentScriptUrl()];
     var firstLoadUiUrl;
+    var testScripts = [];
 
-    function loadUi(url, localScriptUrls) {
-        scriptUrls.push(scriptAccessor.currentScriptUrl());
-        if (localScriptUrls && localScriptUrls.concat) {
-            scriptUrls = scriptUrls.concat(localScriptUrls);
-        }
+    function loadUi(url) {
+        testScripts.push(scriptAccessor.currentScriptUrl());
         if (!firstLoadUiUrl) {
             firstLoadUiUrl = url;
         }
@@ -37,7 +33,7 @@ jasmineui.define('server?describeUiServer', ['config', 'persistentData', 'script
     function getSpecIds(remoteSpecs) {
         var i;
         var specIds = [];
-        for (i=0; i<remoteSpecs.length; i++) {
+        for (i = 0; i < remoteSpecs.length; i++) {
             specIds.push(remoteSpecs[i].id);
         }
         return specIds;
@@ -67,7 +63,7 @@ jasmineui.define('server?describeUiServer', ['config', 'persistentData', 'script
             frameElement = document.createElement("iframe");
             frameElement.name = windowId;
             frameElement.setAttribute("src", url);
-            frameElement.setAttribute("style", "position: absolute; bottom: 0px; z-index:100; width: "+window.innerWidth+"px; height: "+window.innerHeight+"px");
+            frameElement.setAttribute("style", "position: absolute; bottom: 0px; z-index:100; width: " + window.innerWidth + "px; height: " + window.innerHeight + "px");
             document.body.appendChild(frameElement);
             remoteWindow = frames[windowId];
         } else {
@@ -101,15 +97,16 @@ jasmineui.define('server?describeUiServer', ['config', 'persistentData', 'script
 
         persistentData.addChangeListener(function () {
             var pd = persistentData();
-            if (pd.specIndex === 1) {
-                // first call
+            if (pd.specIndex === 0) {
+                // after analyzing the specs...
                 specsCreatedCallback(getSpecIds(pd.specs));
-            }
-            var spec = pd.specs[pd.specIndex - 1];
-            testAdapter.reportSpecResult(spec.id, spec.results);
-            if (pd.specIndex >= pd.specs.length) {
-                // last call
-                closeTestWindow();
+            } else {
+                var spec = pd.specs[pd.specIndex - 1];
+                testAdapter.reportSpecResult(spec.id, spec.results);
+                if (pd.specIndex >= pd.specs.length) {
+                    // last call
+                    closeTestWindow();
+                }
             }
         });
     }
@@ -117,15 +114,9 @@ jasmineui.define('server?describeUiServer', ['config', 'persistentData', 'script
 
     function prepareExecution() {
         var pd = persistentData();
-        pd.specs = [
-            {
-                loadScripts:scriptUrls,
-                url:firstLoadUiUrl,
-                id:null
-            }
-        ];
-        pd.initialLoad = true;
-        pd.specIndex = 0;
+        pd.analyzeScripts = testScripts;
+        pd.specs = [];
+        pd.specIndex = -1;
         return firstLoadUiUrl;
     }
 

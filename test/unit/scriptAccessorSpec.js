@@ -1,5 +1,5 @@
 jasmineui.require(['factory!scriptAccessor'], function (scriptAccessorFactory) {
-    describe('logger', function () {
+    describe('scriptAccessor', function () {
         var scriptAccessor, document;
         beforeEach(function () {
             document = {

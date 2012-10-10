@@ -1,6 +1,12 @@
 jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentData', 'jasmine/waitsForAsync', 'globals', 'jasmine/utils'], function (jasmineOriginal, persistentData, waitsForAsync, globals, jasmineUtils) {
-    // TODO move this to a utils.js
-    var remoteSpec = persistentData().specs[persistentData().specIndex];
+
+    var pd = persistentData();
+
+    if (pd.specIndex === -1) {
+        return;
+    }
+
+    var remoteSpec = pd.specs[pd.specIndex];
     remoteSpec.lastRunsIndex = remoteSpec.lastRunsIndex || 0;
 
     var skipRunsCounter = remoteSpec.lastRunsIndex;

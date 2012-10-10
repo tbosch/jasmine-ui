@@ -5,7 +5,8 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
         logEnabled:false,
         waitsForAsyncTimeout:5000,
         loadMode:'inplace',
-        closeTestWindow:true
+        closeTestWindow:true,
+        scripts:[]
     };
 
     function merge(obj) {

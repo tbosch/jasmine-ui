@@ -87,9 +87,9 @@ Directory structure
 Functions
 -----------
 
-#### `jasmineui.loadUi(pageUrl, [utilityScriptUrls], callback)`
+#### `jasmineui.loadUi(pageUrl, callback)`
 Loads the given page and executes the given callback in it. For all specs contained within the callback
-first the page will be loaded and then the spec and utilityScripts will be injected into that page and executed there.
+first the page will be loaded and then the spec will be injected into that page and executed there.
 This includes all `beforeEach` and `afterEach` callbacks that are defined in this suite or parent suites.
 
 See `test/ui/baseFunctionalitySpec.js` for an example.
@@ -175,10 +175,13 @@ This needs to be set _before_ jasmine ui is loaded in the document.
 
 Configuration values:
 
-- `loadMode` = [inplace|popup|iframe]: mode to be used for loading the application in `loadUi`.
-- `closeTestWindow` = boolean: for `loadMode=iframe|popup` specifies whether the created popup/iframe should be closed after the tests.
-- `logEnabled` = boolean: Specifies if extended log output should be created
-- `waitsForAsyncTimeout` = int: Specifies the default timeout to be used by the automatic waiting in tests.
+- `loadMode = ['inplace'|'popup'|'iframe']`: mode to be used for loading the application in `loadUi`.
+- `closeTestWindow = boolean`: for `loadMode=iframe|popup` specifies whether the created popup/iframe should be closed after the tests.
+- `logEnabled = boolean`: Specifies if extended log output should be created
+- `waitsForAsyncTimeout = int`: Specifies the default timeout to be used by the automatic waiting in tests.
+- `scriptUrls = Array of {position: ['begin'|'end'], url: 'someUrl']}`: List of urls for utility scripts that should also be injected into the pages.
+  This can be the beginning of the html document (`position`=='begin') or the end of the document (`position`=`end`).
+
 
 
 Integration with js-test-driver for Continuous Integration

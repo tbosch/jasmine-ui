@@ -48,7 +48,7 @@
     };
     define.conditionals = {
         client: function() {
-            return ns.clientMode;
+            return !!document.documentElement.getAttribute("jasmineuiClient");
         },
         server: function() {
             return !define.conditionals.client();
