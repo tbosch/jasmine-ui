@@ -54,4 +54,14 @@ jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
 
         })
     });
+
+    describe('beforeLoad and end scripts', function() {
+        var stateInBeforeLoad;
+        beforeLoad(function() {
+            stateInBeforeLoad = window.sampleEndScript;
+        });
+        it('should call beforeLoad after end scripts', function() {
+            expect(stateInBeforeLoad).toBe(true);
+        });
+    });
 });

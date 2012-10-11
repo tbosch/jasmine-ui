@@ -1,87 +1,150 @@
-jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'loadListener'], function (globals, logger, instrumentor, loadListener) {
-    var window = globals.window;
-    window.jasmineui = window.jasmineui || {};
-    var asyncSensors = window.jasmineui.asyncSensors = window.jasmineui.asyncSensors || {};
+jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'config'], function (globals, logger, instrumentor, config) {
+    var oldTimeout = globals.setTimeout;
+    var oldClearTimeout = globals.clearTimeout;
+
+    var asyncSensorStates = {};
+
+    var asyncStateListeners = [];
 
     /**
-     * Adds a sensor.
-     * A sensor is a function that returns whether asynchronous work is going on.
+     * Updates the state of a sensor.
      *
      * @param name
-     * @param sensor Function that returns true/false.
+     * @param asyncProcessing Whether the sensor detected async processing.
      */
-    function addAsyncSensor(name, sensor) {
-        asyncSensors[name] = sensor;
+    function updateSensor(name, asyncProcessing) {
+        asyncSensorStates[name] = asyncProcessing;
+        logger.log("async wait state changed: " + name + "=" + asyncProcessing, asyncSensorStates);
+        checkAndCallAsyncListeners();
+    }
+
+    function waitForAsyncProcessingState(state, listener) {
+        asyncStateListeners.push({asyncProcessing:state, listener:listener});
+        checkAndCallAsyncListeners();
+    }
+
+    function checkAndCallAsyncListeners() {
+        var asyncProcessing = isAsyncProcessing();
+        var i, entry;
+        for (i = asyncStateListeners.length - 1; i >= 0; i--) {
+            entry = asyncStateListeners[i];
+            if (entry.asyncProcessing === asyncProcessing) {
+                asyncStateListeners.splice(i, 1);
+                entry.listener();
+            }
+        }
     }
 
     function isAsyncProcessing() {
-        var sensors = asyncSensors;
-        for (var name in sensors) {
-            if (sensors[name]()) {
-                logger.log("async processing: " + name);
+        var i , sensorName;
+        var asyncProcessing = false;
+        for (i = 0; i < config.asyncSensors.length; i++) {
+            sensorName = config.asyncSensors[i];
+            if (asyncSensorStates[sensorName]) {
                 return true;
             }
         }
         return false;
     }
 
+    // Goal:
+    // - Detect async work that cannot detected before some time after it's start
+    //   (e.g. the WebKitAnimationStart event is not fired until some ms after the dom change that started the animation).
+    // - Detect the situation where async work starts another async work
+    //
+    // Algorithm:
+    // Wait until asyncSensor is false for 50ms.
+    function afterAsync(listener) {
+        function restart() {
+            logger.log("begin async waiting");
+            waitForAsyncProcessingState(false, function () {
+                var handle = oldTimeout(function () {
+                    logger.log("end async waiting");
+                    listener();
+                }, 50);
+                waitForAsyncProcessingState(true, function () {
+                    oldClearTimeout(handle);
+                    restart();
+                });
+            });
+        }
+
+        restart();
+    }
+
     /**
      * Adds an async sensor for the load event
      */
     (function () {
-        addAsyncSensor('loading', function () {
-            return !loadListener.loaded();
+        var loadEvent = false;
+        var endCall = false;
+        globals.addEventListener('load', function () {
+            // Also listen for the globals.load event, as instrumentor.endCall
+            // is fired before all images, ... are loaded (in non requirejs case).
+            loadEvent = true;
+            changed();
         });
+        instrumentor.endCall(function () {
+            // Note: endCall is called before the real application starts.
+            // However, it supports requirejs.
+            globals.setTimeout(function () {
+                endCall = true;
+                changed();
+            }, 10);
+        });
+        function changed() {
+            updateSensor('loading', !loadEvent || !endCall);
+        }
+        changed();
     })();
 
     /**
-     * Adds an async sensor for the window.setTimeout function.
+     * Adds an async sensor for the globals.setTimeout function.
      */
     (function () {
         var timeouts = {};
-        if (!window.oldTimeout) {
-            window.oldTimeout = window.setTimeout;
+        if (!globals.oldTimeout) {
+            globals.oldTimeout = globals.setTimeout;
         }
-        window.setTimeout = function (fn, time) {
-            logger.log("setTimeout called");
+        globals.setTimeout = function (fn, time) {
             var handle;
             var callback = function () {
                 delete timeouts[handle];
-                logger.log("timed out");
+                changed();
                 if (typeof fn == 'string') {
                     eval(fn);
                 } else {
                     fn();
                 }
             };
-            handle = window.oldTimeout(callback, time);
+            handle = globals.oldTimeout(callback, time);
             timeouts[handle] = true;
+            changed();
             return handle;
         };
 
-        window.oldClearTimeout = window.clearTimeout;
-        window.clearTimeout = function (code) {
-            logger.log("clearTimeout called");
-            window.oldClearTimeout(code);
+        globals.oldClearTimeout = globals.clearTimeout;
+        globals.clearTimeout = function (code) {
+            globals.oldClearTimeout(code);
             delete timeouts[code];
+            changed();
         };
-        addAsyncSensor('timeout', function () {
+        function changed() {
             var count = 0;
             for (var x in timeouts) {
                 count++;
             }
-            return count != 0;
-        });
+            updateSensor('timeout', count != 0);
+        }
     })();
 
     /**
-     * Adds an async sensor for the window.setInterval function.
+     * Adds an async sensor for the globals.setInterval function.
      */
     (function () {
         var intervals = {};
-        window.oldSetInterval = window.setInterval;
-        window.setInterval = function (fn, time) {
-            logger.log("setInterval called");
+        globals.oldSetInterval = globals.setInterval;
+        globals.setInterval = function (fn, time) {
             var callback = function () {
                 if (typeof fn == 'string') {
                     eval(fn);
@@ -89,38 +152,38 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
                     fn();
                 }
             };
-            var res = window.oldSetInterval(callback, time);
+            var res = globals.oldSetInterval(callback, time);
             intervals[res] = 'true';
+            changed();
             return res;
         };
 
-        window.oldClearInterval = window.clearInterval;
-        window.clearInterval = function (code) {
-            logger.log("clearInterval called");
-            window.oldClearInterval(code);
+        globals.oldClearInterval = globals.clearInterval;
+        globals.clearInterval = function (code) {
+            globals.oldClearInterval(code);
             delete intervals[code];
+            changed();
         };
-        // return a function that allows to check
-        // if an interval is running...
-        addAsyncSensor('interval', function () {
+
+        function changed() {
             var count = 0;
             for (var x in intervals) {
                 count++;
             }
-            return count != 0;
-        });
+            updateSensor('interval', count != 0);
+        }
     })();
 
     /**
-     * Adds an async sensor for the window.XMLHttpRequest.
+     * Adds an async sensor for the globals.XMLHttpRequest.
      */
     (function () {
         var jasmineWindow = window;
         var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
         var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
 
-        var oldXHR = window.XMLHttpRequest;
-        window.openCallCount = 0;
+        var oldXHR = globals.XMLHttpRequest;
+        globals.openCallCount = 0;
         var DONE = 4;
         var newXhr = function () {
             var self = this;
@@ -139,7 +202,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             function proxyMethod(name) {
                 self[name] = function () {
                     if (name == 'send') {
-                        window.openCallCount++;
+                        change(1);
                     }
                     var res = self.origin[name].apply(self.origin, arguments);
                     copyState();
@@ -152,7 +215,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             }
             this.origin.onreadystatechange = function () {
                 if (self.origin.readyState == DONE) {
-                    window.openCallCount--;
+                    change(-1);
                 }
                 copyState();
                 if (self.onreadystatechange) {
@@ -161,19 +224,16 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             };
             copyState();
         };
-        window.XMLHttpRequest = newXhr;
+        globals.XMLHttpRequest = newXhr;
 
-        addAsyncSensor('xhr',
-            function () {
-                return window.openCallCount != 0;
-            });
+        function change(difference) {
+            globals.openCallCount += difference;
+            updateSensor('xhr', globals.openCallCount != 0);
+        }
     })();
 
     /**
-     * Adds an async sensor for the webkitAnimationStart and webkitAnimationEnd events.
-     * Note: The animationStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
+     * Adds an async sensor for $.fn.animationComplete.
      */
     (function () {
         var animationCount = 0;
@@ -183,50 +243,48 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             }
             var oldFn = globals.$.fn.animationComplete;
             globals.$.fn.animationComplete = function (callback) {
-                animationCount++;
+                change(1);
                 return oldFn.call(this, function () {
-                    animationCount--;
+                    change(-1);
                     return callback.apply(this, arguments);
                 });
             };
-            addAsyncSensor('WebkitAnimation',
-                function () {
-                    return animationCount != 0;
-                });
-
+            function change(difference) {
+                animationCount += difference;
+                updateSensor('$animationComplete', animationCount != 0);
+            }
         });
 
     })();
 
     /**
-     * Adds an async sensor for the webkitTransitionStart and webkitTransitionEnd events.
-     * Note: The transitionStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
+     * Adds an async sensor for $.fn.transitionComplete.
      */
     (function () {
         var transitionCount = 0;
         instrumentor.endCall(function () {
-            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
+            if (!(globals.$ && globals.$.fn && globals.$.fn.transitionComplete)) {
                 return;
             }
 
             var oldFn = globals.$.fn.transitionComplete;
             globals.$.fn.transitionComplete = function (callback) {
-                transitionCount++;
+                change(1);
                 return oldFn.call(this, function () {
-                    transitionCount--;
+                    change(-1);
                     return callback.apply(this, arguments);
                 });
             };
-            addAsyncSensor('WebkitTransition',
-                function () {
-                    return transitionCount != 0;
-                });
-
+            function change(difference) {
+                transitionCount += difference;
+                updateSensor('$transitionComplete', transitionCount != 0);
+            }
         });
     })();
 
 
-    return isAsyncProcessing;
+    return {
+        updateSensor:updateSensor,
+        afterAsync:afterAsync
+    };
 });

@@ -57,7 +57,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
                         return inlineScript('jasmineui.instrumentor.inlineScript("' + textContent + '")');
                     }
                 });
-                pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.documentEnd()') + '</body>');
+                pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.endScripts()') +
+                    inlineScript('jasmineui.instrumentor.endCalls()')+ '</body>');
                 return pageHtml;
             }
         };
@@ -121,7 +122,7 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         checkForRequireJs();
     }
 
-    function onDocumentEnd() {
+    function onEndScripts() {
         if (checkForRequireJs()) {
             return
         }
@@ -130,6 +131,14 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         for (i = 0; i < endScripts.length; i++) {
             globals.document.write(urlScript(endScripts[i]));
         }
+    }
+
+    function onEndCalls() {
+        if (checkForRequireJs()) {
+            return
+        }
+
+        var i;
         for (i = 0; i < endCalls.length; i++) {
             endCalls[i]();
         }
@@ -137,7 +146,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
 
     // private API as callback from loaderScript
     globals.jasmineui.instrumentor = {
-        documentEnd:onDocumentEnd,
+        endScripts:onEndScripts,
+        endCalls:onEndCalls,
         inlineScript:onInlineScript,
         urlScript:onUrlScript
     };

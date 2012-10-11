@@ -95,7 +95,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                 it('should add a script at the end of the body', function () {
                     xhr.responseText = '</body>';
                     execLoader();
-                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.documentEnd()') + '</body>');
+                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.endScripts()') + inlineScript('jasmineui.instrumentor.endCalls()')+ '</body>');
                 });
 
                 it('should replace eval(jasmineui) by the current script url', function () {
@@ -134,18 +134,18 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
 
         describe('no script loader', function () {
             describe('endScript', function () {
-                it('should add the script when jasmineui.instrumentor.documentEnd() is called', function () {
+                it('should add the script when jasmineui.instrumentor.endScripts() is called', function () {
                     var someUrl = 'someUrl';
                     instrumentor.endScript(someUrl);
-                    globals.jasmineui.instrumentor.documentEnd();
+                    globals.jasmineui.instrumentor.endScripts();
                     expect(globals.document.write).toHaveBeenCalledWith(urlScript(someUrl));
                 });
             });
             describe('endCall', function () {
-                it('should call the given function when jasmineui.instrumentor.documentEnd() is called', function () {
+                it('should call the given function when jasmineui.instrumentor.endCalls() is called', function () {
                     var callback = jasmine.createSpy('callback');
                     instrumentor.endCall(callback);
-                    globals.jasmineui.instrumentor.documentEnd();
+                    globals.jasmineui.instrumentor.endCalls();
                     expect(callback).toHaveBeenCalled();
                 });
             });
@@ -162,7 +162,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
             });
 
             it('should instrument require to do a nested require', function () {
-                globals.jasmineui.instrumentor.documentEnd();
+                globals.jasmineui.instrumentor.endScripts();
                 globals.require(['someModule'], requireCallback);
 
                 expect(originalRequire).toHaveBeenCalled();
@@ -174,7 +174,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
             });
 
             it('should call the original require callback when the nested callback is called with the original arguments', function () {
-                globals.jasmineui.instrumentor.documentEnd();
+                globals.jasmineui.instrumentor.endScripts();
                 globals.require(['someModule'], requireCallback);
 
                 originalRequire.mostRecentCall.args[1](someModule, nestedRequire);
@@ -187,14 +187,14 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                 it('should not call document.write', function () {
                     var someScriptUrl = "someScriptUrl";
                     instrumentor.endScript(someScriptUrl);
-                    globals.jasmineui.instrumentor.documentEnd();
+                    globals.jasmineui.instrumentor.endScripts();
                     expect(globals.document.write).not.toHaveBeenCalled();
                 });
 
                 it('should add the script to the nested require call', function () {
                     var someScriptUrl = "someScriptUrl";
                     instrumentor.endScript(someScriptUrl);
-                    globals.jasmineui.instrumentor.documentEnd();
+                    globals.jasmineui.instrumentor.endScripts();
 
                     globals.require(['someModule'], requireCallback);
 
@@ -208,7 +208,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                     var endCallback = jasmine.createSpy('endCallback');
                     instrumentor.endCall(endCallback);
 
-                    globals.jasmineui.instrumentor.documentEnd();
+                    globals.jasmineui.instrumentor.endScripts();
                     globals.require(['someModule'], requireCallback);
 
                     originalRequire.mostRecentCall.args[1](someModule, nestedRequire);

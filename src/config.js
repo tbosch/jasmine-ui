@@ -3,6 +3,7 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
 
     var config = {
         logEnabled:false,
+        asyncSensors:['load', 'timeout', 'interval', 'xhr', '$animationComplete', '$transitionComplete'],
         waitsForAsyncTimeout:5000,
         loadMode:'inplace',
         closeTestWindow:true,

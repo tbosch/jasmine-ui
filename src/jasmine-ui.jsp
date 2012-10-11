@@ -21,7 +21,6 @@ if (!window.jasmine) {
 <jsp:include page="globals.js"/>
 <jsp:include page="persistentData.js"/>
 <jsp:include page="asyncSensor.js"/>
-<jsp:include page="loadListener.js"/>
 <jsp:include page="simulateEvent.js"/>
 <jsp:include page="loadUiClient.js"/>
 <jsp:include page="loadUiServer.js"/>

@@ -108,15 +108,23 @@ Jasmine-Ui automatically waits for the end of all asynchronous actions between r
 The calculation is based on so called `sensors`: An asynchronous sensor is a function that returns
 true if some asynchronous action is beeing executed.
 
-All asynchronous sensors are stored in the object `jasmineui.asyncSensors`. By modifying this object,
-you can remove sensors or add custom sensors on your own.
+To add a new custom sensor for async processing:
 
-Please note, that this needs to be configured in a script that is injected into the page to be tested.
+1. give it a name and put it into the `config.asyncSensors` list
+2. update it's state using the `updateSensor` function in the module `asyncSensor`.
+
 E.g.
+jasmineui.require(['asyncSensor'], function(asyncSensor) {
 
-    jasmineui.loadUi('somePage', function() {
-        jasmineui.asyncSensors.customSensor = function() { ... }
-    });
+    ...
+    // async processing started:
+    asyncSensor.updateSensor('mySensor', true);
+
+    ...
+    // async processing started:
+    asyncSensor.updateSensor('mySensor', false);
+
+});
 
 
 Simulation of Browser-Events
@@ -181,6 +189,7 @@ Configuration values:
 - `waitsForAsyncTimeout = int`: Specifies the default timeout to be used by the automatic waiting in tests.
 - `scriptUrls = Array of {position: ['begin'|'end'], url: 'someUrl']}`: List of urls for utility scripts that should also be injected into the pages.
   This can be the beginning of the html document (`position`=='begin') or the end of the document (`position`=`end`).
+- `asyncSensors`: Names of the async sensors to use in automatic waiting for async processing.
 
 
 

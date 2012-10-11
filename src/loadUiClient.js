@@ -1,4 +1,4 @@
-jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 'testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config'], function (persistentData, loadListener, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config) {
+jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config', 'asyncSensor'], function (persistentData, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config, asyncSensor) {
     var pd = persistentData();
 
     if (pd.specIndex === -1) {
@@ -13,7 +13,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 
         for (i = 0; i < pd.analyzeScripts.length; i++) {
             instrumentor.beginScript(pd.analyzeScripts[i]);
         }
-        loadListener.addLoadListener(runNextSpec);
+        asyncSensor.afterAsync(runNextSpec);
     }
 
     function runMode() {
@@ -21,7 +21,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 
         logSpecStatus(remoteSpec);
         addUtilScripts();
         instrumentor.beginScript(remoteSpec.testScript);
-        loadListener.addLoadListener(function () {
+        asyncSensor.afterAsync(function () {
             testAdapter.executeSpec(remoteSpec.id, function (specResult) {
                 remoteSpec.results = specResult;
                 runNextSpec();
