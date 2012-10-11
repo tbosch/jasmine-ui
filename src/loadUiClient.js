@@ -1,5 +1,12 @@
 jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config', 'asyncSensor'], function (persistentData, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config, asyncSensor) {
     var pd = persistentData();
+    // TODO use this!
+
+    function getOwnerLoadUiServer() {
+        var owner = globals.opener || globals.parent;
+        return owner && owner.jasmineui.loadUiServer;
+    }
+    var ownerLoadUiServer = getOwnerLoadUiServer();
 
     if (pd.specIndex === -1) {
         analyzeMode();
@@ -13,7 +20,16 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         for (i = 0; i < pd.analyzeScripts.length; i++) {
             instrumentor.beginScript(pd.analyzeScripts[i]);
         }
-        asyncSensor.afterAsync(runNextSpec);
+        asyncSensor.afterAsync(function() {
+            if (ownerLoadUiServer) {
+                pd.specs = ownerLoadUiServer.createSpecs(pd.specs);
+                runNextSpec();
+            } else {
+                // In inplace mode, we need to call the spec runner again to
+                // filter the collected specs.
+                urlLoader.navigateWithReloadTo(globals.window, pd.reporterUrl);
+            }
+        });
     }
 
     function runMode() {
@@ -24,6 +40,9 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         asyncSensor.afterAsync(function () {
             testAdapter.executeSpec(remoteSpec.id, function (specResult) {
                 remoteSpec.results = specResult;
+                if (ownerLoadUiServer) {
+                    ownerLoadUiServer.specFinished(remoteSpec);
+                }
                 runNextSpec();
             });
         });
@@ -31,15 +50,15 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
 
     function runNextSpec() {
         pd.specIndex = pd.specIndex + 1;
-        var ownerWindow = globals.opener || globals.parent;
-        if (ownerWindow) {
-            persistentData.saveDataToWindow(ownerWindow);
-        }
         var url;
         if (pd.specIndex < pd.specs.length) {
             url = pd.specs[pd.specIndex].url;
         } else {
-            url = pd.reporterUrl;
+            if (ownerLoadUiServer) {
+                ownerLoadUiServer.runFinished();
+            } else {
+                url = pd.reporterUrl;
+            }
         }
         if (url) {
             urlLoader.navigateWithReloadTo(globals.window, url);

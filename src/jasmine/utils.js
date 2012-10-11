@@ -83,10 +83,15 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
             var self = this;
             specsCreatedCallback(function (remoteSpecIds) {
                 var i;
-                for (i = 0; i < remoteSpecIds.length; i++) {
-                    getOrCreateLocalSpec(remoteSpecIds[i]);
+                var filteredIds = [];
+                for (i = 0; i<remoteSpecIds.length; i++) {
+                    var spec = getOrCreateLocalSpec(remoteSpecIds[i]);
+                    if (!spec.skipped) {
+                        filteredIds.push(remoteSpecIds[i]);
+                    }
                 }
                 _execute.call(self);
+                return filteredIds;
             });
         };
     }
@@ -146,24 +151,29 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
                 return spec;
             }
             var spec = new jasmineOriginal.jasmine.Spec(env, suite, specName);
-            spec.remoteSpecFinished = function (results) {
-                spec.remoteSpecResults = results;
-                spec.results_ = nestedResultsFromJson(results);
-                if (spec.deferredFinish) {
-                    spec.deferredFinish();
-                }
-            };
-
-            var _finish = spec.finish;
-            spec.finish = function (onComplete) {
-                var self = this;
-                spec.deferredFinish = function () {
-                    _finish.call(this, onComplete);
+            if (!env.specFilter(spec)) {
+                spec.skipped = true;
+            } else {
+                spec.remoteSpecFinished = function (results) {
+                    spec.remoteSpecResults = results;
+                    spec.results_ = nestedResultsFromJson(results);
+                    if (spec.deferredFinish) {
+                        spec.deferredFinish();
+                    }
                 };
-                if (spec.remoteSpecResults) {
-                    spec.deferredFinish();
-                }
-            };
+
+                var _finish = spec.finish;
+                spec.finish = function (onComplete) {
+                    var self = this;
+                    spec.deferredFinish = function () {
+                        _finish.call(this, onComplete);
+                    };
+                    if (spec.remoteSpecResults) {
+                        spec.deferredFinish();
+                    }
+                };
+            }
+
             suite.add(spec);
             return spec;
         }
@@ -209,7 +219,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
     }
 
     function specId(spec) {
-        return suiteId(spec.suite)+"#"+spec.description;
+        return suiteId(spec.suite) + "#" + spec.description;
     }
 
     function suiteId(suite) {
@@ -223,6 +233,12 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
 
     function splitSpecId(specId) {
         return specId.split("#");
+    }
+
+    function filterSpec(specId) {
+        var spec = findRemoteSpecLocally(specId);
+        var env = jasmineOriginal.jasmine.getEnv();
+        return env.specFilter(spec);
     }
 
     return {

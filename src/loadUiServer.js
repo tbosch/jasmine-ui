@@ -3,6 +3,8 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     var firstLoadUiUrl;
     var testScripts = [];
 
+    start();
+
     function loadUi(url) {
         testScripts.push(scriptAccessor.currentScriptUrl());
         if (!firstLoadUiUrl) {
@@ -10,15 +12,44 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         }
     }
 
-    if (persistentData().specs) {
-        setResultsMode(persistentData().specs);
-    } else if (config.loadMode === 'inplace') {
-        setInplaceMode();
-    } else {
-        setPopupMode();
+    function start() {
+        var pd = persistentData();
+        if (config.loadMode==='inplace') {
+            if (pd.specs) {
+                if (pd.specIndex === -1) {
+                    setInplaceFilterMode(pd.specs);
+                } else {
+                    setInplaceResultsMode(pd.specs);
+                }
+            } else {
+                startInplaceMode();
+            }
+        } else {
+            setPopupMode();
+        }
     }
 
-    function setResultsMode(remoteSpecs) {
+    function startInplaceMode() {
+        testAdapter.replaceSpecRunner(function () {
+            var firstUrl = prepareExecution();
+            persistentData().reporterUrl = globals.window.location.href;
+            urlLoader.navigateWithReloadTo(globals.window, firstUrl, 0);
+        });
+    }
+
+    function setInplaceFilterMode(remoteSpecs) {
+        var pd = persistentData();
+        testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
+            var filteredSpecIds = specsCreatedCallback(getSpecIds(remoteSpecs));
+            pd.specs = filterSpecs(pd.specs, filteredSpecIds);
+            // start the execution
+            pd.specIndex = 0;
+            urlLoader.navigateWithReloadTo(globals.window, remoteSpecs[0].url, 1);
+        });
+
+    }
+
+    function setInplaceResultsMode(remoteSpecs) {
         var specIds = getSpecIds(remoteSpecs);
         testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
             specsCreatedCallback(specIds);
@@ -37,15 +68,48 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
             specIds.push(remoteSpecs[i].id);
         }
         return specIds;
-
     }
 
-    function setInplaceMode() {
-        testAdapter.replaceSpecRunner(function () {
+    function filterSpecs(specs, specIds) {
+        var i, spec;
+        var specIdsHash = {};
+        for (i=0; i<specIds.length; i++) {
+            specIdsHash[specIds[i]] = true;
+        }
+        for (i = specs.length - 1; i >= 0; i--) {
+            spec = specs[i];
+            if (!specIdsHash[spec.id]) {
+                specs.splice(i, 1);
+            }
+        }
+        return specs;
+    }
+
+    function setPopupMode() {
+        var specsCreatedCallback;
+
+        testAdapter.replaceSpecRunner(function (_specsCreatedCallback) {
+            // Now execute the ui specs
             var firstUrl = prepareExecution();
-            persistentData().reporterUrl = globals.window.location.href;
-            urlLoader.navigateWithReloadTo(globals.window, firstUrl, 0);
+            openTestWindow(firstUrl);
+            persistentData.saveDataToWindow(remoteWindow);
+            // Now wait until the ui specs are finished and then call the finishedCallback
+            specsCreatedCallback = _specsCreatedCallback;
         });
+
+        globals.jasmineui.loadUiServer = {
+            createSpecs: function(specs) {
+                var filteredSpecIds = specsCreatedCallback(getSpecIds(specs));
+                return filterSpecs(specs, filteredSpecIds);
+            },
+            specFinished: function(spec) {
+                console.log("spec finished", spec);
+                testAdapter.reportSpecResult(spec.id, spec.results);
+            },
+            runFinished: function() {
+                closeTestWindow();
+            }
+        };
     }
 
     var remoteWindow;
@@ -82,35 +146,6 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         }
         remoteWindow = null;
     }
-
-    function setPopupMode() {
-        var specsCreatedCallback;
-
-        testAdapter.replaceSpecRunner(function (_specsCreatedCallback) {
-            // Now execute the ui specs
-            var firstUrl = prepareExecution();
-            openTestWindow(firstUrl);
-            persistentData.saveDataToWindow(remoteWindow);
-            // Now wait until the ui specs are finished and then call the finishedCallback
-            specsCreatedCallback = _specsCreatedCallback;
-        });
-
-        persistentData.addChangeListener(function () {
-            var pd = persistentData();
-            if (pd.specIndex === 0) {
-                // after analyzing the specs...
-                specsCreatedCallback(getSpecIds(pd.specs));
-            } else {
-                var spec = pd.specs[pd.specIndex - 1];
-                testAdapter.reportSpecResult(spec.id, spec.results);
-                if (pd.specIndex >= pd.specs.length) {
-                    // last call
-                    closeTestWindow();
-                }
-            }
-        });
-    }
-
 
     function prepareExecution() {
         var pd = persistentData();
