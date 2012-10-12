@@ -65,15 +65,19 @@ Build
 --------------
 Run the tests:
 
-* Run `mvn integration-test` from a command line
-* Use the jasmine html runner:
-    1. Go to the project root folder and start a jetty http server using `mvn jetty:run`
-    2. Enter `http://localhost:8080/jasmine-ui/test/UnitSpecRunner.html` rep. `http://localhost:8080/jasmine-ui/test/UiSpecRunner.html` in the browser of your choice
+* Run `node devserver.js` from a command line
+* Use the jasmine html runner to run the tests in your browser:
+    1. Unit-Tests: http://localhost:9000/test/UnitSpecRunner.html
+    2. Ui-Tests: http://localhost:9000/test/UipecRunner.html
+* Use `testacular` for continuous integration
+    1. `testacular start`
+    2. open `http://localhost:9876` with a browser to test in
+    3. `testacular run`
 
 Create a new version:
 
-* set the version in the pom.xml
-* execute `mvn clean install`. This will create a file in the `compiled` folder and also execute the tests.
+* set the version in the build.cfg.js
+* execute node build.js
 
 Directory structure
 ----------------
@@ -222,6 +226,8 @@ With the following `jstd-jasmineui-cfg.js`:
     jasmineuiConfig = { loadMode: 'popup' };
 
 
-
+Integration with testacular for Continuous Integration
+--------------
+TODO use this in the build!
 
 

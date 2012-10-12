@@ -1,6 +1,6 @@
-jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html#123', function () {
+jasmineui.loadUi('/test/ui/jasmine-uiSpec.html#123', function () {
     describe('base functions', function () {
-        var fixtureAddress = '/jasmine-ui/test/ui/jasmine-uiSpec.html';
+        var fixtureAddress = '/test/ui/jasmine-uiSpec.html';
         function currentBaseUrl() {
             return window.location.pathname;
         }

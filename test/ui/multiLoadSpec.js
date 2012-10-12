@@ -1,4 +1,4 @@
-jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
     describe('multi page handling', function () {
         it("should be able to continue executing after a page reload, however by loosing state", function () {
             var localCounter = 0;

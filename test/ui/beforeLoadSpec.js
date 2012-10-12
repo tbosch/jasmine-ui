@@ -1,4 +1,4 @@
-jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
     describe("beforeLoad and hook functions", function () {
         var state = 0;
         afterEach(function () {

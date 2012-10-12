@@ -1,4 +1,4 @@
-jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
+jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
 
     var sampleBeginScriptState = window.sampleBeginScript;
     var sampleEndScriptStates = {
