@@ -132,11 +132,13 @@ Simulation of Browser-Events
 
 To simulate browser events, there are two ways:
 
-#### Use `simulate(element, type, options)`
+#### Use `jasmineui.simulate(element, type, options)`
 This will simulate the real browser event of the given type, fire it on the given element and dispatch it.
 The options argument is optional and contains detail-information for the event. See the browser documentation
 for this. However, this should not very often be needed as meaningful defaults are provided.
 
+See also the notes from QUnit about this topic:
+[http://qunitjs.com/cookbook/#testing_user_actions](http://qunitjs.com/cookbook/#testing_user_actions)
 
 Supported event types:
 
@@ -145,7 +147,7 @@ Supported event types:
 - Other events: change, blur, ...
 
 Note that for keyboard events on webkit browsers, this does fire the correct event, but with a wrong keycode
-(see https://bugs.webkit.org/show_bug.cgi?id=16735).
+(see https://bugs.webkit.org/show_bug.cgi?id=16735). Note: Chrome works through...
 
 Recommended usage for keyboard events:
 Use the simulated events always with keycode 0 (due to the bug above), and fill the needed data before
@@ -155,6 +157,7 @@ firing the event.
 This does _not_ fire the underlying browser event, but only triggers
 event handlers registered by jquery. I.e. this can not be used for
 event listeners attached without jquery! Also, this does not do the default navigation of anchor links!
+
 
 
 Multiple load specs

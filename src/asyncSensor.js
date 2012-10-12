@@ -93,7 +93,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'co
             }, 10);
         });
         function changed() {
-            updateSensor('loading', !loadEvent || !endCall);
+            updateSensor('load', !loadEvent || !endCall);
         }
         changed();
     })();

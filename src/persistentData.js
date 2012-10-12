@@ -41,8 +41,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
     function saveDataToWindow(target) {
         var loaderString = instrumentor.loaderScript();
         setSessionStorage(target, "jasmineui", loaderString);
-
-        if (target === globals.window) {
+        if (!ownerData && target === globals.window) {
             var dataString = JSON.stringify(get());
             setSessionStorage(target, "jasmineui_data", dataString);
         }

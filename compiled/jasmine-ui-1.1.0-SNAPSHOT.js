@@ -2689,6 +2689,7 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
 
     var config = {
         logEnabled:false,
+        asyncSensors:['load', 'timeout', 'interval', 'xhr', '$animationComplete', '$transitionComplete'],
         waitsForAsyncTimeout:5000,
         loadMode:'inplace',
         closeTestWindow:true,
@@ -2771,7 +2772,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
                         return inlineScript('jasmineui.instrumentor.inlineScript("' + textContent + '")');
                     }
                 });
-                pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.documentEnd()') + '</body>');
+                pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.endScripts()') +
+                    inlineScript('jasmineui.instrumentor.endCalls()')+ '</body>');
                 return pageHtml;
             }
         };
@@ -2835,7 +2837,7 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         checkForRequireJs();
     }
 
-    function onDocumentEnd() {
+    function onEndScripts() {
         if (checkForRequireJs()) {
             return
         }
@@ -2844,6 +2846,14 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         for (i = 0; i < endScripts.length; i++) {
             globals.document.write(urlScript(endScripts[i]));
         }
+    }
+
+    function onEndCalls() {
+        if (checkForRequireJs()) {
+            return
+        }
+
+        var i;
         for (i = 0; i < endCalls.length; i++) {
             endCalls[i]();
         }
@@ -2851,7 +2861,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
 
     // private API as callback from loaderScript
     globals.jasmineui.instrumentor = {
-        documentEnd:onDocumentEnd,
+        endScripts:onEndScripts,
+        endCalls:onEndCalls,
         inlineScript:onInlineScript,
         urlScript:onUrlScript
     };
@@ -2945,9 +2956,18 @@ jasmineui.define('scriptAccessor', ['globals'], function (globals) {
     }
 });
 jasmineui.define('logger', ['globals', 'config'], function (globals, config) {
-    function log(msg) {
+    function log(msg1, msg2, msg3) {
         if (config.logEnabled) {
-            globals.console.log(msg);
+            // Note: console.log does not support .apply!
+            if (arguments.length === 1) {
+                console.log(msg1);
+            }
+            if (arguments.length === 2) {
+                console.log(msg1, msg2);
+            }
+            if (arguments.length === 3) {
+                console.log(msg1, msg2, msg3);
+            }
         }
     }
 
@@ -2961,144 +2981,204 @@ jasmineui.define('globals', function () {
 });
 jasmineui.define('persistentData', ['globals', 'instrumentor'], function (globals, instrumentor) {
 
+    function getOwnerData() {
+        var owner = globals.opener || globals.parent;
+        return  owner && owner.jasmineui && owner.jasmineui.persistent;
+    }
+
+    var ownerData = getOwnerData();
+
+
     function get() {
         var win = globals.window;
         var res = win.jasmineui && win.jasmineui.persistent;
         if (!res) {
             win.jasmineui = win.jasmineui || {};
-            res = win.jasmineui.persistent = JSON.parse(win.sessionStorage.jasmineui_data || '{}');
-            delete win.sessionStorage.jasmineui_data;
+            if (ownerData) {
+                win.jasmineui.persistent = ownerData;
+                res = ownerData;
+            } else {
+                try {
+                    res = win.jasmineui.persistent = JSON.parse(win.sessionStorage.jasmineui_data || '{}');
+                } finally {
+                    delete win.sessionStorage.jasmineui_data;
+                }
+            }
         }
         return res;
     }
 
     function setSessionStorage(target, property, value) {
-        if (target===globals.window) {
+        if (target === globals.window) {
             target.sessionStorage[property] = value;
         } else {
             // Note: in IE9 we cannot access target.sessionStorage directly,
             // so we need to use eval to set it :-(
             target.tmp = value;
-            target.eval("sessionStorage."+property+" = window.tmp;");
+            target.eval("sessionStorage." + property + " = window.tmp;");
         }
     }
 
     function saveDataToWindow(target) {
         var loaderString = instrumentor.loaderScript();
-        var dataString = JSON.stringify(get());
         setSessionStorage(target, "jasmineui", loaderString);
-        setSessionStorage(target, "jasmineui_data", dataString);
-        if (target !== globals.window) {
-            if (target.jasmineui) {
-                delete target.jasmineui.persistent;
-                if (target.jasmineui.notifyChange) {
-                    target.jasmineui.notifyChange();
-                }
-            }
+        if (!ownerData && target === globals.window) {
+            var dataString = JSON.stringify(get());
+            setSessionStorage(target, "jasmineui_data", dataString);
         }
     }
 
-    var changeListeners = [];
-    globals.window.jasmineui = globals.window.jasmineui || {};
-    globals.window.jasmineui.notifyChange = function () {
-        for (var i = 0; i < changeListeners.length; i++) {
-            changeListeners[i]();
-        }
-    };
-
-    function addChangeListener(listener) {
-        changeListeners.push(listener);
-    }
-
-    get.addChangeListener = addChangeListener;
     get.saveDataToWindow = saveDataToWindow;
 
     return get;
 });
-jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'loadListener'], function (globals, logger, instrumentor, loadListener) {
-    var window = globals.window;
-    window.jasmineui = window.jasmineui || {};
-    var asyncSensors = window.jasmineui.asyncSensors = window.jasmineui.asyncSensors || {};
+jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'config'], function (globals, logger, instrumentor, config) {
+    var oldTimeout = globals.setTimeout;
+    var oldClearTimeout = globals.clearTimeout;
+
+    var asyncSensorStates = {};
+
+    var asyncStateListeners = [];
 
     /**
-     * Adds a sensor.
-     * A sensor is a function that returns whether asynchronous work is going on.
+     * Updates the state of a sensor.
      *
      * @param name
-     * @param sensor Function that returns true/false.
+     * @param asyncProcessing Whether the sensor detected async processing.
      */
-    function addAsyncSensor(name, sensor) {
-        asyncSensors[name] = sensor;
+    function updateSensor(name, asyncProcessing) {
+        asyncSensorStates[name] = asyncProcessing;
+        logger.log("async wait state changed: " + name + "=" + asyncProcessing, asyncSensorStates);
+        checkAndCallAsyncListeners();
+    }
+
+    function waitForAsyncProcessingState(state, listener) {
+        asyncStateListeners.push({asyncProcessing:state, listener:listener});
+        checkAndCallAsyncListeners();
+    }
+
+    function checkAndCallAsyncListeners() {
+        var asyncProcessing = isAsyncProcessing();
+        var i, entry;
+        for (i = asyncStateListeners.length - 1; i >= 0; i--) {
+            entry = asyncStateListeners[i];
+            if (entry.asyncProcessing === asyncProcessing) {
+                asyncStateListeners.splice(i, 1);
+                entry.listener();
+            }
+        }
     }
 
     function isAsyncProcessing() {
-        var sensors = asyncSensors;
-        for (var name in sensors) {
-            if (sensors[name]()) {
-                logger.log("async processing: " + name);
+        var i , sensorName;
+        var asyncProcessing = false;
+        for (i = 0; i < config.asyncSensors.length; i++) {
+            sensorName = config.asyncSensors[i];
+            if (asyncSensorStates[sensorName]) {
                 return true;
             }
         }
         return false;
     }
 
+    // Goal:
+    // - Detect async work that cannot detected before some time after it's start
+    //   (e.g. the WebKitAnimationStart event is not fired until some ms after the dom change that started the animation).
+    // - Detect the situation where async work starts another async work
+    //
+    // Algorithm:
+    // Wait until asyncSensor is false for 50ms.
+    function afterAsync(listener) {
+        function restart() {
+            logger.log("begin async waiting");
+            waitForAsyncProcessingState(false, function () {
+                var handle = oldTimeout(function () {
+                    logger.log("end async waiting");
+                    listener();
+                }, 50);
+                waitForAsyncProcessingState(true, function () {
+                    oldClearTimeout(handle);
+                    restart();
+                });
+            });
+        }
+
+        restart();
+    }
+
     /**
      * Adds an async sensor for the load event
      */
     (function () {
-        addAsyncSensor('loading', function () {
-            return !loadListener.loaded();
+        var loadEvent = false;
+        var endCall = false;
+        globals.addEventListener('load', function () {
+            // Also listen for the globals.load event, as instrumentor.endCall
+            // is fired before all images, ... are loaded (in non requirejs case).
+            loadEvent = true;
+            changed();
         });
+        instrumentor.endCall(function () {
+            // Note: endCall is called before the real application starts.
+            // However, it supports requirejs.
+            globals.setTimeout(function () {
+                endCall = true;
+                changed();
+            }, 10);
+        });
+        function changed() {
+            updateSensor('load', !loadEvent || !endCall);
+        }
+        changed();
     })();
 
     /**
-     * Adds an async sensor for the window.setTimeout function.
+     * Adds an async sensor for the globals.setTimeout function.
      */
     (function () {
         var timeouts = {};
-        if (!window.oldTimeout) {
-            window.oldTimeout = window.setTimeout;
+        if (!globals.oldTimeout) {
+            globals.oldTimeout = globals.setTimeout;
         }
-        window.setTimeout = function (fn, time) {
-            logger.log("setTimeout called");
+        globals.setTimeout = function (fn, time) {
             var handle;
             var callback = function () {
                 delete timeouts[handle];
-                logger.log("timed out");
+                changed();
                 if (typeof fn == 'string') {
                     eval(fn);
                 } else {
                     fn();
                 }
             };
-            handle = window.oldTimeout(callback, time);
+            handle = globals.oldTimeout(callback, time);
             timeouts[handle] = true;
+            changed();
             return handle;
         };
 
-        window.oldClearTimeout = window.clearTimeout;
-        window.clearTimeout = function (code) {
-            logger.log("clearTimeout called");
-            window.oldClearTimeout(code);
+        globals.oldClearTimeout = globals.clearTimeout;
+        globals.clearTimeout = function (code) {
+            globals.oldClearTimeout(code);
             delete timeouts[code];
+            changed();
         };
-        addAsyncSensor('timeout', function () {
+        function changed() {
             var count = 0;
             for (var x in timeouts) {
                 count++;
             }
-            return count != 0;
-        });
+            updateSensor('timeout', count != 0);
+        }
     })();
 
     /**
-     * Adds an async sensor for the window.setInterval function.
+     * Adds an async sensor for the globals.setInterval function.
      */
     (function () {
         var intervals = {};
-        window.oldSetInterval = window.setInterval;
-        window.setInterval = function (fn, time) {
-            logger.log("setInterval called");
+        globals.oldSetInterval = globals.setInterval;
+        globals.setInterval = function (fn, time) {
             var callback = function () {
                 if (typeof fn == 'string') {
                     eval(fn);
@@ -3106,38 +3186,38 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
                     fn();
                 }
             };
-            var res = window.oldSetInterval(callback, time);
+            var res = globals.oldSetInterval(callback, time);
             intervals[res] = 'true';
+            changed();
             return res;
         };
 
-        window.oldClearInterval = window.clearInterval;
-        window.clearInterval = function (code) {
-            logger.log("clearInterval called");
-            window.oldClearInterval(code);
+        globals.oldClearInterval = globals.clearInterval;
+        globals.clearInterval = function (code) {
+            globals.oldClearInterval(code);
             delete intervals[code];
+            changed();
         };
-        // return a function that allows to check
-        // if an interval is running...
-        addAsyncSensor('interval', function () {
+
+        function changed() {
             var count = 0;
             for (var x in intervals) {
                 count++;
             }
-            return count != 0;
-        });
+            updateSensor('interval', count != 0);
+        }
     })();
 
     /**
-     * Adds an async sensor for the window.XMLHttpRequest.
+     * Adds an async sensor for the globals.XMLHttpRequest.
      */
     (function () {
         var jasmineWindow = window;
         var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
         var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
 
-        var oldXHR = window.XMLHttpRequest;
-        window.openCallCount = 0;
+        var oldXHR = globals.XMLHttpRequest;
+        globals.openCallCount = 0;
         var DONE = 4;
         var newXhr = function () {
             var self = this;
@@ -3156,7 +3236,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             function proxyMethod(name) {
                 self[name] = function () {
                     if (name == 'send') {
-                        window.openCallCount++;
+                        change(1);
                     }
                     var res = self.origin[name].apply(self.origin, arguments);
                     copyState();
@@ -3169,7 +3249,7 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             }
             this.origin.onreadystatechange = function () {
                 if (self.origin.readyState == DONE) {
-                    window.openCallCount--;
+                    change(-1);
                 }
                 copyState();
                 if (self.onreadystatechange) {
@@ -3178,19 +3258,16 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             };
             copyState();
         };
-        window.XMLHttpRequest = newXhr;
+        globals.XMLHttpRequest = newXhr;
 
-        addAsyncSensor('xhr',
-            function () {
-                return window.openCallCount != 0;
-            });
+        function change(difference) {
+            globals.openCallCount += difference;
+            updateSensor('xhr', globals.openCallCount != 0);
+        }
     })();
 
     /**
-     * Adds an async sensor for the webkitAnimationStart and webkitAnimationEnd events.
-     * Note: The animationStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
+     * Adds an async sensor for $.fn.animationComplete.
      */
     (function () {
         var animationCount = 0;
@@ -3200,212 +3277,50 @@ jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'lo
             }
             var oldFn = globals.$.fn.animationComplete;
             globals.$.fn.animationComplete = function (callback) {
-                animationCount++;
+                change(1);
                 return oldFn.call(this, function () {
-                    animationCount--;
+                    change(-1);
                     return callback.apply(this, arguments);
                 });
             };
-            addAsyncSensor('WebkitAnimation',
-                function () {
-                    return animationCount != 0;
-                });
-
+            function change(difference) {
+                animationCount += difference;
+                updateSensor('$animationComplete', animationCount != 0);
+            }
         });
 
     })();
 
     /**
-     * Adds an async sensor for the webkitTransitionStart and webkitTransitionEnd events.
-     * Note: The transitionStart event is usually fired some time
-     * after the animation was added to the css of an element (approx 50ms).
-     * So be sure to always wait at least that time!
+     * Adds an async sensor for $.fn.transitionComplete.
      */
     (function () {
         var transitionCount = 0;
         instrumentor.endCall(function () {
-            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
+            if (!(globals.$ && globals.$.fn && globals.$.fn.transitionComplete)) {
                 return;
             }
 
             var oldFn = globals.$.fn.transitionComplete;
             globals.$.fn.transitionComplete = function (callback) {
-                transitionCount++;
+                change(1);
                 return oldFn.call(this, function () {
-                    transitionCount--;
+                    change(-1);
                     return callback.apply(this, arguments);
                 });
             };
-            addAsyncSensor('WebkitTransition',
-                function () {
-                    return transitionCount != 0;
-                });
-
+            function change(difference) {
+                transitionCount += difference;
+                updateSensor('$transitionComplete', transitionCount != 0);
+            }
         });
     })();
 
 
-    return isAsyncProcessing;
-});
-jasmineui.define('loadListener', ['globals'], function (globals) {
-    var window = globals.window;
-    var document = globals.document;
-
-    var beforeLoadListeners = [];
-
-    /**
-     * Adds a listener for the beforeLoad-Event that will be called every time a new url is loaded
-     * @param callback
-     */
-    var addBeforeLoadListener = function (callback) {
-        if (beforeLoadListeners.length===0) {
-            /**
-             * We use a capturing event listener to be the first to get the event.
-             * jQuery, ... always use non capturing event listeners...
-             */
-            document.addEventListener('DOMContentLoaded', beforeLoadCallback, true);
-        }
-        beforeLoadListeners.push(callback);
-    };
-
-    var beforeLoadEventFired = false;
-
-    function callBeforeLoadListeners() {
-        beforeLoadEventFired = true;
-        var name, listeners, fn;
-        listeners = beforeLoadListeners;
-        for (name in listeners) {
-            fn = listeners[name];
-            fn(window);
-        }
-    }
-
-    function beforeLoadCallback() {
-        if (requirejs.isWaiting()) {
-            requirejs.executeBeforeReady(callBeforeLoadListeners);
-        } else if (jquery.isWaiting()) {
-            jquery.executeBeforeReady(callBeforeLoadListeners);
-        } else {
-            callBeforeLoadListeners();
-        }
-    }
-
-    function loaded() {
-        return document.readyState == 'complete' && !requirejs.isWaiting() && !jquery.isWaiting();
-    }
-
-    function isEmptyObj(obj, ignoreKey) {
-        for (var x in obj) {
-            if (x!==ignoreKey) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    var jquery = {
-        isWaiting: function() {
-            // Note: We only wait for extra waiting due to calls to holdReady,
-            // not for the normal DOMContentLoaded event handling of jQuery.
-            // Reason: For the normal DOMContentLoaded handling in jQuery we cannot
-            // install an interceptor resp. we already have an interceptor for that DOM event!
-            if (globals.jQuery) {
-                if (globals.jQuery.readyWait>=2) {
-                    return true;
-                }
-                if (globals.jQuery.isReady && globals.jQuery.readyWait >= 1) {
-                    return true;
-                }
-            }
-            return false;
-        },
-        executeBeforeReady: function(callback) {
-            var _holdReady = globals.jQuery.holdReady;
-            globals.jQuery.holdReady = function(hold) {
-                if (hold) {
-                    return _holdReady.apply(this, arguments);
-                }
-                // Note: This is the border that makes isWaiting() false!
-                if (globals.jQuery.readyWait===1 && globals.jQuery.isReady || globals.jQuery.readyWait===2 && !globals.jQuery.isReady) {
-                    callback();
-                }
-                return _holdReady.apply(this, arguments);
-            }
-        }
-    };
-
-    var requirejs = {
-        isWaiting: function(ignoreModId) {
-            if (globals.require && globals.require.s) {
-                var contexts = globals.require.s.contexts;
-                for (var ctxName in contexts) {
-                    if (!isEmptyObj(contexts[ctxName].registry, ignoreModId)) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        },
-        executeBeforeReady: function(callback) {
-            var contexts = globals.require.s.contexts;
-            for (var ctxName in contexts) {
-                instrumentRequireJsContext(contexts[ctxName]);
-            }
-
-            function instrumentRequireJsContext(context) {
-                var _execCb = context.execCb;
-                context.execCb = function(modId) {
-                    if (!requirejs.isWaiting(modId)) {
-                        if (jquery.isWaiting()) {
-                            jquery.executeBeforeReady(callback);
-                        } else {
-                            callback();
-                        }
-                    }
-                    return _execCb.apply(this, arguments);
-                }
-            }
-        }
-    };
-
-    var loadListeners = [];
-
-    /**
-     * Adds a listener that is called after the load event.
-     * @param listener
-     */
-    function addLoadListener(listener) {
-        if (loadListeners.length===0) {
-            var loadEventReceived = false;
-            var scriptLoaderReady = false;
-            window.addEventListener('load', function(event) {
-                loadEventReceived = event;
-                fireIfNeeded();
-            }, false);
-            addBeforeLoadListener(function() {
-                scriptLoaderReady = true;
-                fireIfNeeded();
-            });
-            function fireIfNeeded() {
-                if (loadEventReceived && scriptLoaderReady) {
-                    // Wait another 10ms so all other load listeners of the application that is being tested
-                    // have a chance to be called. Also, we want to be after the last module call of the script loader!
-                    globals.jasmine.setTimeout(function() {
-                        for (var i=0; i<loadListeners.length; i++) {
-                            loadListeners[i](loadEventReceived);
-                        }
-                    },10);
-                }
-            }
-        }
-        loadListeners.push(listener);
-    }
-
     return {
-        addBeforeLoadListener:addBeforeLoadListener,
-        loaded:loaded,
-        addLoadListener: addLoadListener
-    }
+        updateSensor:updateSensor,
+        afterAsync:afterAsync
+    };
 });
 jasmineui.define('client?simulateEvent', ['globals'], function (globals) {
     /**
@@ -3545,27 +3460,43 @@ jasmineui.define('client?simulateEvent', ['globals'], function (globals) {
         VK_DOWN:40
     });
 
-    globals.simulate = simulate;
+    globals.jasmineui.simulate = simulate;
 
     return simulate;
 
 });
-jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 'testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config'], function (persistentData, loadListener, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config) {
+jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config', 'asyncSensor'], function (persistentData, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config, asyncSensor) {
     var pd = persistentData();
 
-    if (pd.specIndex === -1) {
-        analyzeMode();
+    function getOwnerLoadUiServer() {
+        var owner = globals.opener || globals.parent;
+        return owner && owner.jasmineui.loadUiServer;
+    }
+    var ownerLoadUiServer = getOwnerLoadUiServer();
+
+    var analyzeMode = pd.specIndex === -1;
+    if (analyzeMode) {
+        startAnalyzeMode();
     } else {
         runMode();
     }
 
-    function analyzeMode() {
+    function startAnalyzeMode() {
         addUtilScripts();
         var i;
         for (i = 0; i < pd.analyzeScripts.length; i++) {
             instrumentor.beginScript(pd.analyzeScripts[i]);
         }
-        loadListener.addLoadListener(runNextSpec);
+        asyncSensor.afterAsync(function() {
+            if (ownerLoadUiServer) {
+                pd.specs = ownerLoadUiServer.createSpecs(pd.specs);
+                runNextSpec();
+            } else {
+                // In inplace mode, we need to call the spec runner again to
+                // filter the collected specs.
+                urlLoader.navigateWithReloadTo(globals.window, pd.reporterUrl);
+            }
+        });
     }
 
     function runMode() {
@@ -3573,9 +3504,12 @@ jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 
         logSpecStatus(remoteSpec);
         addUtilScripts();
         instrumentor.beginScript(remoteSpec.testScript);
-        loadListener.addLoadListener(function () {
+        asyncSensor.afterAsync(function () {
             testAdapter.executeSpec(remoteSpec.id, function (specResult) {
                 remoteSpec.results = specResult;
+                if (ownerLoadUiServer) {
+                    ownerLoadUiServer.specFinished(remoteSpec);
+                }
                 runNextSpec();
             });
         });
@@ -3583,15 +3517,15 @@ jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 
 
     function runNextSpec() {
         pd.specIndex = pd.specIndex + 1;
-        var ownerWindow = globals.opener || globals.parent;
-        if (ownerWindow) {
-            persistentData.saveDataToWindow(ownerWindow);
-        }
         var url;
         if (pd.specIndex < pd.specs.length) {
             url = pd.specs[pd.specIndex].url;
         } else {
-            url = pd.reporterUrl;
+            if (ownerLoadUiServer) {
+                ownerLoadUiServer.runFinished();
+            } else {
+                url = pd.reporterUrl;
+            }
         }
         if (url) {
             urlLoader.navigateWithReloadTo(globals.window, url);
@@ -3643,7 +3577,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'loadListener', 'globals', 
 
     function loadUi(url, callback) {
         callback();
-        if (pd.analyzeScripts) {
+        if (analyzeMode && pd.analyzeScripts) {
             var specIds = testAdapter.listSpecIds();
             var scriptUrl = scriptAccessor.currentScriptUrl();
             var i, specId, remoteSpec;
@@ -3673,6 +3607,8 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     var firstLoadUiUrl;
     var testScripts = [];
 
+    start();
+
     function loadUi(url) {
         testScripts.push(scriptAccessor.currentScriptUrl());
         if (!firstLoadUiUrl) {
@@ -3680,15 +3616,44 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         }
     }
 
-    if (persistentData().specs) {
-        setResultsMode(persistentData().specs);
-    } else if (config.loadMode === 'inplace') {
-        setInplaceMode();
-    } else {
-        setPopupMode();
+    function start() {
+        var pd = persistentData();
+        if (config.loadMode==='inplace') {
+            if (pd.specs) {
+                if (pd.specIndex === -1) {
+                    setInplaceFilterMode(pd.specs);
+                } else {
+                    setInplaceResultsMode(pd.specs);
+                }
+            } else {
+                startInplaceMode();
+            }
+        } else {
+            setPopupMode();
+        }
     }
 
-    function setResultsMode(remoteSpecs) {
+    function startInplaceMode() {
+        testAdapter.replaceSpecRunner(function () {
+            var firstUrl = prepareExecution();
+            persistentData().reporterUrl = globals.window.location.href;
+            urlLoader.navigateWithReloadTo(globals.window, firstUrl, 0);
+        });
+    }
+
+    function setInplaceFilterMode(remoteSpecs) {
+        var pd = persistentData();
+        testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
+            var filteredSpecIds = specsCreatedCallback(getSpecIds(remoteSpecs));
+            pd.specs = filterSpecs(pd.specs, filteredSpecIds);
+            // start the execution
+            pd.specIndex = 0;
+            urlLoader.navigateWithReloadTo(globals.window, remoteSpecs[0].url, 1);
+        });
+
+    }
+
+    function setInplaceResultsMode(remoteSpecs) {
         var specIds = getSpecIds(remoteSpecs);
         testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
             specsCreatedCallback(specIds);
@@ -3707,15 +3672,47 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
             specIds.push(remoteSpecs[i].id);
         }
         return specIds;
-
     }
 
-    function setInplaceMode() {
-        testAdapter.replaceSpecRunner(function () {
+    function filterSpecs(specs, specIds) {
+        var i, spec;
+        var specIdsHash = {};
+        for (i=0; i<specIds.length; i++) {
+            specIdsHash[specIds[i]] = true;
+        }
+        for (i = specs.length - 1; i >= 0; i--) {
+            spec = specs[i];
+            if (!specIdsHash[spec.id]) {
+                specs.splice(i, 1);
+            }
+        }
+        return specs;
+    }
+
+    function setPopupMode() {
+        var specsCreatedCallback;
+
+        testAdapter.replaceSpecRunner(function (_specsCreatedCallback) {
+            // Now execute the ui specs
             var firstUrl = prepareExecution();
-            persistentData().reporterUrl = globals.window.location.href;
-            urlLoader.navigateWithReloadTo(globals.window, firstUrl, 0);
+            openTestWindow(firstUrl);
+            persistentData.saveDataToWindow(remoteWindow);
+            // Now wait until the ui specs are finished and then call the finishedCallback
+            specsCreatedCallback = _specsCreatedCallback;
         });
+
+        globals.jasmineui.loadUiServer = {
+            createSpecs: function(specs) {
+                var filteredSpecIds = specsCreatedCallback(getSpecIds(specs));
+                return filterSpecs(specs, filteredSpecIds);
+            },
+            specFinished: function(spec) {
+                testAdapter.reportSpecResult(spec.id, spec.results);
+            },
+            runFinished: function() {
+                closeTestWindow();
+            }
+        };
     }
 
     var remoteWindow;
@@ -3752,35 +3749,6 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         }
         remoteWindow = null;
     }
-
-    function setPopupMode() {
-        var specsCreatedCallback;
-
-        testAdapter.replaceSpecRunner(function (_specsCreatedCallback) {
-            // Now execute the ui specs
-            var firstUrl = prepareExecution();
-            openTestWindow(firstUrl);
-            persistentData.saveDataToWindow(remoteWindow);
-            // Now wait until the ui specs are finished and then call the finishedCallback
-            specsCreatedCallback = _specsCreatedCallback;
-        });
-
-        persistentData.addChangeListener(function () {
-            var pd = persistentData();
-            if (pd.specIndex === 0) {
-                // after analyzing the specs...
-                specsCreatedCallback(getSpecIds(pd.specs));
-            } else {
-                var spec = pd.specs[pd.specIndex - 1];
-                testAdapter.reportSpecResult(spec.id, spec.results);
-                if (pd.specIndex >= pd.specs.length) {
-                    // last call
-                    closeTestWindow();
-                }
-            }
-        });
-    }
-
 
     function prepareExecution() {
         var pd = persistentData();
@@ -3845,7 +3813,6 @@ jasmineui.define('client?jasmine/beforeLoad', ['jasmine/original', 'persistentDa
 });
 
 jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentData', 'jasmine/waitsForAsync', 'globals', 'jasmine/utils'], function (jasmineOriginal, persistentData, waitsForAsync, globals, jasmineUtils) {
-
     var pd = persistentData();
 
     if (pd.specIndex === -1) {
@@ -4029,10 +3996,15 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
             var self = this;
             specsCreatedCallback(function (remoteSpecIds) {
                 var i;
-                for (i = 0; i < remoteSpecIds.length; i++) {
-                    getOrCreateLocalSpec(remoteSpecIds[i]);
+                var filteredIds = [];
+                for (i = 0; i<remoteSpecIds.length; i++) {
+                    var spec = getOrCreateLocalSpec(remoteSpecIds[i]);
+                    if (!spec.skipped) {
+                        filteredIds.push(remoteSpecIds[i]);
+                    }
                 }
                 _execute.call(self);
+                return filteredIds;
             });
         };
     }
@@ -4092,24 +4064,29 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
                 return spec;
             }
             var spec = new jasmineOriginal.jasmine.Spec(env, suite, specName);
-            spec.remoteSpecFinished = function (results) {
-                spec.remoteSpecResults = results;
-                spec.results_ = nestedResultsFromJson(results);
-                if (spec.deferredFinish) {
-                    spec.deferredFinish();
-                }
-            };
-
-            var _finish = spec.finish;
-            spec.finish = function (onComplete) {
-                var self = this;
-                spec.deferredFinish = function () {
-                    _finish.call(this, onComplete);
+            if (!env.specFilter(spec)) {
+                spec.skipped = true;
+            } else {
+                spec.remoteSpecFinished = function (results) {
+                    spec.remoteSpecResults = results;
+                    spec.results_ = nestedResultsFromJson(results);
+                    if (spec.deferredFinish) {
+                        spec.deferredFinish();
+                    }
                 };
-                if (spec.remoteSpecResults) {
-                    spec.deferredFinish();
-                }
-            };
+
+                var _finish = spec.finish;
+                spec.finish = function (onComplete) {
+                    var self = this;
+                    spec.deferredFinish = function () {
+                        _finish.call(this, onComplete);
+                    };
+                    if (spec.remoteSpecResults) {
+                        spec.deferredFinish();
+                    }
+                };
+            }
+
             suite.add(spec);
             return spec;
         }
@@ -4155,7 +4132,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
     }
 
     function specId(spec) {
-        return suiteId(spec.suite)+"#"+spec.description;
+        return suiteId(spec.suite) + "#" + spec.description;
     }
 
     function suiteId(suite) {
@@ -4171,6 +4148,12 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
         return specId.split("#");
     }
 
+    function filterSpec(specId) {
+        var spec = findRemoteSpecLocally(specId);
+        var env = jasmineOriginal.jasmine.getEnv();
+        return env.specFilter(spec);
+    }
+
     return {
         nestedResultsFromJson:nestedResultsFromJson,
         createInfiniteWaitsBlock:createInfiniteWaitsBlock,
@@ -4184,42 +4167,19 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
     }
 
 });
-jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasmine/original', 'logger'], function (config, asyncSensor, jasmineOriginal, logger) {
-    function checkAndWait() {
-        // This is a loop between waiting 50 ms and checking
-        // if any new async work started. This is needed
-        // as a timeout might start a transition, which might
-        // start another timeout, ...
-        jasmineOriginal.runs(function() {
-            if (asyncSensor()) {
-                jasmineOriginal.waitsFor(
-                    function () {
-                        return !asyncSensor();
-                    }, "async work", config.waitsForAsyncTimeout);
-                jasmineOriginal.waits(100);
-                checkAndWait();
-            }
-        });
-    }
-
+jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasmine/original'], function (config, asyncSensor, jasmineOriginal) {
     /**
      * Waits for the end of all asynchronous actions.
      */
     function waitsForAsync() {
+        var asyncProcessing = true;;
         jasmineOriginal.runs(function () {
-            logger.log("begin async waiting");
+            asyncSensor.afterAsync(function() {
+                asyncProcessing = false;
+            });
         });
-
-
-        // Wait at least 50 ms. Needed e.g.
-        // for animations, as the animation start event is
-        // not fired directly after the animation css is added.
-        // There may also be a gap between changing the location hash
-        // and the hashchange event (almost none however...).
-        jasmineOriginal.waits(100);
-        checkAndWait();
-        jasmineOriginal.runs(function () {
-            logger.log("end async waiting");
+        jasmineOriginal.waitsFor(function() {
+            return !asyncProcessing;
         });
     }
 
@@ -4228,8 +4188,6 @@ jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasm
         jasmineOriginal.runs(callback);
     }
 
-    jasmineOriginal.beforeEach(waitsForAsync);
-
     return {
         waitsForAsync: waitsForAsync,
         runs: runs
@@ -4237,8 +4195,11 @@ jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasm
 });
 jasmineui.define('testAdapter', ['jasmine/utils'], function (jasmineUtils) {
     return {
+        // client
         listSpecIds:jasmineUtils.listSpecIds,
         executeSpec:jasmineUtils.executeSpec,
+
+        // server
         reportSpecResult:jasmineUtils.reportSpecResult,
         replaceSpecRunner:jasmineUtils.replaceSpecRunner
     };

@@ -1,5 +1,4 @@
 jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentData', 'jasmine/waitsForAsync', 'globals', 'jasmine/utils'], function (jasmineOriginal, persistentData, waitsForAsync, globals, jasmineUtils) {
-
     var pd = persistentData();
 
     if (pd.specIndex === -1) {

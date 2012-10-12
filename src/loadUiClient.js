@@ -1,6 +1,5 @@
 jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config', 'asyncSensor'], function (persistentData, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config, asyncSensor) {
     var pd = persistentData();
-    // TODO use this!
 
     function getOwnerLoadUiServer() {
         var owner = globals.opener || globals.parent;
@@ -8,13 +7,14 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
     }
     var ownerLoadUiServer = getOwnerLoadUiServer();
 
-    if (pd.specIndex === -1) {
-        analyzeMode();
+    var analyzeMode = pd.specIndex === -1;
+    if (analyzeMode) {
+        startAnalyzeMode();
     } else {
         runMode();
     }
 
-    function analyzeMode() {
+    function startAnalyzeMode() {
         addUtilScripts();
         var i;
         for (i = 0; i < pd.analyzeScripts.length; i++) {
@@ -110,7 +110,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
 
     function loadUi(url, callback) {
         callback();
-        if (pd.analyzeScripts) {
+        if (analyzeMode && pd.analyzeScripts) {
             var specIds = testAdapter.listSpecIds();
             var scriptUrl = scriptAccessor.currentScriptUrl();
             var i, specId, remoteSpec;

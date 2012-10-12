@@ -136,7 +136,7 @@ jasmineui.define('client?simulateEvent', ['globals'], function (globals) {
         VK_DOWN:40
     });
 
-    globals.simulate = simulate;
+    globals.jasmineui.simulate = simulate;
 
     return simulate;
 

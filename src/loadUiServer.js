@@ -103,7 +103,6 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
                 return filterSpecs(specs, filteredSpecIds);
             },
             specFinished: function(spec) {
-                console.log("spec finished", spec);
                 testAdapter.reportSpecResult(spec.id, spec.results);
             },
             runFinished: function() {

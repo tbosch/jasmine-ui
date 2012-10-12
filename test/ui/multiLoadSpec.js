@@ -26,7 +26,7 @@ jasmineui.loadUi('/jasmine-ui/test/ui/jasmine-uiSpec.html', function () {
                 var link = document.createElement('a');
                 link.href = location.pathname + '?test=1';
                 document.body.appendChild(link);
-                simulate(link, 'click');
+                jasmineui.simulate(link, 'click');
             });
             runs(function () {
                 expect(document.readyState).toBe("complete");
