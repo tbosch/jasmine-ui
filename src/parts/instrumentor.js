@@ -144,16 +144,19 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         }
     }
 
-    // private API as callback from loaderScript
-    globals.jasmineui.instrumentor = {
-        endScripts:onEndScripts,
-        endCalls:onEndCalls,
-        inlineScript:onInlineScript,
-        urlScript:onUrlScript
-    };
-
     // public API
     return {
+        globals: {
+            jasmineui: {
+                // private API as callback from loaderScript
+                instrumentor: {
+                    endScripts:onEndScripts,
+                    endCalls:onEndCalls,
+                    inlineScript:onInlineScript,
+                    urlScript:onUrlScript
+                }
+            }
+        },
         loaderScript:loaderScript,
         beginScript:beginScript,
         endScript:endScript,

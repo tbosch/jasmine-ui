@@ -8,7 +8,7 @@ jasmineui.require(['factory!client/simulateEvent'], function (simulateFactory) {
             };
             simulate = simulateFactory({
                 globals: globals
-            });
+            }).globals.jasmineui.simulate;
         });
         afterEach(function () {
             el.parentNode.removeChild(el);

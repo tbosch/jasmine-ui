@@ -9,7 +9,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
 
 
     function get() {
-        var win = globals.window;
+        var win = globals;
         var res = win.jasmineui && win.jasmineui.persistent;
         if (!res) {
             win.jasmineui = win.jasmineui || {};
@@ -28,7 +28,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
     }
 
     function setSessionStorage(target, property, value) {
-        if (target === globals.window) {
+        if (target === globals) {
             target.sessionStorage[property] = value;
         } else {
             // Note: in IE9 we cannot access target.sessionStorage directly,
@@ -41,7 +41,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
     function saveDataToWindow(target) {
         var loaderString = instrumentor.loaderScript();
         setSessionStorage(target, "jasmineui", loaderString);
-        if (!ownerData && target === globals.window) {
+        if (!ownerData) {
             var dataString = JSON.stringify(get());
             setSessionStorage(target, "jasmineui_data", dataString);
         }

@@ -161,10 +161,12 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
         });
     }
 
-    globals.jasmineui.loadUi = loadUi;
-
     return {
-        loadUi:loadUi,
+        globals: {
+            jasmineui: {
+                loadUi: loadUi
+            }
+        },
         reportError:reportError
     }
 });

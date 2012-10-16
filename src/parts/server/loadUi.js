@@ -201,9 +201,11 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
         return firstLoadUiUrl;
     }
 
-    globals.jasmineui.loadUi = loadUi;
-
     return {
-        loadUi:loadUi
+        globals: {
+            jasmineui: {
+                loadUi: loadUi
+            }
+        }
     }
 });

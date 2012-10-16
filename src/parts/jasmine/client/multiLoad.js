@@ -70,13 +70,11 @@ jasmineui.define('client/jasmine/multiLoad', ['jasmine/original', 'persistentDat
         return res;
     }
 
-    globals.waits = waits;
-    globals.waitsFor = waitsFor;
-    globals.runs = runs;
-
     return {
-        waits:waits,
-        waitsFor:waitsFor,
-        runs:runs
+        globals: {
+            waits:waits,
+            waitsFor:waitsFor,
+            runs:runs
+        }
     }
 });

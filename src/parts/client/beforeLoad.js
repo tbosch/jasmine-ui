@@ -26,9 +26,11 @@ jasmineui.define('client/beforeLoad', ['persistentData', 'globals', 'instrumento
         }
     });
 
-    globals.jasmineui.beforeLoad = beforeLoad;
-
     return {
-        beforeLoad:beforeLoad
+        globals: {
+            jasmineui: {
+                beforeLoad: beforeLoad
+            }
+        }
     }
 });

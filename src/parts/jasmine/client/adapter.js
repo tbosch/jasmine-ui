@@ -1,11 +1,16 @@
 jasmineui.define('client/testAdapter', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
+    var describeImpl = jasmineOriginal.describe;
+    function describe() {
+        return describeImpl.apply(this, arguments);
+    }
+
     function initSpecRun(spec) {
         var specId = spec.id;
         var results = spec.results;
 
         function ignoreDescribesThatDoNotMatchTheSpecId() {
             var currentSuiteId = '';
-            globals.describe = function (name) {
+            describeImpl = function (name) {
                 var oldSuiteId = currentSuiteId;
                 if (currentSuiteId) {
                     currentSuiteId += '#';
@@ -84,6 +89,9 @@ jasmineui.define('client/testAdapter', ['jasmine/original', 'globals'], function
     }
 
     return {
+        globals: {
+            describe: describe
+        },
         listSpecIds:listSpecIds,
         initSpecRun:initSpecRun
     };

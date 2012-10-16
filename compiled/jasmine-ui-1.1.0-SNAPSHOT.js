@@ -2578,10 +2578,10 @@ jasmine.version_= {
         factory:factoryPlugin
     };
     define.conditionals = {
-        client: function() {
+        client:function () {
             return !!document.documentElement.getAttribute("jasmineuiClient");
         },
-        server: function() {
+        server:function () {
             return !define.conditionals.client();
         }
     };
@@ -2633,8 +2633,27 @@ jasmine.version_= {
             }
 
             instanceCache[name] = resolvedValue;
+            if (resolvedValue && resolvedValue.globals) {
+                var globals = factory('globals', instanceCache);
+                mergeObjects(resolvedValue.globals, globals);
+
+            }
+
         }
         return instanceCache[name];
+    }
+
+    function mergeObjects(source, target) {
+        var prop, oldValue, newValue;
+        for (prop in source) {
+            newValue = source[prop];
+            oldValue = target[prop];
+            if (typeof oldValue === 'object') {
+                mergeObjects(newValue, oldValue);
+            } else {
+                target[prop] = newValue;
+            }
+        }
     }
 
     function listFactory(deps, instanceCache) {
@@ -2658,13 +2677,13 @@ jasmine.version_= {
         return resolvedDeps;
     };
 
-    require.all = function(filter, callback) {
-        var i,def;
+    require.all = function (filter, callback) {
+        var i, def;
         var modules = {};
         for (i = 0; i < define.moduleDefs.length; i++) {
             def = define.moduleDefs[i];
             if (filter(def.name)) {
-                require([def.name], function(module) {
+                require([def.name], function (module) {
                     modules[def.name] = module;
                 });
             }
@@ -2674,9 +2693,9 @@ jasmine.version_= {
 
     var CLIENT_RE = /client\//;
     var SERVER_RE = /server\//;
-    require.default = function(callback) {
+    require.default = function (callback) {
         var isClient = document.documentElement.dataset.jasmineui;
-        require.all(function(name) {
+        require.all(function (name) {
             if (isClient) {
                 return !name.match(SERVER_RE);
             } else {
@@ -2777,7 +2796,10 @@ jasmineui.define('urlLoader', ['persistentData'], function (persistentData) {
     }
 
     return {
-        navigateWithReloadTo: navigateWithReloadTo
+        navigateWithReloadTo: navigateWithReloadTo,
+        setOrReplaceQueryAttr: setOrReplaceQueryAttr,
+        parseUrl: parseUrl,
+        serializeUrl: serializeUrl
     };
 });
 jasmineui.define('scriptAccessor', ['globals'], function (globals) {
@@ -2834,7 +2856,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
 
 
     function get() {
-        var win = globals.window;
+        var win = globals;
         var res = win.jasmineui && win.jasmineui.persistent;
         if (!res) {
             win.jasmineui = win.jasmineui || {};
@@ -2853,7 +2875,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
     }
 
     function setSessionStorage(target, property, value) {
-        if (target === globals.window) {
+        if (target === globals) {
             target.sessionStorage[property] = value;
         } else {
             // Note: in IE9 we cannot access target.sessionStorage directly,
@@ -2866,7 +2888,7 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
     function saveDataToWindow(target) {
         var loaderString = instrumentor.loaderScript();
         setSessionStorage(target, "jasmineui", loaderString);
-        if (!ownerData && target === globals.window) {
+        if (!ownerData) {
             var dataString = JSON.stringify(get());
             setSessionStorage(target, "jasmineui_data", dataString);
         }
@@ -3022,16 +3044,19 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         }
     }
 
-    // private API as callback from loaderScript
-    globals.jasmineui.instrumentor = {
-        endScripts:onEndScripts,
-        endCalls:onEndCalls,
-        inlineScript:onInlineScript,
-        urlScript:onUrlScript
-    };
-
     // public API
     return {
+        globals: {
+            jasmineui: {
+                // private API as callback from loaderScript
+                instrumentor: {
+                    endScripts:onEndScripts,
+                    endCalls:onEndCalls,
+                    inlineScript:onInlineScript,
+                    urlScript:onUrlScript
+                }
+            }
+        },
         loaderScript:loaderScript,
         beginScript:beginScript,
         endScript:endScript,
@@ -3043,6 +3068,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
 jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'config'], function (globals, logger, instrumentor, config) {
     var oldTimeout = globals.setTimeout;
     var oldClearTimeout = globals.clearTimeout;
+    var oldClearInterval = globals.clearInterval;
+    var oldSetInterval = globals.setInterval;
 
     var asyncSensorStates = {};
 
@@ -3129,7 +3156,7 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
         instrumentor.endCall(function () {
             // Note: endCall is called before the real application starts.
             // However, it supports requirejs.
-            globals.setTimeout(function () {
+            oldTimeout(function () {
                 endCall = true;
                 changed();
             }, 10);
@@ -3145,9 +3172,6 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
      */
     (function () {
         var timeouts = {};
-        if (!globals.oldTimeout) {
-            globals.oldTimeout = globals.setTimeout;
-        }
         globals.setTimeout = function (fn, time) {
             var handle;
             var callback = function () {
@@ -3159,15 +3183,14 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
                     fn();
                 }
             };
-            handle = globals.oldTimeout(callback, time);
+            handle = oldTimeout(callback, time);
             timeouts[handle] = true;
             changed();
             return handle;
         };
 
-        globals.oldClearTimeout = globals.clearTimeout;
         globals.clearTimeout = function (code) {
-            globals.oldClearTimeout(code);
+            oldClearTimeout(code);
             delete timeouts[code];
             changed();
         };
@@ -3185,7 +3208,6 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
      */
     (function () {
         var intervals = {};
-        globals.oldSetInterval = globals.setInterval;
         globals.setInterval = function (fn, time) {
             var callback = function () {
                 if (typeof fn == 'string') {
@@ -3194,15 +3216,14 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
                     fn();
                 }
             };
-            var res = globals.oldSetInterval(callback, time);
+            var res = oldSetInterval(callback, time);
             intervals[res] = 'true';
             changed();
             return res;
         };
 
-        globals.oldClearInterval = globals.clearInterval;
         globals.clearInterval = function (code) {
-            globals.oldClearInterval(code);
+            oldClearInterval(code);
             delete intervals[code];
             changed();
         };
@@ -3468,9 +3489,13 @@ jasmineui.define('client/simulateEvent', ['globals'], function (globals) {
         VK_DOWN:40
     });
 
-    globals.jasmineui.simulate = simulate;
-
-    return simulate;
+    return {
+        globals: {
+            jasmineui: {
+                simulate: simulate
+            }
+        }
+    };
 
 });
 jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdapter', 'urlLoader', 'scriptAccessor', 'instrumentor', 'config', 'client/asyncSensor'], function (persistentData, globals, testAdapter, urlLoader, scriptAccessor, instrumentor, config, asyncSensor) {
@@ -3636,10 +3661,12 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
         });
     }
 
-    globals.jasmineui.loadUi = loadUi;
-
     return {
-        loadUi:loadUi,
+        globals: {
+            jasmineui: {
+                loadUi: loadUi
+            }
+        },
         reportError:reportError
     }
 });
@@ -3672,10 +3699,12 @@ jasmineui.define('client/beforeLoad', ['persistentData', 'globals', 'instrumento
         }
     });
 
-    globals.jasmineui.beforeLoad = beforeLoad;
-
     return {
-        beforeLoad:beforeLoad
+        globals: {
+            jasmineui: {
+                beforeLoad: beforeLoad
+            }
+        }
     }
 });
 
@@ -3882,10 +3911,12 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
         return firstLoadUiUrl;
     }
 
-    globals.jasmineui.loadUi = loadUi;
-
     return {
-        loadUi:loadUi
+        globals: {
+            jasmineui: {
+                loadUi: loadUi
+            }
+        }
     }
 });
 
@@ -3979,14 +4010,12 @@ jasmineui.define('client/jasmine/multiLoad', ['jasmine/original', 'persistentDat
         return res;
     }
 
-    globals.waits = waits;
-    globals.waitsFor = waitsFor;
-    globals.runs = runs;
-
     return {
-        waits:waits,
-        waitsFor:waitsFor,
-        runs:runs
+        globals: {
+            waits:waits,
+            waitsFor:waitsFor,
+            runs:runs
+        }
     }
 });
 
@@ -4017,13 +4046,18 @@ jasmineui.define('jasmine/client/waitsForAsync', ['config', 'client/asyncSensor'
     };
 });
 jasmineui.define('client/testAdapter', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
+    var describeImpl = jasmineOriginal.describe;
+    function describe() {
+        return describeImpl.apply(this, arguments);
+    }
+
     function initSpecRun(spec) {
         var specId = spec.id;
         var results = spec.results;
 
         function ignoreDescribesThatDoNotMatchTheSpecId() {
             var currentSuiteId = '';
-            globals.describe = function (name) {
+            describeImpl = function (name) {
                 var oldSuiteId = currentSuiteId;
                 if (currentSuiteId) {
                     currentSuiteId += '#';
@@ -4102,6 +4136,9 @@ jasmineui.define('client/testAdapter', ['jasmine/original', 'globals'], function
     }
 
     return {
+        globals: {
+            describe: describe
+        },
         listSpecIds:listSpecIds,
         initSpecRun:initSpecRun
     };

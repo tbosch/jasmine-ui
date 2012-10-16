@@ -108,8 +108,29 @@ describe('simpleRequire', function () {
             jasmineui.require(['someModule2']);
             expect(actualValue).toBe(someValue);
         });
+
+        it('should merge objects under the "global" key into the globals module', function () {
+            var globals = {};
+            jasmineui.define('globals', function () {
+                return globals;
+            });
+            jasmineui.define('a', function () {
+                return {globals:{a:'a0'}};
+            });
+            jasmineui.define('b', function () {
+                return {globals:{b:'b0', c:{c0:'c0'}}};
+            });
+            jasmineui.define('c', function () {
+                return {globals:{c:{c1:'c1'}}};
+            });
+            jasmineui.require(['a', 'b', 'c']);
+            expect(globals.a).toBe('a0');
+            expect(globals.b).toBe('b0');
+            expect(globals.c.c0).toBe('c0');
+            expect(globals.c.c1).toBe('c1');
+        });
     });
-    describe('require.all', function() {
+    describe('require.all', function () {
         it('should instantiate all modules matching the regex and return them', function () {
             var moduleA = 'a';
             var moduleB = 'b';
@@ -120,7 +141,7 @@ describe('simpleRequire', function () {
                 return moduleB;
             });
             var allModules;
-            jasmineui.require.all(function(name) {
+            jasmineui.require.all(function (name) {
                 return name === 'a';
             }, function (modules) {
                 allModules = modules;
@@ -133,12 +154,12 @@ describe('simpleRequire', function () {
             expect(allModules.a).toBe(moduleA);
         });
     });
-    describe('require.default', function() {
+    describe('require.default', function () {
         var moduleA = 'a';
         var moduleB = 'b';
         var moduleC = 'c';
         var allModules;
-        beforeEach(function() {
+        beforeEach(function () {
             jasmineui.define('a', function () {
                 return moduleA;
             });
@@ -149,7 +170,7 @@ describe('simpleRequire', function () {
                 return moduleC;
             });
         });
-        it('should ignore server modules in the client', function() {
+        it('should ignore server modules in the client', function () {
             document.documentElement.setAttribute("data-jasmineui", "true");
             jasmineui.require.default(function (modules) {
                 allModules = modules;
@@ -162,7 +183,7 @@ describe('simpleRequire', function () {
             expect(count).toBe(2);
             expect(allModules['client/b']).toBe(moduleB);
         });
-        it('should ignore client modules in the server', function() {
+        it('should ignore client modules in the server', function () {
             document.documentElement.setAttribute("data-jasmineui", "");
             jasmineui.require.default(function (modules) {
                 allModules = modules;

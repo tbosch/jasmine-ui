@@ -35,10 +35,10 @@
         factory:factoryPlugin
     };
     define.conditionals = {
-        client: function() {
+        client:function () {
             return !!document.documentElement.getAttribute("jasmineuiClient");
         },
-        server: function() {
+        server:function () {
             return !define.conditionals.client();
         }
     };
@@ -90,8 +90,27 @@
             }
 
             instanceCache[name] = resolvedValue;
+            if (resolvedValue && resolvedValue.globals) {
+                var globals = factory('globals', instanceCache);
+                mergeObjects(resolvedValue.globals, globals);
+
+            }
+
         }
         return instanceCache[name];
+    }
+
+    function mergeObjects(source, target) {
+        var prop, oldValue, newValue;
+        for (prop in source) {
+            newValue = source[prop];
+            oldValue = target[prop];
+            if (typeof oldValue === 'object') {
+                mergeObjects(newValue, oldValue);
+            } else {
+                target[prop] = newValue;
+            }
+        }
     }
 
     function listFactory(deps, instanceCache) {
@@ -115,13 +134,13 @@
         return resolvedDeps;
     };
 
-    require.all = function(filter, callback) {
-        var i,def;
+    require.all = function (filter, callback) {
+        var i, def;
         var modules = {};
         for (i = 0; i < define.moduleDefs.length; i++) {
             def = define.moduleDefs[i];
             if (filter(def.name)) {
-                require([def.name], function(module) {
+                require([def.name], function (module) {
                     modules[def.name] = module;
                 });
             }
@@ -131,9 +150,9 @@
 
     var CLIENT_RE = /client\//;
     var SERVER_RE = /server\//;
-    require.default = function(callback) {
+    require.default = function (callback) {
         var isClient = document.documentElement.dataset.jasmineui;
-        require.all(function(name) {
+        require.all(function (name) {
             if (isClient) {
                 return !name.match(SERVER_RE);
             } else {

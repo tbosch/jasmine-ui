@@ -54,6 +54,9 @@ jasmineui.define('urlLoader', ['persistentData'], function (persistentData) {
     }
 
     return {
-        navigateWithReloadTo: navigateWithReloadTo
+        navigateWithReloadTo: navigateWithReloadTo,
+        setOrReplaceQueryAttr: setOrReplaceQueryAttr,
+        parseUrl: parseUrl,
+        serializeUrl: serializeUrl
     };
 });

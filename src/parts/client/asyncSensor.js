@@ -1,6 +1,8 @@
 jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'config'], function (globals, logger, instrumentor, config) {
     var oldTimeout = globals.setTimeout;
     var oldClearTimeout = globals.clearTimeout;
+    var oldClearInterval = globals.clearInterval;
+    var oldSetInterval = globals.setInterval;
 
     var asyncSensorStates = {};
 
@@ -87,7 +89,7 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
         instrumentor.endCall(function () {
             // Note: endCall is called before the real application starts.
             // However, it supports requirejs.
-            globals.setTimeout(function () {
+            oldTimeout(function () {
                 endCall = true;
                 changed();
             }, 10);
@@ -103,9 +105,6 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
      */
     (function () {
         var timeouts = {};
-        if (!globals.oldTimeout) {
-            globals.oldTimeout = globals.setTimeout;
-        }
         globals.setTimeout = function (fn, time) {
             var handle;
             var callback = function () {
@@ -117,15 +116,14 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
                     fn();
                 }
             };
-            handle = globals.oldTimeout(callback, time);
+            handle = oldTimeout(callback, time);
             timeouts[handle] = true;
             changed();
             return handle;
         };
 
-        globals.oldClearTimeout = globals.clearTimeout;
         globals.clearTimeout = function (code) {
-            globals.oldClearTimeout(code);
+            oldClearTimeout(code);
             delete timeouts[code];
             changed();
         };
@@ -143,7 +141,6 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
      */
     (function () {
         var intervals = {};
-        globals.oldSetInterval = globals.setInterval;
         globals.setInterval = function (fn, time) {
             var callback = function () {
                 if (typeof fn == 'string') {
@@ -152,15 +149,14 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
                     fn();
                 }
             };
-            var res = globals.oldSetInterval(callback, time);
+            var res = oldSetInterval(callback, time);
             intervals[res] = 'true';
             changed();
             return res;
         };
 
-        globals.oldClearInterval = globals.clearInterval;
         globals.clearInterval = function (code) {
-            globals.oldClearInterval(code);
+            oldClearInterval(code);
             delete intervals[code];
             changed();
         };
