@@ -5,6 +5,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         var owner = globals.opener || globals.parent;
         return owner && owner.jasmineui.loadUiServer;
     }
+
     var ownerLoadUiServer = getOwnerLoadUiServer();
 
     var analyzeMode = pd.specIndex === -1;
@@ -20,7 +21,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         for (i = 0; i < pd.analyzeScripts.length; i++) {
             instrumentor.beginScript(pd.analyzeScripts[i]);
         }
-        asyncSensor.afterAsync(function() {
+        asyncSensor.afterAsync(function () {
             if (ownerLoadUiServer) {
                 pd.specs = ownerLoadUiServer.createSpecs(pd.specs);
                 runNextSpec();
@@ -34,13 +35,12 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
 
     function runMode() {
         var remoteSpec = pd.specs[pd.specIndex];
-        var runner = testAdapter.initSpecRun(remoteSpec.id);
+        var runner = testAdapter.initSpecRun(remoteSpec);
         logSpecStatus(remoteSpec);
         addUtilScripts();
         instrumentor.beginScript(remoteSpec.testScript);
         asyncSensor.afterAsync(function () {
-            runner.execute(function (specResult) {
-                remoteSpec.results = specResult;
+            runner.execute(function () {
                 if (ownerLoadUiServer) {
                     ownerLoadUiServer.specFinished(remoteSpec);
                 }
@@ -109,11 +109,19 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         return null;
     }
 
+    var errorSpecCount = 0;
+
     function loadUi(url, callback) {
-        callback();
-        if (analyzeMode && pd.analyzeScripts) {
-            var specIds = testAdapter.listSpecIds();
+        var error;
+        try {
+            callback();
+        } catch (e) {
+            reportError(e);
+            error = e;
+        }
+        if (!error && analyzeMode) {
             var scriptUrl = scriptAccessor.currentScriptUrl();
+            var specIds = testAdapter.listSpecIds();
             var i, specId, remoteSpec;
             for (i = 0; i < specIds.length; i++) {
                 specId = specIds[i];
@@ -122,16 +130,41 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
                     pd.specs.push({
                         testScript:scriptUrl,
                         url:url,
-                        id:specId
+                        id:specId,
+                        results:[]
                     });
                 }
             }
         }
     }
 
+    globals.window.addEventListener('error', function (event) {
+        addErrorResult({
+            message:event.message
+        });
+    }, false);
+
+    function addErrorResult(errorResult) {
+        var remoteSpec = pd.specs[pd.specIndex];
+        if (remoteSpec) {
+            remoteSpec.results.push(errorResult);
+        } else {
+            pd.globalErrors.push(errorResult);
+        }
+
+    }
+
+    function reportError(e) {
+        addErrorResult({
+            message:e.toString(),
+            stack:e.stack
+        });
+    }
+
     globals.jasmineui.loadUi = loadUi;
 
     return {
-        loadUi:loadUi
+        loadUi:loadUi,
+        reportError:reportError
     }
 });

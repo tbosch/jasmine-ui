@@ -1,4 +1,4 @@
-jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'jasmine/utils', 'instrumentor'], function (persistentData, globals, jasmineUtils, instrumentor) {
+jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'instrumentor', 'loadUi'], function (persistentData, globals, instrumentor, loadUi) {
     var pd = persistentData();
 
     if (pd.specIndex === -1) {
@@ -21,8 +21,7 @@ jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'jasmine/uti
             try {
                 beforeLoadCallbacks[i]();
             } catch (e) {
-                // TODO
-                throw e;
+                loadUi.reportError(e);
             }
         }
     });

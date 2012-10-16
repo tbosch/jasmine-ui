@@ -58,17 +58,6 @@ jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentDat
         });
     });
 
-    var _execute = jasmine.Spec.prototype.execute;
-    jasmine.Spec.prototype.execute = function () {
-        var specId = jasmineUtils.specId(this);
-        var spec = jasmineUtils.findRemoteSpecLocally(specId);
-        if (remoteSpec.results) {
-            // If we had existing results from a reload situation, load them into the spec.
-            spec.results_ = jasmineUtils.nestedResultsFromJson(remoteSpec.results);
-        }
-        return _execute.apply(this, arguments);
-    };
-
     globals.waits = waits;
     globals.waitsFor = waitsFor;
     globals.runs = runs;

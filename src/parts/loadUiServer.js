@@ -3,18 +3,38 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     var firstLoadUiUrl;
     var testScripts = [];
 
+    var GLOBAL_ERROR_SPEC_ID = "global#errors";
+
+    var globalServerErrors = [];
+
+    globals.window.addEventListener("error", function (event) {
+        globalServerErrors.push({
+            message:event.message
+        });
+    }, false);
+
     start();
 
     function loadUi(url) {
+        testUrl(url);
         testScripts.push(scriptAccessor.currentScriptUrl());
         if (!firstLoadUiUrl) {
             firstLoadUiUrl = url;
         }
     }
 
+    function testUrl(url) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url, false);
+        xhr.send();
+        if (xhr.status != 200) {
+            throw new Error("Could not find url " + url);
+        }
+    }
+
     function start() {
         var pd = persistentData();
-        if (config.loadMode==='inplace') {
+        if (config.loadMode === 'inplace') {
             if (pd.specs) {
                 if (pd.specIndex === -1) {
                     setInplaceFilterMode(pd.specs);
@@ -30,8 +50,8 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     }
 
     function startInplaceMode() {
-        testAdapter.replaceSpecRunner(function () {
-            var firstUrl = prepareExecution();
+        testAdapter.replaceSpecRunner(function (runner) {
+            var firstUrl = prepareExecution(runner);
             persistentData().reporterUrl = globals.window.location.href;
             urlLoader.navigateWithReloadTo(globals.window, firstUrl, 0);
         });
@@ -40,25 +60,45 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     function setInplaceFilterMode(remoteSpecs) {
         var pd = persistentData();
         testAdapter.replaceSpecRunner(function (runner) {
-            var filteredSpecIds = runner.createSpecs(getSpecIds(remoteSpecs));
-            pd.specs = filterSpecs(pd.specs, filteredSpecIds);
-            // start the execution
-            pd.specIndex = 0;
-            urlLoader.navigateWithReloadTo(globals.window, remoteSpecs[0].url, 1);
+            pd.specs = createAndFilterSpecs(runner, remoteSpecs);
+            if (pd.specs.length) {
+                // start the execution
+                pd.specIndex = 0;
+                urlLoader.navigateWithReloadTo(globals.window, remoteSpecs[0].url, 1);
+            }
         });
+    }
 
+    function createAndFilterSpecs(runner, specs) {
+        var pd = persistentData();
+        var specIds = getSpecIds(specs);
+        // if we have errors during analyze mode, create the global error spec for reporting it.
+        if (pd.globalErrors.length) {
+            specIds.unshift(GLOBAL_ERROR_SPEC_ID);
+        }
+        var filteredSpecIds = runner.createSpecs(specIds);
+        if (pd.globalErrors.length) {
+            runner.reportSpecResults({
+                id:GLOBAL_ERROR_SPEC_ID,
+                results:pd.globalErrors
+            });
+        }
+        return filterSpecs(specs, filteredSpecIds);
     }
 
     function setInplaceResultsMode(remoteSpecs) {
-        var specIds = getSpecIds(remoteSpecs);
         testAdapter.replaceSpecRunner(function (runner) {
-            runner.createSpecs(specIds);
-            var i, spec;
-            for (i = 0; i < remoteSpecs.length; i++) {
-                spec = remoteSpecs[i];
-                runner.reportSpecResult(spec.id, spec.results);
-            }
+            var specs = createAndFilterSpecs(runner, remoteSpecs);
+            reportResults(runner, specs);
         });
+    }
+
+    function reportResults(runner, specs) {
+        var i, spec;
+        for (i = 0; i < specs.length; i++) {
+            spec = specs[i];
+            runner.reportSpecResults(spec);
+        }
     }
 
     function getSpecIds(remoteSpecs) {
@@ -73,7 +113,7 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     function filterSpecs(specs, specIds) {
         var i, spec;
         var specIdsHash = {};
-        for (i=0; i<specIds.length; i++) {
+        for (i = 0; i < specIds.length; i++) {
             specIdsHash[specIds[i]] = true;
         }
         for (i = specs.length - 1; i >= 0; i--) {
@@ -90,22 +130,21 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
 
         testAdapter.replaceSpecRunner(function (_runner) {
             // Now execute the ui specs
-            var firstUrl = prepareExecution();
-            openTestWindow(firstUrl);
-            persistentData.saveDataToWindow(remoteWindow);
+            var firstUrl = prepareExecution(_runner);
+            var win = openTestWindow(firstUrl);
+            persistentData.saveDataToWindow(win);
             // Now wait until the ui specs are finished and then call the finishedCallback
             runner = _runner;
         });
 
         globals.jasmineui.loadUiServer = {
-            createSpecs: function(specs) {
-                var filteredSpecIds = runner.createSpecs(getSpecIds(specs));
-                return filterSpecs(specs, filteredSpecIds);
+            createSpecs:function (specs) {
+                return createAndFilterSpecs(runner, specs);
             },
-            specFinished: function(spec) {
-                runner.reportSpecResult(spec.id, spec.results);
+            specFinished:function (spec) {
+                runner.reportSpecResults(spec);
             },
-            runFinished: function() {
+            runFinished:function () {
                 closeTestWindow();
             }
         };
@@ -130,7 +169,7 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
             document.body.appendChild(frameElement);
             remoteWindow = frames[windowId];
         } else {
-            throw new Error("Unknown load mode " + loadMode);
+            throw new Error("Unknown load mode " + config.loadMode);
         }
         return remoteWindow;
     }
@@ -146,11 +185,19 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         remoteWindow = null;
     }
 
-    function prepareExecution() {
+    function prepareExecution(runner) {
         var pd = persistentData();
+        pd.globalErrors = globalServerErrors;
+        if (globalServerErrors.length > 0) {
+            // abort the test execution!
+            createAndFilterSpecs(runner, []);
+            throw new Error("Ui tests not executed due to errors");
+        }
+
         pd.analyzeScripts = testScripts;
         pd.specs = [];
         pd.specIndex = -1;
+        pd.globalErrors = [];
         return firstLoadUiUrl;
     }
 

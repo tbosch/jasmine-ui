@@ -1,69 +1,6 @@
 jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
     var jasmine = jasmineOriginal.jasmine;
 
-    var ClonedNestedResults = function (data) {
-        for (var x in data) {
-            this[x] = data[x];
-        }
-        for (var i = 0; i < this.items_.length; i++) {
-            this.items_[i] = new ClonedExpectationResult(this.items_[i]);
-        }
-    };
-    ClonedNestedResults.prototype = jasmine.NestedResults.prototype;
-
-    var ClonedExpectationResult = function (data) {
-        for (var x in data) {
-            this[x] = data[x];
-        }
-    };
-    ClonedExpectationResult.prototype = jasmine.ExpectationResult.prototype;
-
-    function nestedResultsFromJson(data) {
-        return new ClonedNestedResults(data);
-    }
-
-    function makeExpectationResultSerializable() {
-        function copyPrimitive(obj) {
-            if (typeof obj === 'object') {
-                return obj.toString();
-            }
-            return obj;
-        }
-
-        function shallowCopyWithArray(obj) {
-            if (typeof obj === 'object') {
-                if (obj.slice) {
-                    // Array
-                    var res = [];
-                    for (var i = 0; i < obj.length; i++) {
-                        res.push(copyPrimitive(obj[i]));
-                    }
-                    obj = res;
-                }
-            }
-            return copyPrimitive(obj);
-        }
-
-        var _ExpectationResult = jasmine.ExpectationResult;
-        jasmine.ExpectationResult = function (data) {
-            _ExpectationResult.call(this, data);
-            // Convert the contained error to normal serializable objects to preserve
-            // the line number information!
-            if (this.trace) {
-                this.trace = { stack:this.trace.stack};
-            }
-            // The actual and expected value is only needed for displaying errors.
-            // So we just do a copy of the first object level. By this, the object
-            // stays serializable.
-            this.actual = shallowCopyWithArray(this.actual);
-            this.expected = shallowCopyWithArray(this.expected);
-            return this;
-        };
-        jasmine.ExpectationResult.prototype = _ExpectationResult.prototype;
-    }
-
-    makeExpectationResultSerializable();
-
     function createInfiniteWaitsBlock(spec) {
         var res = {
             env:spec.env,
@@ -81,6 +18,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
     function replaceSpecRunner(runCallback) {
         jasmineOriginal.jasmine.Runner.prototype.execute = function () {
             var self = this;
+
             function createSpecs(remoteSpecIds) {
                 var i;
                 var filteredIds = [];
@@ -93,9 +31,10 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
                 _execute.call(self);
                 return filteredIds;
             }
+
             runCallback({
-                createSpecs: createSpecs,
-                reportSpecResult: reportSpecResult
+                createSpecs:createSpecs,
+                reportSpecResults:reportSpecResults
             });
         };
     }
@@ -158,9 +97,8 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
             if (!env.specFilter(spec)) {
                 spec.skipped = true;
             } else {
-                spec.remoteSpecFinished = function (results) {
-                    spec.remoteSpecResults = results;
-                    spec.results_ = nestedResultsFromJson(results);
+                spec.remoteSpecFinished = function () {
+                    spec.remoteSpecFinishedCalled = true;
                     if (spec.deferredFinish) {
                         spec.deferredFinish();
                     }
@@ -172,7 +110,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
                     spec.deferredFinish = function () {
                         _finish.call(this, onComplete);
                     };
-                    if (spec.remoteSpecResults) {
+                    if (spec.remoteSpecFinishedCalled) {
                         spec.deferredFinish();
                     }
                 };
@@ -184,9 +122,26 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
     }
 
 
-    function reportSpecResult(specId, results) {
-        var spec = getOrCreateLocalSpec(specId);
-        spec.remoteSpecFinished(results);
+    function reportSpecResults(spec) {
+        var specId = spec.id;
+        var localSpec = getOrCreateLocalSpec(specId);
+        // always report one successful result, as otherwise the spec reporter jasmine-html
+        // would display the spec as filtered!
+        localSpec.addMatcherResult(new jasmine.ExpectationResult({
+            passed:true
+        }));
+        var i = 0;
+        var result;
+        for (i = 0; i < spec.results.length; i++) {
+            result = spec.results[i];
+            localSpec.addMatcherResult(new jasmine.ExpectationResult({
+                passed:false,
+                message:result.message,
+                trace:{stack:result.stack}
+            }));
+        }
+
+        localSpec.remoteSpecFinished();
     }
 
     function findRemoteSpecLocally(remoteSpecId) {
@@ -205,29 +160,47 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
         return spec;
     }
 
-    function initSpecRun(specId) {
-        // ignore describes that do not match to the given specId
-        var currentSuiteId = '';
-        globals.describe = function (name) {
-            var oldSuiteId = currentSuiteId;
-            if (currentSuiteId) {
-                currentSuiteId += '#';
-            }
-            currentSuiteId += name;
-            try {
-                if (specId.indexOf(currentSuiteId) === 0) {
-                    return jasmineOriginal.describe.apply(this, arguments);
+    function initSpecRun(spec) {
+        var specId = spec.id;
+        var results = spec.results;
+
+        function ignoreDescribesThatDoNotMatchTheSpecId() {
+            var currentSuiteId = '';
+            globals.describe = function (name) {
+                var oldSuiteId = currentSuiteId;
+                if (currentSuiteId) {
+                    currentSuiteId += '#';
                 }
-            } finally {
-                currentSuiteId = oldSuiteId;
-            }
-        };
+                currentSuiteId += name;
+                try {
+                    if (specId.indexOf(currentSuiteId) === 0) {
+                        return jasmineOriginal.describe.apply(this, arguments);
+                    }
+                } finally {
+                    currentSuiteId = oldSuiteId;
+                }
+            };
+        }
+
+        ignoreDescribesThatDoNotMatchTheSpecId();
+
         return {
-            execute:function (resultCallback) {
+            execute:function (finishedCallback) {
                 var spec = findRemoteSpecLocally(specId);
-                spec.execute(function () {
-                    resultCallback(spec.results_);
-                });
+                var specResults = spec.results_;
+                var _addResult = specResults.addResult;
+                specResults.addResult = function (result) {
+                    if (!result.passed()) {
+                        results.push({
+                            message:result.message,
+                            // Convert the contained error to normal serializable objects to preserve
+                            // the line number information!
+                            stack:result.trace ? result.trace.stack : null
+                        });
+                    }
+                    return _addResult.apply(this, arguments);
+                };
+                spec.execute(finishedCallback);
             }
         }
     }
@@ -259,14 +232,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
         return specId.split("#");
     }
 
-    function filterSpec(specId) {
-        var spec = findRemoteSpecLocally(specId);
-        var env = jasmineOriginal.jasmine.getEnv();
-        return env.specFilter(spec);
-    }
-
     return {
-        nestedResultsFromJson:nestedResultsFromJson,
         createInfiniteWaitsBlock:createInfiniteWaitsBlock,
         replaceSpecRunner:replaceSpecRunner,
         findRemoteSpecLocally:findRemoteSpecLocally,

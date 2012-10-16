@@ -3472,6 +3472,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         var owner = globals.opener || globals.parent;
         return owner && owner.jasmineui.loadUiServer;
     }
+
     var ownerLoadUiServer = getOwnerLoadUiServer();
 
     var analyzeMode = pd.specIndex === -1;
@@ -3487,7 +3488,7 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         for (i = 0; i < pd.analyzeScripts.length; i++) {
             instrumentor.beginScript(pd.analyzeScripts[i]);
         }
-        asyncSensor.afterAsync(function() {
+        asyncSensor.afterAsync(function () {
             if (ownerLoadUiServer) {
                 pd.specs = ownerLoadUiServer.createSpecs(pd.specs);
                 runNextSpec();
@@ -3501,13 +3502,12 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
 
     function runMode() {
         var remoteSpec = pd.specs[pd.specIndex];
-        var runner = testAdapter.initSpecRun(remoteSpec.id);
+        var runner = testAdapter.initSpecRun(remoteSpec);
         logSpecStatus(remoteSpec);
         addUtilScripts();
         instrumentor.beginScript(remoteSpec.testScript);
         asyncSensor.afterAsync(function () {
-            runner.execute(function (specResult) {
-                remoteSpec.results = specResult;
+            runner.execute(function () {
                 if (ownerLoadUiServer) {
                     ownerLoadUiServer.specFinished(remoteSpec);
                 }
@@ -3576,11 +3576,19 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
         return null;
     }
 
+    var errorSpecCount = 0;
+
     function loadUi(url, callback) {
-        callback();
-        if (analyzeMode && pd.analyzeScripts) {
-            var specIds = testAdapter.listSpecIds();
+        var error;
+        try {
+            callback();
+        } catch (e) {
+            reportError(e);
+            error = e;
+        }
+        if (!error && analyzeMode) {
             var scriptUrl = scriptAccessor.currentScriptUrl();
+            var specIds = testAdapter.listSpecIds();
             var i, specId, remoteSpec;
             for (i = 0; i < specIds.length; i++) {
                 specId = specIds[i];
@@ -3589,17 +3597,42 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
                     pd.specs.push({
                         testScript:scriptUrl,
                         url:url,
-                        id:specId
+                        id:specId,
+                        results:[]
                     });
                 }
             }
         }
     }
 
+    globals.window.addEventListener('error', function (event) {
+        addErrorResult({
+            message:event.message
+        });
+    }, false);
+
+    function addErrorResult(errorResult) {
+        var remoteSpec = pd.specs[pd.specIndex];
+        if (remoteSpec) {
+            remoteSpec.results.push(errorResult);
+        } else {
+            pd.globalErrors.push(errorResult);
+        }
+
+    }
+
+    function reportError(e) {
+        addErrorResult({
+            message:e.toString(),
+            stack:e.stack
+        });
+    }
+
     globals.jasmineui.loadUi = loadUi;
 
     return {
-        loadUi:loadUi
+        loadUi:loadUi,
+        reportError:reportError
     }
 });
 
@@ -3608,18 +3641,38 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     var firstLoadUiUrl;
     var testScripts = [];
 
+    var GLOBAL_ERROR_SPEC_ID = "global#errors";
+
+    var globalServerErrors = [];
+
+    globals.window.addEventListener("error", function (event) {
+        globalServerErrors.push({
+            message:event.message
+        });
+    }, false);
+
     start();
 
     function loadUi(url) {
+        testUrl(url);
         testScripts.push(scriptAccessor.currentScriptUrl());
         if (!firstLoadUiUrl) {
             firstLoadUiUrl = url;
         }
     }
 
+    function testUrl(url) {
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url, false);
+        xhr.send();
+        if (xhr.status != 200) {
+            throw new Error("Could not find url " + url);
+        }
+    }
+
     function start() {
         var pd = persistentData();
-        if (config.loadMode==='inplace') {
+        if (config.loadMode === 'inplace') {
             if (pd.specs) {
                 if (pd.specIndex === -1) {
                     setInplaceFilterMode(pd.specs);
@@ -3635,8 +3688,8 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     }
 
     function startInplaceMode() {
-        testAdapter.replaceSpecRunner(function () {
-            var firstUrl = prepareExecution();
+        testAdapter.replaceSpecRunner(function (runner) {
+            var firstUrl = prepareExecution(runner);
             persistentData().reporterUrl = globals.window.location.href;
             urlLoader.navigateWithReloadTo(globals.window, firstUrl, 0);
         });
@@ -3645,25 +3698,45 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     function setInplaceFilterMode(remoteSpecs) {
         var pd = persistentData();
         testAdapter.replaceSpecRunner(function (runner) {
-            var filteredSpecIds = runner.createSpecs(getSpecIds(remoteSpecs));
-            pd.specs = filterSpecs(pd.specs, filteredSpecIds);
-            // start the execution
-            pd.specIndex = 0;
-            urlLoader.navigateWithReloadTo(globals.window, remoteSpecs[0].url, 1);
+            pd.specs = createAndFilterSpecs(runner, remoteSpecs);
+            if (pd.specs.length) {
+                // start the execution
+                pd.specIndex = 0;
+                urlLoader.navigateWithReloadTo(globals.window, remoteSpecs[0].url, 1);
+            }
         });
+    }
 
+    function createAndFilterSpecs(runner, specs) {
+        var pd = persistentData();
+        var specIds = getSpecIds(specs);
+        // if we have errors during analyze mode, create the global error spec for reporting it.
+        if (pd.globalErrors.length) {
+            specIds.unshift(GLOBAL_ERROR_SPEC_ID);
+        }
+        var filteredSpecIds = runner.createSpecs(specIds);
+        if (pd.globalErrors.length) {
+            runner.reportSpecResults({
+                id:GLOBAL_ERROR_SPEC_ID,
+                results:pd.globalErrors
+            });
+        }
+        return filterSpecs(specs, filteredSpecIds);
     }
 
     function setInplaceResultsMode(remoteSpecs) {
-        var specIds = getSpecIds(remoteSpecs);
         testAdapter.replaceSpecRunner(function (runner) {
-            runner.createSpecs(specIds);
-            var i, spec;
-            for (i = 0; i < remoteSpecs.length; i++) {
-                spec = remoteSpecs[i];
-                runner.reportSpecResult(spec.id, spec.results);
-            }
+            var specs = createAndFilterSpecs(runner, remoteSpecs);
+            reportResults(runner, specs);
         });
+    }
+
+    function reportResults(runner, specs) {
+        var i, spec;
+        for (i = 0; i < specs.length; i++) {
+            spec = specs[i];
+            runner.reportSpecResults(spec);
+        }
     }
 
     function getSpecIds(remoteSpecs) {
@@ -3678,7 +3751,7 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     function filterSpecs(specs, specIds) {
         var i, spec;
         var specIdsHash = {};
-        for (i=0; i<specIds.length; i++) {
+        for (i = 0; i < specIds.length; i++) {
             specIdsHash[specIds[i]] = true;
         }
         for (i = specs.length - 1; i >= 0; i--) {
@@ -3695,22 +3768,21 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
 
         testAdapter.replaceSpecRunner(function (_runner) {
             // Now execute the ui specs
-            var firstUrl = prepareExecution();
-            openTestWindow(firstUrl);
-            persistentData.saveDataToWindow(remoteWindow);
+            var firstUrl = prepareExecution(_runner);
+            var win = openTestWindow(firstUrl);
+            persistentData.saveDataToWindow(win);
             // Now wait until the ui specs are finished and then call the finishedCallback
             runner = _runner;
         });
 
         globals.jasmineui.loadUiServer = {
-            createSpecs: function(specs) {
-                var filteredSpecIds = runner.createSpecs(getSpecIds(specs));
-                return filterSpecs(specs, filteredSpecIds);
+            createSpecs:function (specs) {
+                return createAndFilterSpecs(runner, specs);
             },
-            specFinished: function(spec) {
-                runner.reportSpecResult(spec.id, spec.results);
+            specFinished:function (spec) {
+                runner.reportSpecResults(spec);
             },
-            runFinished: function() {
+            runFinished:function () {
                 closeTestWindow();
             }
         };
@@ -3735,7 +3807,7 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
             document.body.appendChild(frameElement);
             remoteWindow = frames[windowId];
         } else {
-            throw new Error("Unknown load mode " + loadMode);
+            throw new Error("Unknown load mode " + config.loadMode);
         }
         return remoteWindow;
     }
@@ -3751,11 +3823,19 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         remoteWindow = null;
     }
 
-    function prepareExecution() {
+    function prepareExecution(runner) {
         var pd = persistentData();
+        pd.globalErrors = globalServerErrors;
+        if (globalServerErrors.length > 0) {
+            // abort the test execution!
+            createAndFilterSpecs(runner, []);
+            throw new Error("Ui tests not executed due to errors");
+        }
+
         pd.analyzeScripts = testScripts;
         pd.specs = [];
         pd.specIndex = -1;
+        pd.globalErrors = [];
         return firstLoadUiUrl;
     }
 
@@ -3765,7 +3845,7 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         loadUi:loadUi
     }
 });
-jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'jasmine/utils', 'instrumentor'], function (persistentData, globals, jasmineUtils, instrumentor) {
+jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'instrumentor', 'loadUi'], function (persistentData, globals, instrumentor, loadUi) {
     var pd = persistentData();
 
     if (pd.specIndex === -1) {
@@ -3788,8 +3868,7 @@ jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'jasmine/uti
             try {
                 beforeLoadCallbacks[i]();
             } catch (e) {
-                // TODO
-                throw e;
+                loadUi.reportError(e);
             }
         }
     });
@@ -3863,17 +3942,6 @@ jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentDat
         });
     });
 
-    var _execute = jasmine.Spec.prototype.execute;
-    jasmine.Spec.prototype.execute = function () {
-        var specId = jasmineUtils.specId(this);
-        var spec = jasmineUtils.findRemoteSpecLocally(specId);
-        if (remoteSpec.results) {
-            // If we had existing results from a reload situation, load them into the spec.
-            spec.results_ = jasmineUtils.nestedResultsFromJson(remoteSpec.results);
-        }
-        return _execute.apply(this, arguments);
-    };
-
     globals.waits = waits;
     globals.waitsFor = waitsFor;
     globals.runs = runs;
@@ -3905,69 +3973,6 @@ jasmineui.define('jasmine/original', ['globals'], function (globals) {
 jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
     var jasmine = jasmineOriginal.jasmine;
 
-    var ClonedNestedResults = function (data) {
-        for (var x in data) {
-            this[x] = data[x];
-        }
-        for (var i = 0; i < this.items_.length; i++) {
-            this.items_[i] = new ClonedExpectationResult(this.items_[i]);
-        }
-    };
-    ClonedNestedResults.prototype = jasmine.NestedResults.prototype;
-
-    var ClonedExpectationResult = function (data) {
-        for (var x in data) {
-            this[x] = data[x];
-        }
-    };
-    ClonedExpectationResult.prototype = jasmine.ExpectationResult.prototype;
-
-    function nestedResultsFromJson(data) {
-        return new ClonedNestedResults(data);
-    }
-
-    function makeExpectationResultSerializable() {
-        function copyPrimitive(obj) {
-            if (typeof obj === 'object') {
-                return obj.toString();
-            }
-            return obj;
-        }
-
-        function shallowCopyWithArray(obj) {
-            if (typeof obj === 'object') {
-                if (obj.slice) {
-                    // Array
-                    var res = [];
-                    for (var i = 0; i < obj.length; i++) {
-                        res.push(copyPrimitive(obj[i]));
-                    }
-                    obj = res;
-                }
-            }
-            return copyPrimitive(obj);
-        }
-
-        var _ExpectationResult = jasmine.ExpectationResult;
-        jasmine.ExpectationResult = function (data) {
-            _ExpectationResult.call(this, data);
-            // Convert the contained error to normal serializable objects to preserve
-            // the line number information!
-            if (this.trace) {
-                this.trace = { stack:this.trace.stack};
-            }
-            // The actual and expected value is only needed for displaying errors.
-            // So we just do a copy of the first object level. By this, the object
-            // stays serializable.
-            this.actual = shallowCopyWithArray(this.actual);
-            this.expected = shallowCopyWithArray(this.expected);
-            return this;
-        };
-        jasmine.ExpectationResult.prototype = _ExpectationResult.prototype;
-    }
-
-    makeExpectationResultSerializable();
-
     function createInfiniteWaitsBlock(spec) {
         var res = {
             env:spec.env,
@@ -3985,6 +3990,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
     function replaceSpecRunner(runCallback) {
         jasmineOriginal.jasmine.Runner.prototype.execute = function () {
             var self = this;
+
             function createSpecs(remoteSpecIds) {
                 var i;
                 var filteredIds = [];
@@ -3997,9 +4003,10 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
                 _execute.call(self);
                 return filteredIds;
             }
+
             runCallback({
-                createSpecs: createSpecs,
-                reportSpecResult: reportSpecResult
+                createSpecs:createSpecs,
+                reportSpecResults:reportSpecResults
             });
         };
     }
@@ -4062,9 +4069,8 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
             if (!env.specFilter(spec)) {
                 spec.skipped = true;
             } else {
-                spec.remoteSpecFinished = function (results) {
-                    spec.remoteSpecResults = results;
-                    spec.results_ = nestedResultsFromJson(results);
+                spec.remoteSpecFinished = function () {
+                    spec.remoteSpecFinishedCalled = true;
                     if (spec.deferredFinish) {
                         spec.deferredFinish();
                     }
@@ -4076,7 +4082,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
                     spec.deferredFinish = function () {
                         _finish.call(this, onComplete);
                     };
-                    if (spec.remoteSpecResults) {
+                    if (spec.remoteSpecFinishedCalled) {
                         spec.deferredFinish();
                     }
                 };
@@ -4088,9 +4094,26 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
     }
 
 
-    function reportSpecResult(specId, results) {
-        var spec = getOrCreateLocalSpec(specId);
-        spec.remoteSpecFinished(results);
+    function reportSpecResults(spec) {
+        var specId = spec.id;
+        var localSpec = getOrCreateLocalSpec(specId);
+        // always report one successful result, as otherwise the spec reporter jasmine-html
+        // would display the spec as filtered!
+        localSpec.addMatcherResult(new jasmine.ExpectationResult({
+            passed:true
+        }));
+        var i = 0;
+        var result;
+        for (i = 0; i < spec.results.length; i++) {
+            result = spec.results[i];
+            localSpec.addMatcherResult(new jasmine.ExpectationResult({
+                passed:false,
+                message:result.message,
+                trace:{stack:result.stack}
+            }));
+        }
+
+        localSpec.remoteSpecFinished();
     }
 
     function findRemoteSpecLocally(remoteSpecId) {
@@ -4109,29 +4132,47 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
         return spec;
     }
 
-    function initSpecRun(specId) {
-        // ignore describes that do not match to the given specId
-        var currentSuiteId = '';
-        globals.describe = function (name) {
-            var oldSuiteId = currentSuiteId;
-            if (currentSuiteId) {
-                currentSuiteId += '#';
-            }
-            currentSuiteId += name;
-            try {
-                if (specId.indexOf(currentSuiteId) === 0) {
-                    return jasmineOriginal.describe.apply(this, arguments);
+    function initSpecRun(spec) {
+        var specId = spec.id;
+        var results = spec.results;
+
+        function ignoreDescribesThatDoNotMatchTheSpecId() {
+            var currentSuiteId = '';
+            globals.describe = function (name) {
+                var oldSuiteId = currentSuiteId;
+                if (currentSuiteId) {
+                    currentSuiteId += '#';
                 }
-            } finally {
-                currentSuiteId = oldSuiteId;
-            }
-        };
+                currentSuiteId += name;
+                try {
+                    if (specId.indexOf(currentSuiteId) === 0) {
+                        return jasmineOriginal.describe.apply(this, arguments);
+                    }
+                } finally {
+                    currentSuiteId = oldSuiteId;
+                }
+            };
+        }
+
+        ignoreDescribesThatDoNotMatchTheSpecId();
+
         return {
-            execute:function (resultCallback) {
+            execute:function (finishedCallback) {
                 var spec = findRemoteSpecLocally(specId);
-                spec.execute(function () {
-                    resultCallback(spec.results_);
-                });
+                var specResults = spec.results_;
+                var _addResult = specResults.addResult;
+                specResults.addResult = function (result) {
+                    if (!result.passed()) {
+                        results.push({
+                            message:result.message,
+                            // Convert the contained error to normal serializable objects to preserve
+                            // the line number information!
+                            stack:result.trace ? result.trace.stack : null
+                        });
+                    }
+                    return _addResult.apply(this, arguments);
+                };
+                spec.execute(finishedCallback);
             }
         }
     }
@@ -4163,14 +4204,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
         return specId.split("#");
     }
 
-    function filterSpec(specId) {
-        var spec = findRemoteSpecLocally(specId);
-        var env = jasmineOriginal.jasmine.getEnv();
-        return env.specFilter(spec);
-    }
-
     return {
-        nestedResultsFromJson:nestedResultsFromJson,
         createInfiniteWaitsBlock:createInfiniteWaitsBlock,
         replaceSpecRunner:replaceSpecRunner,
         findRemoteSpecLocally:findRemoteSpecLocally,
