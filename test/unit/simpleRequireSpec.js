@@ -4,7 +4,7 @@ describe('simpleRequire', function () {
         jasmineui.require.cache = {};
         oldModuleDefs = jasmineui.define.moduleDefs;
         jasmineui.define.moduleDefs = [];
-        document.documentElement.removeAttribute("jasmineuiClient");
+        document.documentElement.removeAttribute("data-jasmineui");
     });
     afterEach(function () {
         jasmineui.define.moduleDefs = oldModuleDefs;
@@ -54,45 +54,6 @@ describe('simpleRequire', function () {
             var cache = {someModule:someValue};
             expect(someModuleFactory(cache)).toBe(someValue);
         });
-    });
-
-    describe('conditional modules', function () {
-        it("client should check jasmineuiClient attribute on html element", function () {
-            var clientModule = {};
-            var serverModule = {};
-            document.documentElement.setAttribute("jasmineuiClient", "true");
-            jasmineui.clientMode = true;
-            jasmineui.define('client?someModule', clientModule);
-            jasmineui.define('server?someModule', serverModule);
-            var someModule;
-            jasmineui.require(['someModule'], function (_someModule) {
-                someModule = _someModule;
-            });
-            expect(someModule).toBe(clientModule);
-
-        });
-        it("server should be negated client", function () {
-            var clientModule = {};
-            var serverModule = {};
-            jasmineui.clientMode = false;
-            jasmineui.define('client?someModule', clientModule);
-            jasmineui.define('server?someModule', serverModule);
-            var someModule;
-            jasmineui.require(['someModule'], function (_someModule) {
-                someModule = _someModule;
-            });
-            expect(someModule).toBe(serverModule);
-        });
-
-        it("should throw an error if the conditional is not known", function () {
-            try {
-                jasmineui.define('someUnknownConditional?someModule');
-                throw new Error("Expected an error");
-            } catch (e) {
-                expect(e.message).toEqual('Unknown conditional: someUnknownConditional');
-            }
-        });
-
     });
 
     describe('require', function () {
@@ -147,14 +108,21 @@ describe('simpleRequire', function () {
             jasmineui.require(['someModule2']);
             expect(actualValue).toBe(someValue);
         });
-
-        it('should instantiate all defined modules and return them', function () {
-            var someValue = {};
-            jasmineui.define('someModule', function () {
-                return someValue;
+    });
+    describe('require.all', function() {
+        it('should instantiate all modules matching the regex and return them', function () {
+            var moduleA = 'a';
+            var moduleB = 'b';
+            jasmineui.define('a', function () {
+                return moduleA;
+            });
+            jasmineui.define('b', function () {
+                return moduleB;
             });
             var allModules;
-            jasmineui.require.all(function (modules) {
+            jasmineui.require.all(function(name) {
+                return name === 'a';
+            }, function (modules) {
                 allModules = modules;
             });
             var moduleCount = 0;
@@ -162,7 +130,50 @@ describe('simpleRequire', function () {
                 moduleCount++;
             }
             expect(moduleCount).toBe(1);
-            expect(allModules.someModule).toBe(someValue);
+            expect(allModules.a).toBe(moduleA);
+        });
+    });
+    describe('require.default', function() {
+        var moduleA = 'a';
+        var moduleB = 'b';
+        var moduleC = 'c';
+        var allModules;
+        beforeEach(function() {
+            jasmineui.define('a', function () {
+                return moduleA;
+            });
+            jasmineui.define('client/b', function () {
+                return moduleB;
+            });
+            jasmineui.define('server/c', function () {
+                return moduleC;
+            });
+        });
+        it('should ignore server modules in the client', function() {
+            document.documentElement.setAttribute("data-jasmineui", "true");
+            jasmineui.require.default(function (modules) {
+                allModules = modules;
+            });
+            var prop;
+            var count = 0;
+            for (prop in allModules) {
+                count++;
+            }
+            expect(count).toBe(2);
+            expect(allModules['client/b']).toBe(moduleB);
+        });
+        it('should ignore client modules in the server', function() {
+            document.documentElement.setAttribute("data-jasmineui", "");
+            jasmineui.require.default(function (modules) {
+                allModules = modules;
+            });
+            var prop;
+            var count = 0;
+            for (prop in allModules) {
+                count++;
+            }
+            expect(count).toBe(2);
+            expect(allModules['server/c']).toBe(moduleC);
         });
     });
 });

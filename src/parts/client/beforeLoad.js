@@ -1,4 +1,4 @@
-jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'instrumentor', 'loadUi'], function (persistentData, globals, instrumentor, loadUi) {
+jasmineui.define('client/beforeLoad', ['persistentData', 'globals', 'instrumentor', 'client/loadUi'], function (persistentData, globals, instrumentor, loadUi) {
     var pd = persistentData();
 
     if (pd.specIndex === -1) {

@@ -21,6 +21,12 @@ jasmineui.require(['factory!logger'], function (loggerFactory) {
             expect(console.log).toHaveBeenCalledWith("hello");
         });
 
+        it('should log multiple arguments to the console if enabled', function () {
+            config.logEnabled = true;
+            logger.log("hello", 2);
+            expect(console.log).toHaveBeenCalledWith("hello", 2);
+        });
+
         it('should not log to the console if disabled', function () {
             config.logEnabled = false;
             logger.log("hello");

@@ -89,7 +89,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                 it('should add jasmineuiClient attribute to the html tag', function () {
                     xhr.responseText = '<html>';
                     execLoader();
-                    expect(doc.write).toHaveBeenCalledWith('<html jasmineuiClient="true">');
+                    expect(doc.write).toHaveBeenCalledWith('<html data-jasmineui="true">');
                 });
 
                 it('should add a script at the end of the body', function () {

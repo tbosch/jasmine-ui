@@ -16,18 +16,6 @@
             value = deps;
             deps = [];
         }
-        var conditionalSeparator = name.indexOf('?');
-        if (conditionalSeparator !== -1) {
-            var conditionName = name.substring(0, conditionalSeparator);
-            var conditional = define.conditionals[conditionName];
-            if (!conditional) {
-                throw new Error("Unknown conditional: "+conditionName);
-            }
-            if (!conditional()) {
-                return;
-            }
-            name = name.substring(conditionalSeparator + 1);
-        }
         var def = {
             name:name,
             deps:deps,
@@ -35,7 +23,7 @@
         };
         for (var i = 0; i < define.moduleDefs.length; i++) {
             var mod = define.moduleDefs[i];
-            if (mod.name == name) {
+            if (mod.name === name) {
                 define.moduleDefs[i] = def;
                 return;
             }
@@ -127,11 +115,31 @@
         return resolvedDeps;
     };
 
-    require.all = function(callback) {
-        for (var i = 0; i < define.moduleDefs.length; i++) {
-            require([define.moduleDefs[i].name]);
+    require.all = function(filter, callback) {
+        var i,def;
+        var modules = {};
+        for (i = 0; i < define.moduleDefs.length; i++) {
+            def = define.moduleDefs[i];
+            if (filter(def.name)) {
+                require([def.name], function(module) {
+                    modules[def.name] = module;
+                });
+            }
         }
-        callback && callback(require.cache);
+        callback && callback(modules);
+    };
+
+    var CLIENT_RE = /client\//;
+    var SERVER_RE = /server\//;
+    require.default = function(callback) {
+        var isClient = document.documentElement.dataset.jasmineui;
+        require.all(function(name) {
+            if (isClient) {
+                return !name.match(SERVER_RE);
+            } else {
+                return !name.match(CLIENT_RE);
+            }
+        }, callback);
     };
 
     require.cache = {};

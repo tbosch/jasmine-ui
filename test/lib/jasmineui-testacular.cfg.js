@@ -1,8 +1,8 @@
 jasmineuiConfig = {
     loadMode:'popup',
-    closeTestWindow:true,
+    closeTestWindow:false,
     scripts:[
-        {position:'begin', url:'/jasmine-ui/test/ui/inject/sampleBeginScript.js'},
-        {position:'end', url:'/jasmine-ui/test/ui/inject/sampleEndScript.js'}
+        {position:'begin', url:'/test/ui/inject/sampleBeginScript.js'},
+        {position:'end', url:'/test/ui/inject/sampleEndScript.js'}
     ]
 };

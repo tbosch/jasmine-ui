@@ -1,3 +1,0 @@
-(function () {
-    jasmineui.require.all();
-})();

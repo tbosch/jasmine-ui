@@ -1,4 +1,4 @@
-jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasmine/original'], function (config, asyncSensor, jasmineOriginal) {
+jasmineui.define('jasmine/client/waitsForAsync', ['config', 'client/asyncSensor', 'jasmine/original'], function (config, asyncSensor, jasmineOriginal) {
     /**
      * Waits for the end of all asynchronous actions.
      */

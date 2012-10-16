@@ -1,4 +1,4 @@
-jasmineui.define('client?simulateEvent', ['globals'], function (globals) {
+jasmineui.define('client/simulateEvent', ['globals'], function (globals) {
     /**
      * Functions to simulate events.
      * Based upon https://github.com/jquery/jquery-ui/blob/master/tests/jquery.simulate.js

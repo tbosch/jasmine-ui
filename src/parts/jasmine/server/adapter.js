@@ -1,17 +1,5 @@
-jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
+jasmineui.define('server/testAdapter', ['jasmine/original', 'globals'], function (jasmineOriginal) {
     var jasmine = jasmineOriginal.jasmine;
-
-    function createInfiniteWaitsBlock(spec) {
-        var res = {
-            env:spec.env,
-            spec:spec,
-            execute:function (onComplete) {
-                res.onComplete = onComplete;
-            }
-        };
-        spec.addToQueue(res);
-        return res;
-    }
 
     var _execute = jasmineOriginal.jasmine.Runner.prototype.execute;
 
@@ -144,102 +132,12 @@ jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jas
         localSpec.remoteSpecFinished();
     }
 
-    function findRemoteSpecLocally(remoteSpecId) {
-        var spec;
-        var specs = jasmineOriginal.jasmine.getEnv().currentRunner().specs();
-        for (var i = 0; i < specs.length; i++) {
-            var currentSpecId = specId(specs[i]);
-            if (currentSpecId == remoteSpecId) {
-                spec = specs[i];
-                break;
-            }
-        }
-        if (!spec) {
-            throw new Error("could not find spec with id " + remoteSpecId);
-        }
-        return spec;
-    }
-
-    function initSpecRun(spec) {
-        var specId = spec.id;
-        var results = spec.results;
-
-        function ignoreDescribesThatDoNotMatchTheSpecId() {
-            var currentSuiteId = '';
-            globals.describe = function (name) {
-                var oldSuiteId = currentSuiteId;
-                if (currentSuiteId) {
-                    currentSuiteId += '#';
-                }
-                currentSuiteId += name;
-                try {
-                    if (specId.indexOf(currentSuiteId) === 0) {
-                        return jasmineOriginal.describe.apply(this, arguments);
-                    }
-                } finally {
-                    currentSuiteId = oldSuiteId;
-                }
-            };
-        }
-
-        ignoreDescribesThatDoNotMatchTheSpecId();
-
-        return {
-            execute:function (finishedCallback) {
-                var spec = findRemoteSpecLocally(specId);
-                var specResults = spec.results_;
-                var _addResult = specResults.addResult;
-                specResults.addResult = function (result) {
-                    if (!result.passed()) {
-                        results.push({
-                            message:result.message,
-                            // Convert the contained error to normal serializable objects to preserve
-                            // the line number information!
-                            stack:result.trace ? result.trace.stack : null
-                        });
-                    }
-                    return _addResult.apply(this, arguments);
-                };
-                spec.execute(finishedCallback);
-            }
-        }
-    }
-
-    function listSpecIds() {
-        var i;
-        var res = [];
-        var localSpecs = jasmineOriginal.jasmine.getEnv().currentRunner().specs();
-        for (i = 0; i < localSpecs.length; i++) {
-            res.push(specId(localSpecs[i]));
-        }
-        return res;
-    }
-
-    function specId(spec) {
-        return suiteId(spec.suite) + "#" + spec.description;
-    }
-
-    function suiteId(suite) {
-        var res = [];
-        while (suite) {
-            res.unshift(suite.description);
-            suite = suite.parentSuite;
-        }
-        return res.join("#");
-    }
-
     function splitSpecId(specId) {
         return specId.split("#");
     }
 
     return {
-        createInfiniteWaitsBlock:createInfiniteWaitsBlock,
-        replaceSpecRunner:replaceSpecRunner,
-        findRemoteSpecLocally:findRemoteSpecLocally,
-        initSpecRun:initSpecRun,
-        listSpecIds:listSpecIds,
-        specId:specId,
-        suiteId:suiteId
+        replaceSpecRunner:replaceSpecRunner
     }
 
 });

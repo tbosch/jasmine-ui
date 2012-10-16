@@ -1,9 +1,14 @@
-jasmineui.require(['factory!simulateEvent'], function (simulateFactory) {
+jasmineui.require(['factory!client/simulateEvent'], function (simulateFactory) {
 
     describe("simulateEvent", function () {
-        var simulate, el;
+        var simulate, el, globals;
         beforeEach(function () {
-            simulate = simulateFactory();
+            globals = {
+                jasmineui: {}
+            };
+            simulate = simulateFactory({
+                globals: globals
+            });
         });
         afterEach(function () {
             el.parentNode.removeChild(el);

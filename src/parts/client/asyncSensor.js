@@ -1,4 +1,4 @@
-jasmineui.define('client?asyncSensor', ['globals', 'logger', 'instrumentor', 'config'], function (globals, logger, instrumentor, config) {
+jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'config'], function (globals, logger, instrumentor, config) {
     var oldTimeout = globals.setTimeout;
     var oldClearTimeout = globals.clearTimeout;
 

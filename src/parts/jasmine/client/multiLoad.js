@@ -1,4 +1,4 @@
-jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentData', 'jasmine/waitsForAsync', 'globals', 'jasmine/utils'], function (jasmineOriginal, persistentData, waitsForAsync, globals, jasmineUtils) {
+jasmineui.define('client/jasmine/multiLoad', ['jasmine/original', 'persistentData', 'jasmine/client/waitsForAsync', 'globals'], function (jasmineOriginal, persistentData, waitsForAsync, globals) {
     var pd = persistentData();
 
     if (pd.specIndex === -1) {
@@ -24,7 +24,7 @@ jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentDat
         if (skipRunsCounter === 0) {
             waitsForAsync.runs(function () {
                 if (reloadHappened) {
-                    jasmineUtils.createInfiniteWaitsBlock(jasmineOriginal.jasmine.getEnv().currentSpec);
+                    createInfiniteWaitsBlock(jasmineOriginal.jasmine.getEnv().currentSpec);
                 } else {
                     callback();
                     // save the current state of the specs. Needed for specs that contain multiple reloads.
@@ -53,10 +53,22 @@ jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentDat
     jasmineOriginal.afterEach(function () {
         waitsForAsync.runs(function () {
             if (reloadHappened) {
-                jasmineUtils.createInfiniteWaitsBlock(jasmineOriginal.jasmine.getEnv().currentSpec);
+                createInfiniteWaitsBlock(jasmineOriginal.jasmine.getEnv().currentSpec);
             }
         });
     });
+
+    function createInfiniteWaitsBlock(spec) {
+        var res = {
+            env:spec.env,
+            spec:spec,
+            execute:function (onComplete) {
+                res.onComplete = onComplete;
+            }
+        };
+        spec.addToQueue(res);
+        return res;
+    }
 
     globals.waits = waits;
     globals.waitsFor = waitsFor;

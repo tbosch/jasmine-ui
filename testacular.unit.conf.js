@@ -9,16 +9,18 @@
 // base path, that will be used to resolve files and exclude
 basePath = '.';
 
-proxies = {'/': 'http://localhost:9000/'};
-
 // list of files / patterns to load in the browser
 files = [
-  // JASMINE,
-  './test/lib/jasmineui-testacular.cfg.js',
-  'http://localhost:9876/jasmine-ui.js',
-  JASMINE_ADAPTER,
-  'test/ui/*.js'
-    // TODO test/unit/*.js
+    JASMINE,
+    JASMINE_ADAPTER,
+    'src/parts/simpleRequire.js',
+    'src/parts/*.js',
+    'src/parts/client/*.js',
+    'src/parts/server/*.js',
+    'src/parts/jasmine/*.js',
+    'src/parts/jasmine/client/*.js',
+    'src/parts/jasmine/server/*.js',
+    'test/unit/*.js'
 ];
 
 // list of files to exclude

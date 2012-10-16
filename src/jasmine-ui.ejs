@@ -14,25 +14,28 @@ if (!window.jasmine) {
 }
 <%= include parts/simpleRequire.js %>
 <%= include parts/config.js %>
-<%= include parts/instrumentor.js %>
 <%= include parts/urlLoader.js %>
 <%= include parts/scriptAccessor.js %>
 <%= include parts/logger.js %>
 <%= include parts/globals.js %>
 <%= include parts/persistentData.js %>
-<%= include parts/asyncSensor.js %>
-<%= include parts/simulateEvent.js %>
-<%= include parts/loadUiClient.js %>
-<%= include parts/loadUiServer.js %>
-<%= include parts/beforeLoad.js %>
+<%= include parts/instrumentor.js %>
+<%= include parts/client/asyncSensor.js %>
+<%= include parts/client/simulateEvent.js %>
+<%= include parts/client/loadUi.js %>
+<%= include parts/client/beforeLoad.js %>
+<%= include parts/server/loadUi.js %>
 
-/* JasmineAdapter */
-<%= include parts/jasmine/multiLoad.js %>
+/* Jasmine adapter */
 <%= include parts/jasmine/original.js %>
-<%= include parts/jasmine/utils.js %>
-<%= include parts/jasmine/waitsForAsync.js %>
-<%= include parts/jasmine/adapter.js %>
+<%= include parts/jasmine/client/multiLoad.js %>
+<%= include parts/jasmine/client/waitsForAsync.js %>
+<%= include parts/jasmine/client/adapter.js %>
+<%= include parts/jasmine/server/adapter.js %>
 
 /* Main */
-<%= include parts/main.js %>
+(function () {
+    jasmineui.require.default();
+})();
+
 
