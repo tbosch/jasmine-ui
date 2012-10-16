@@ -16,7 +16,7 @@ jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
                 state++;
             });
         });
-        beforeLoad(function () {
+        jasmineui.beforeLoad(function () {
             expect(state).toBe(0);
             state++;
             expect(document.readyState).not.toBe("complete");
@@ -32,12 +32,12 @@ jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
     });
 
     var counter = 0;
-    beforeLoad(function() {
+    jasmineui.beforeLoad(function() {
         counter++;
     });
     describe('multiple beforeLoads', function() {
         describe('suite1', function() {
-            beforeLoad(function() {
+            jasmineui.beforeLoad(function() {
                 counter++;
             });
             it("should increment the counter ignoring other beforeLoads", function() {
@@ -45,7 +45,7 @@ jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
             });
         });
         describe('suite2', function() {
-            beforeLoad(function() {
+            jasmineui.beforeLoad(function() {
                 counter++;
             });
             it("should increment the counter ignoring other beforeLoads", function() {
@@ -57,7 +57,7 @@ jasmineui.loadUi('/test/ui/jasmine-uiSpec.html', function () {
 
     describe('beforeLoad and end scripts', function() {
         var stateInBeforeLoad;
-        beforeLoad(function() {
+        jasmineui.beforeLoad(function() {
             stateInBeforeLoad = window.sampleEndScript;
         });
         it('should call beforeLoad after end scripts', function() {

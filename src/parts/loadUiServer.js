@@ -39,8 +39,8 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
 
     function setInplaceFilterMode(remoteSpecs) {
         var pd = persistentData();
-        testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
-            var filteredSpecIds = specsCreatedCallback(getSpecIds(remoteSpecs));
+        testAdapter.replaceSpecRunner(function (runner) {
+            var filteredSpecIds = runner.createSpecs(getSpecIds(remoteSpecs));
             pd.specs = filterSpecs(pd.specs, filteredSpecIds);
             // start the execution
             pd.specIndex = 0;
@@ -51,12 +51,12 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
 
     function setInplaceResultsMode(remoteSpecs) {
         var specIds = getSpecIds(remoteSpecs);
-        testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
-            specsCreatedCallback(specIds);
+        testAdapter.replaceSpecRunner(function (runner) {
+            runner.createSpecs(specIds);
             var i, spec;
             for (i = 0; i < remoteSpecs.length; i++) {
                 spec = remoteSpecs[i];
-                testAdapter.reportSpecResult(spec.id, spec.results);
+                runner.reportSpecResult(spec.id, spec.results);
             }
         });
     }
@@ -86,24 +86,24 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     }
 
     function setPopupMode() {
-        var specsCreatedCallback;
+        var runner;
 
-        testAdapter.replaceSpecRunner(function (_specsCreatedCallback) {
+        testAdapter.replaceSpecRunner(function (_runner) {
             // Now execute the ui specs
             var firstUrl = prepareExecution();
             openTestWindow(firstUrl);
             persistentData.saveDataToWindow(remoteWindow);
             // Now wait until the ui specs are finished and then call the finishedCallback
-            specsCreatedCallback = _specsCreatedCallback;
+            runner = _runner;
         });
 
         globals.jasmineui.loadUiServer = {
             createSpecs: function(specs) {
-                var filteredSpecIds = specsCreatedCallback(getSpecIds(specs));
+                var filteredSpecIds = runner.createSpecs(getSpecIds(specs));
                 return filterSpecs(specs, filteredSpecIds);
             },
             specFinished: function(spec) {
-                testAdapter.reportSpecResult(spec.id, spec.results);
+                runner.reportSpecResult(spec.id, spec.results);
             },
             runFinished: function() {
                 closeTestWindow();

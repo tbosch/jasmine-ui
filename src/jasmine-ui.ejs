@@ -24,9 +24,9 @@ if (!window.jasmine) {
 <%= include parts/simulateEvent.js %>
 <%= include parts/loadUiClient.js %>
 <%= include parts/loadUiServer.js %>
+<%= include parts/beforeLoad.js %>
 
 /* JasmineAdapter */
-<%= include parts/jasmine/beforeLoad.js %>
 <%= include parts/jasmine/multiLoad.js %>
 <%= include parts/jasmine/original.js %>
 <%= include parts/jasmine/utils.js %>

@@ -3,7 +3,7 @@ jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasm
      * Waits for the end of all asynchronous actions.
      */
     function waitsForAsync() {
-        var asyncProcessing = true;;
+        var asyncProcessing = true;
         jasmineOriginal.runs(function () {
             asyncSensor.afterAsync(function() {
                 asyncProcessing = false;

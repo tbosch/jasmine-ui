@@ -98,7 +98,7 @@ This includes all `beforeEach` and `afterEach` callbacks that are defined in thi
 
 See `test/ui/baseFunctionalitySpec.js` for an example.
 
-#### `beforeLoad(callback)`
+#### `jasmineui.beforeLoad(callback)`
 Creates a callback that will be executed right before the `DOMContentLoaded` event. By this,
 all your application javascript files have been loaded and can be changed, before your application starts.
 This is very nice e.g. for mocking backend calls, ...

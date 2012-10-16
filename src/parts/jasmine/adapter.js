@@ -2,10 +2,9 @@ jasmineui.define('testAdapter', ['jasmine/utils'], function (jasmineUtils) {
     return {
         // client
         listSpecIds:jasmineUtils.listSpecIds,
-        executeSpec:jasmineUtils.executeSpec,
+        initSpecRun:jasmineUtils.initSpecRun,
 
         // server
-        reportSpecResult:jasmineUtils.reportSpecResult,
         replaceSpecRunner:jasmineUtils.replaceSpecRunner
     };
 });

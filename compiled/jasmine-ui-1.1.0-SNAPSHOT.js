@@ -3501,11 +3501,12 @@ jasmineui.define('client?loadUi', ['persistentData', 'globals', 'testAdapter', '
 
     function runMode() {
         var remoteSpec = pd.specs[pd.specIndex];
+        var runner = testAdapter.initSpecRun(remoteSpec.id);
         logSpecStatus(remoteSpec);
         addUtilScripts();
         instrumentor.beginScript(remoteSpec.testScript);
         asyncSensor.afterAsync(function () {
-            testAdapter.executeSpec(remoteSpec.id, function (specResult) {
+            runner.execute(function (specResult) {
                 remoteSpec.results = specResult;
                 if (ownerLoadUiServer) {
                     ownerLoadUiServer.specFinished(remoteSpec);
@@ -3643,8 +3644,8 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
 
     function setInplaceFilterMode(remoteSpecs) {
         var pd = persistentData();
-        testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
-            var filteredSpecIds = specsCreatedCallback(getSpecIds(remoteSpecs));
+        testAdapter.replaceSpecRunner(function (runner) {
+            var filteredSpecIds = runner.createSpecs(getSpecIds(remoteSpecs));
             pd.specs = filterSpecs(pd.specs, filteredSpecIds);
             // start the execution
             pd.specIndex = 0;
@@ -3655,12 +3656,12 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
 
     function setInplaceResultsMode(remoteSpecs) {
         var specIds = getSpecIds(remoteSpecs);
-        testAdapter.replaceSpecRunner(function (specsCreatedCallback) {
-            specsCreatedCallback(specIds);
+        testAdapter.replaceSpecRunner(function (runner) {
+            runner.createSpecs(specIds);
             var i, spec;
             for (i = 0; i < remoteSpecs.length; i++) {
                 spec = remoteSpecs[i];
-                testAdapter.reportSpecResult(spec.id, spec.results);
+                runner.reportSpecResult(spec.id, spec.results);
             }
         });
     }
@@ -3690,24 +3691,24 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
     }
 
     function setPopupMode() {
-        var specsCreatedCallback;
+        var runner;
 
-        testAdapter.replaceSpecRunner(function (_specsCreatedCallback) {
+        testAdapter.replaceSpecRunner(function (_runner) {
             // Now execute the ui specs
             var firstUrl = prepareExecution();
             openTestWindow(firstUrl);
             persistentData.saveDataToWindow(remoteWindow);
             // Now wait until the ui specs are finished and then call the finishedCallback
-            specsCreatedCallback = _specsCreatedCallback;
+            runner = _runner;
         });
 
         globals.jasmineui.loadUiServer = {
             createSpecs: function(specs) {
-                var filteredSpecIds = specsCreatedCallback(getSpecIds(specs));
+                var filteredSpecIds = runner.createSpecs(getSpecIds(specs));
                 return filterSpecs(specs, filteredSpecIds);
             },
             specFinished: function(spec) {
-                testAdapter.reportSpecResult(spec.id, spec.results);
+                runner.reportSpecResult(spec.id, spec.results);
             },
             runFinished: function() {
                 closeTestWindow();
@@ -3764,13 +3765,11 @@ jasmineui.define('server?loadUi', ['config', 'persistentData', 'scriptAccessor',
         loadUi:loadUi
     }
 });
-
-/* JasmineAdapter */
-jasmineui.define('client?jasmine/beforeLoad', ['jasmine/original', 'persistentData', 'globals', 'jasmine/utils', 'instrumentor'], function (jasmineOriginal, persistentData, globals, jasmineUtils, instrumentor) {
+jasmineui.define('client?beforeLoad', ['persistentData', 'globals', 'jasmine/utils', 'instrumentor'], function (persistentData, globals, jasmineUtils, instrumentor) {
     var pd = persistentData();
 
     if (pd.specIndex === -1) {
-        globals.beforeLoad = function () {
+        globals.jasmineui.beforeLoad = function () {
             // Noop
         };
         return;
@@ -3780,38 +3779,30 @@ jasmineui.define('client?jasmine/beforeLoad', ['jasmine/original', 'persistentDa
     var beforeLoadCallbacks = [];
 
     function beforeLoad(callback) {
-        // Note: remoteSpec.id is not set yet for the first spec.
-        var suiteId;
-        var currentSuite = jasmine.getEnv().currentSuite;
-        if (currentSuite) {
-            suiteId = jasmineUtils.suiteId(currentSuite);
-        }
-        beforeLoadCallbacks.push({suiteId:suiteId, callback:callback});
+        beforeLoadCallbacks.push(callback);
     }
 
     instrumentor.endCall(function () {
-        var specId = remoteSpec.id;
-        var i, entry, suite;
+        var i;
         for (i = 0; i < beforeLoadCallbacks.length; i++) {
-            entry = beforeLoadCallbacks[i];
-            if (!entry.suiteId || specId.indexOf(entry.suiteId) === 0) {
-                try {
-                    entry.callback();
-                } catch (e) {
-                    var localSpec = jasmineUtils.findRemoteSpecLocally(specId);
-                    localSpec.fail(e);
-                }
+            try {
+                beforeLoadCallbacks[i]();
+            } catch (e) {
+                // TODO
+                throw e;
             }
         }
     });
 
-    globals.beforeLoad = beforeLoad;
+    globals.jasmineui.beforeLoad = beforeLoad;
 
     return {
         beforeLoad:beforeLoad
     }
 });
 
+
+/* JasmineAdapter */
 jasmineui.define('client?jasmine/multiLoad', ['jasmine/original', 'persistentData', 'jasmine/waitsForAsync', 'globals', 'jasmine/utils'], function (jasmineOriginal, persistentData, waitsForAsync, globals, jasmineUtils) {
     var pd = persistentData();
 
@@ -3911,7 +3902,7 @@ jasmineui.define('jasmine/original', ['globals'], function (globals) {
         expect:globals.expect
     }
 });
-jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOriginal) {
+jasmineui.define('jasmine/utils', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
     var jasmine = jasmineOriginal.jasmine;
 
     var ClonedNestedResults = function (data) {
@@ -3991,13 +3982,13 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
 
     var _execute = jasmineOriginal.jasmine.Runner.prototype.execute;
 
-    function replaceSpecRunner(specsCreatedCallback) {
+    function replaceSpecRunner(runCallback) {
         jasmineOriginal.jasmine.Runner.prototype.execute = function () {
             var self = this;
-            specsCreatedCallback(function (remoteSpecIds) {
+            function createSpecs(remoteSpecIds) {
                 var i;
                 var filteredIds = [];
-                for (i = 0; i<remoteSpecIds.length; i++) {
+                for (i = 0; i < remoteSpecIds.length; i++) {
                     var spec = getOrCreateLocalSpec(remoteSpecIds[i]);
                     if (!spec.skipped) {
                         filteredIds.push(remoteSpecIds[i]);
@@ -4005,6 +3996,10 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
                 }
                 _execute.call(self);
                 return filteredIds;
+            }
+            runCallback({
+                createSpecs: createSpecs,
+                reportSpecResult: reportSpecResult
             });
         };
     }
@@ -4114,11 +4109,31 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
         return spec;
     }
 
-    function executeSpec(specId, resultCallback) {
-        var spec = findRemoteSpecLocally(specId);
-        spec.execute(function () {
-            resultCallback(spec.results_);
-        });
+    function initSpecRun(specId) {
+        // ignore describes that do not match to the given specId
+        var currentSuiteId = '';
+        globals.describe = function (name) {
+            var oldSuiteId = currentSuiteId;
+            if (currentSuiteId) {
+                currentSuiteId += '#';
+            }
+            currentSuiteId += name;
+            try {
+                if (specId.indexOf(currentSuiteId) === 0) {
+                    return jasmineOriginal.describe.apply(this, arguments);
+                }
+            } finally {
+                currentSuiteId = oldSuiteId;
+            }
+        };
+        return {
+            execute:function (resultCallback) {
+                var spec = findRemoteSpecLocally(specId);
+                spec.execute(function () {
+                    resultCallback(spec.results_);
+                });
+            }
+        }
     }
 
     function listSpecIds() {
@@ -4141,7 +4156,7 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
             res.unshift(suite.description);
             suite = suite.parentSuite;
         }
-        return res.join('#');
+        return res.join("#");
     }
 
     function splitSpecId(specId) {
@@ -4158,9 +4173,8 @@ jasmineui.define('jasmine/utils', ['jasmine/original'], function (jasmineOrigina
         nestedResultsFromJson:nestedResultsFromJson,
         createInfiniteWaitsBlock:createInfiniteWaitsBlock,
         replaceSpecRunner:replaceSpecRunner,
-        reportSpecResult:reportSpecResult,
         findRemoteSpecLocally:findRemoteSpecLocally,
-        executeSpec:executeSpec,
+        initSpecRun:initSpecRun,
         listSpecIds:listSpecIds,
         specId:specId,
         suiteId:suiteId
@@ -4172,7 +4186,7 @@ jasmineui.define('client?jasmine/waitsForAsync', ['config', 'asyncSensor', 'jasm
      * Waits for the end of all asynchronous actions.
      */
     function waitsForAsync() {
-        var asyncProcessing = true;;
+        var asyncProcessing = true;
         jasmineOriginal.runs(function () {
             asyncSensor.afterAsync(function() {
                 asyncProcessing = false;
@@ -4197,10 +4211,9 @@ jasmineui.define('testAdapter', ['jasmine/utils'], function (jasmineUtils) {
     return {
         // client
         listSpecIds:jasmineUtils.listSpecIds,
-        executeSpec:jasmineUtils.executeSpec,
+        initSpecRun:jasmineUtils.initSpecRun,
 
         // server
-        reportSpecResult:jasmineUtils.reportSpecResult,
         replaceSpecRunner:jasmineUtils.replaceSpecRunner
     };
 });
