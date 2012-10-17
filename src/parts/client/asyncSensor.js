@@ -234,11 +234,12 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
     (function () {
         var animationCount = 0;
         instrumentor.endCall(function () {
-            if (!(globals.$ && globals.$.fn && globals.$.fn.animationComplete)) {
+            var jQuery = globals.jQuery;
+            if (!(jQuery && jQuery.fn && jQuery.fn.animationComplete)) {
                 return;
             }
-            var oldFn = globals.$.fn.animationComplete;
-            globals.$.fn.animationComplete = function (callback) {
+            var oldFn = jQuery.fn.animationComplete;
+            jQuery.fn.animationComplete = function (callback) {
                 change(1);
                 return oldFn.call(this, function () {
                     change(-1);
@@ -259,12 +260,13 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
     (function () {
         var transitionCount = 0;
         instrumentor.endCall(function () {
-            if (!(globals.$ && globals.$.fn && globals.$.fn.transitionComplete)) {
+            var jQuery = globals.jQuery;
+            if (!(jQuery && jQuery.fn && jQuery.fn.transitionComplete)) {
                 return;
             }
 
-            var oldFn = globals.$.fn.transitionComplete;
-            globals.$.fn.transitionComplete = function (callback) {
+            var oldFn = jQuery.fn.transitionComplete;
+            jQuery.fn.transitionComplete = function (callback) {
                 change(1);
                 return oldFn.call(this, function () {
                     change(-1);

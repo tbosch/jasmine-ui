@@ -92,11 +92,11 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
                 id: GLOBAL_ERROR_SPEC_ID,
                 results: pd.globalErrors
             };
-            runner.createSpecs([errorSpec]);
+            testAdapter.createSpecs([errorSpec]);
             testAdapter.reportSpecResults(errorSpec);
             pd.specs = [];
         } else {
-            pd.specs = runner.createSpecs(pd.specs);
+            pd.specs = testAdapter.createSpecs(pd.specs);
         }
         return pd.specs;
     }

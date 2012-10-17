@@ -1,31 +1,37 @@
 jasmineui.define('server/testAdapter', ['jasmine/original', 'globals'], function (jasmineOriginal) {
     var jasmine = jasmineOriginal.jasmine;
 
+
     var _execute = jasmineOriginal.jasmine.Runner.prototype.execute;
+    var currentRunner = null;
 
     function interceptSpecRunner(runCallback) {
         jasmineOriginal.jasmine.Runner.prototype.execute = function () {
-            var self = this;
-
-            function createSpecs(remoteSpecs) {
-                var i, remoteSpec;
-                var filteredIds = [];
-                for (i = 0; i < remoteSpecs.length; i++) {
-                    remoteSpec = remoteSpecs[i];
-                    var localSpec = getOrCreateLocalSpec(remoteSpec.id);
-                    if (localSpec.skipped) {
-                        remoteSpecs.splice(i,1);
-                        i--;
-                    }
-                }
-                _execute.call(self);
-                return remoteSpecs;
-            }
+            currentRunner = this;
 
             runCallback({
                 createSpecs:createSpecs
             });
         };
+    }
+
+    function createSpecs(remoteSpecs) {
+        if (!currentRunner) {
+            throw new Error("no current runner");
+        }
+        var i, remoteSpec;
+        var filteredIds = [];
+        for (i = 0; i < remoteSpecs.length; i++) {
+            remoteSpec = remoteSpecs[i];
+            var localSpec = getOrCreateLocalSpec(remoteSpec.id);
+            if (localSpec.skipped) {
+                remoteSpecs.splice(i,1);
+                i--;
+            }
+        }
+
+        _execute.call(currentRunner);
+        return remoteSpecs;
     }
 
     function findChildSuite(parent, name) {
@@ -139,6 +145,7 @@ jasmineui.define('server/testAdapter', ['jasmine/original', 'globals'], function
 
     return {
         interceptSpecRunner:interceptSpecRunner,
+        createSpecs:createSpecs,
         reportSpecResults:reportSpecResults
     }
 

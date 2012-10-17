@@ -34,7 +34,8 @@ jasmineui.require(["factory!client/loadUi"], function (loadUiFactory) {
             executeTest = jasmine.createSpy('executeTest');
             clientTestAdapter = {
                 listSpecIds:jasmine.createSpy('listSpecIds').andReturn([]),
-                initSpecRun:jasmine.createSpy('initSpecRun').andReturn({execute:executeTest})
+                initSpecRun:jasmine.createSpy('initSpecRun'),
+                executeSpecRun:executeTest
             };
             asyncSensor = {
                 afterAsync:jasmine.createSpy('afterAsync')

@@ -1,52 +1,51 @@
 jasmineui.define('client/testAdapter', ['jasmine/original', 'globals'], function (jasmineOriginal, globals) {
     var describeImpl = jasmineOriginal.describe;
-    function describe() {
-        return describeImpl.apply(this, arguments);
-    }
+
+    var executeSpecImpl = function () {
+        throw new Error('initSpecRun must be called first!');
+    };
 
     function initSpecRun(spec) {
-        var specId = spec.id;
-        var results = spec.results;
+        ignoreDescribesThatDoNotMatchTheSpecId(spec.id);
+        executeSpecImpl = function(finishedCallback) {
+            return executeSpec(spec, finishedCallback);
+        };
+    }
 
-        function ignoreDescribesThatDoNotMatchTheSpecId() {
-            var currentSuiteId = '';
-            describeImpl = function (name) {
-                var oldSuiteId = currentSuiteId;
-                if (currentSuiteId) {
-                    currentSuiteId += '#';
-                }
-                currentSuiteId += name;
-                try {
-                    if (specId.indexOf(currentSuiteId) === 0) {
-                        return jasmineOriginal.describe.apply(this, arguments);
-                    }
-                } finally {
-                    currentSuiteId = oldSuiteId;
-                }
-            };
-        }
-
-        ignoreDescribesThatDoNotMatchTheSpecId();
-
-        return {
-            execute:function (finishedCallback) {
-                var spec = findRemoteSpecLocally(specId);
-                var specResults = spec.results_;
-                var _addResult = specResults.addResult;
-                specResults.addResult = function (result) {
-                    if (!result.passed()) {
-                        results.push({
-                            message:result.message,
-                            // Convert the contained error to normal serializable objects to preserve
-                            // the line number information!
-                            stack:result.trace ? result.trace.stack : null
-                        });
-                    }
-                    return _addResult.apply(this, arguments);
-                };
-                spec.execute(finishedCallback);
+    function ignoreDescribesThatDoNotMatchTheSpecId(specId) {
+        var currentSuiteId = '';
+        describeImpl = function (name) {
+            var oldSuiteId = currentSuiteId;
+            if (currentSuiteId) {
+                currentSuiteId += '#';
             }
-        }
+            currentSuiteId += name;
+            try {
+                if (specId.indexOf(currentSuiteId) === 0) {
+                    return jasmineOriginal.describe.apply(this, arguments);
+                }
+            } finally {
+                currentSuiteId = oldSuiteId;
+            }
+        };
+    }
+
+    function executeSpec(remoteSpec, finishedCallback) {
+        var spec = findRemoteSpecLocally(remoteSpec.id);
+        var specResults = spec.results_;
+        var _addResult = specResults.addResult;
+        specResults.addResult = function (result) {
+            if (!result.passed()) {
+                remoteSpec.results.push({
+                    message:result.message,
+                    // Convert the contained error to normal serializable objects to preserve
+                    // the line number information!
+                    stack:result.trace ? result.trace.stack : null
+                });
+            }
+            return _addResult.apply(this, arguments);
+        };
+        spec.execute(finishedCallback);
     }
 
     function findRemoteSpecLocally(remoteSpecId) {
@@ -89,11 +88,16 @@ jasmineui.define('client/testAdapter', ['jasmine/original', 'globals'], function
     }
 
     return {
-        globals: {
-            describe: describe
+        globals:{
+            describe:function() {
+                return describeImpl.apply(this, arguments);
+            }
         },
         listSpecIds:listSpecIds,
-        initSpecRun:initSpecRun
+        initSpecRun:initSpecRun,
+        executeSpecRun:function() {
+            return executeSpecImpl.apply(this, arguments);
+        }
     };
 });
 

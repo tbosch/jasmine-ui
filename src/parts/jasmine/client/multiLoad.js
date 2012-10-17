@@ -11,7 +11,7 @@ jasmineui.define('client/jasmine/multiLoad', ['jasmine/original', 'persistentDat
     var skipRunsCounter = remoteSpec.lastRunsIndex;
     var reloadHappened = false;
 
-    globals.window.addEventListener('beforeunload', function () {
+    globals.addEventListener('beforeunload', function () {
         // Note: on iOS beforeunload is NOT supported.
         // In that case we rely on the fact, that timeouts no more executed
         // when a navigation change occurs. And we do wait some milliseconds between

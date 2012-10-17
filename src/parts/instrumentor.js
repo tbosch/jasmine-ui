@@ -66,12 +66,12 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         return script.replace('JASMINEUI_SCRIPT_URL', jasmineUiScriptUrl);
     }
 
-    function urlScript(url) {
+    function urlScriptTemplate(url) {
         return '<script type="text/javascript" src="' + url + '"></script>';
     }
 
     function beginScript(url) {
-        globals.document.write(urlScript(url));
+        globals.document.write(urlScriptTemplate(url));
     }
 
     var endScripts = [];
@@ -129,7 +129,7 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
 
         var i;
         for (i = 0; i < endScripts.length; i++) {
-            globals.document.write(urlScript(endScripts[i]));
+            globals.document.write(urlScriptTemplate(endScripts[i]));
         }
     }
 

@@ -35,12 +35,12 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
 
     function runExecutePhase() {
         var remoteSpec = pd.specs[pd.specIndex];
-        var runner = testAdapter.initSpecRun(remoteSpec);
+        testAdapter.initSpecRun(remoteSpec);
         logSpecStatus(remoteSpec);
         addUtilScripts();
         instrumentor.beginScript(remoteSpec.testScript);
         asyncSensor.afterAsync(function () {
-            runner.execute(function () {
+            testAdapter.executeSpecRun(function () {
                 if (ownerLoadUiServer) {
                     ownerLoadUiServer.specFinished(remoteSpec);
                 }

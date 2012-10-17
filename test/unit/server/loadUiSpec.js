@@ -61,13 +61,12 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
             });
             reportSpecResults = jasmine.createSpy('reportSpecResults');
             runnerCallback = function () {
-                return serverTestAdapter.interceptSpecRunner.mostRecentCall.args[0]({
-                    createSpecs:createSpecs
-                });
+                return serverTestAdapter.interceptSpecRunner.mostRecentCall.args[0]();
             };
             serverTestAdapter = {
                 interceptSpecRunner:jasmine.createSpy('replaceSpecRunner'),
-                reportSpecResults:reportSpecResults
+                reportSpecResults:reportSpecResults,
+                createSpecs: createSpecs
             };
         });
 
