@@ -3508,14 +3508,14 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
 
     var ownerLoadUiServer = getOwnerLoadUiServer();
 
-    var analyzeMode = pd.specIndex === -1;
-    if (analyzeMode) {
-        startAnalyzeMode();
+    var analyzePhase = pd.specIndex === -1;
+    if (analyzePhase) {
+        runAnalyzePhase();
     } else {
-        runMode();
+        runExecutePhase();
     }
 
-    function startAnalyzeMode() {
+    function runAnalyzePhase() {
         addUtilScripts();
         var i;
         for (i = 0; i < pd.analyzeScripts.length; i++) {
@@ -3528,12 +3528,12 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
             } else {
                 // In inplace mode, we need to call the spec runner again to
                 // filter the collected specs.
-                urlLoader.navigateWithReloadTo(globals.window, pd.reporterUrl);
+                urlLoader.navigateWithReloadTo(globals, pd.reporterUrl);
             }
         });
     }
 
-    function runMode() {
+    function runExecutePhase() {
         var remoteSpec = pd.specs[pd.specIndex];
         var runner = testAdapter.initSpecRun(remoteSpec);
         logSpecStatus(remoteSpec);
@@ -3562,7 +3562,7 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
             }
         }
         if (url) {
-            urlLoader.navigateWithReloadTo(globals.window, url);
+            urlLoader.navigateWithReloadTo(globals, url);
         }
     }
 
@@ -3619,7 +3619,7 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
             reportError(e);
             error = e;
         }
-        if (!error && analyzeMode) {
+        if (!error && analyzePhase) {
             var scriptUrl = scriptAccessor.currentScriptUrl();
             var specIds = testAdapter.listSpecIds();
             var i, specId, remoteSpec;
@@ -3676,7 +3676,7 @@ jasmineui.define('client/beforeLoad', ['persistentData', 'globals', 'instrumento
 
     if (pd.specIndex === -1) {
         globals.jasmineui.beforeLoad = function () {
-            // Noop
+            // Noop in analyze phase
         };
         return;
     }

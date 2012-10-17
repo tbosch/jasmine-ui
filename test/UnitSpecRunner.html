@@ -12,9 +12,11 @@
     <script type="text/javascript" src="../src/parts/scriptAccessor.js"></script>
     <script type="text/javascript" src="../src/parts/instrumentor.js"></script>
     <script type="text/javascript" src="../src/parts/logger.js"></script>
-    <script type="text/javascript" src="../src/parts/client/simulateEvent.js"></script>
     <script type="text/javascript" src="../src/parts/persistentData.js"></script>
+    <script type="text/javascript" src="../src/parts/server/loadUi.js"></script>
+    <script type="text/javascript" src="../src/parts/client/simulateEvent.js"></script>
     <script type="text/javascript" src="../src/parts/client/asyncSensor.js"></script>
+    <script type="text/javascript" src="../src/parts/client/loadUi.js"></script>
     <!--
     <script type="text/javascript" src="../src/config.js"></script>
     <script type="text/javascript" src="../src/jasmineApi.js"></script>
@@ -28,19 +30,16 @@
     <script type="text/javascript" src="../src/waitsForAsync.js"></script>
     -->
 
-    <!-- Note: DON'T include main.js here, as it would start the modules automatically. But we want to create them
-         with mocks in the specs... -->
-    <script type="text/javascript" src="unit/testutils.js"></script>
-
-
     <!-- Specs go here.... -->
     <script type="text/javascript" src="unit/simpleRequireSpec.js"></script>
     <script type="text/javascript" src="unit/instrumentorSpec.js"></script>
     <script type="text/javascript" src="unit/scriptAccessorSpec.js"></script>
     <script type="text/javascript" src="unit/loggerSpec.js"></script>
-    <script type="text/javascript" src="unit/simulateEventSpec.js"></script>
     <script type="text/javascript" src="unit/persistentDataSpec.js"></script>
+    <script type="text/javascript" src="unit/server/loadUiSpec.js"></script>
+    <script type="text/javascript" src="unit/client/simulateEventSpec.js"></script>
     <script type="text/javascript" src="unit/client/asyncSensorSpec.js"></script>
+    <script type="text/javascript" src="unit/client/loadUiSpec.js"></script>
     <!--
     <script type="text/javascript" src="unit/asyncSensorSpec.js"></script>
     <script type="text/javascript" src="unit/loadListenerSpec.js"></script>

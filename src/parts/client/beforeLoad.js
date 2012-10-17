@@ -3,7 +3,7 @@ jasmineui.define('client/beforeLoad', ['persistentData', 'globals', 'instrumento
 
     if (pd.specIndex === -1) {
         globals.jasmineui.beforeLoad = function () {
-            // Noop
+            // Noop in analyze phase
         };
         return;
     }
