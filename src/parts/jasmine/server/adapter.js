@@ -3,26 +3,27 @@ jasmineui.define('server/testAdapter', ['jasmine/original', 'globals'], function
 
     var _execute = jasmineOriginal.jasmine.Runner.prototype.execute;
 
-    function replaceSpecRunner(runCallback) {
+    function interceptSpecRunner(runCallback) {
         jasmineOriginal.jasmine.Runner.prototype.execute = function () {
             var self = this;
 
-            function createSpecs(remoteSpecIds) {
-                var i;
+            function createSpecs(remoteSpecs) {
+                var i, remoteSpec;
                 var filteredIds = [];
-                for (i = 0; i < remoteSpecIds.length; i++) {
-                    var spec = getOrCreateLocalSpec(remoteSpecIds[i]);
-                    if (!spec.skipped) {
-                        filteredIds.push(remoteSpecIds[i]);
+                for (i = 0; i < remoteSpecs.length; i++) {
+                    remoteSpec = remoteSpecs[i];
+                    var localSpec = getOrCreateLocalSpec(remoteSpec.id);
+                    if (localSpec.skipped) {
+                        remoteSpecs.splice(i,1);
+                        i--;
                     }
                 }
                 _execute.call(self);
-                return filteredIds;
+                return remoteSpecs;
             }
 
             runCallback({
-                createSpecs:createSpecs,
-                reportSpecResults:reportSpecResults
+                createSpecs:createSpecs
             });
         };
     }
@@ -137,7 +138,8 @@ jasmineui.define('server/testAdapter', ['jasmine/original', 'globals'], function
     }
 
     return {
-        replaceSpecRunner:replaceSpecRunner
+        interceptSpecRunner:interceptSpecRunner,
+        reportSpecResults:reportSpecResults
     }
 
 });

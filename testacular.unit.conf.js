@@ -21,7 +21,8 @@ files = [
     'src/parts/jasmine/client/*.js',
     'src/parts/jasmine/server/*.js',
     'test/unit/*.js',
-    'test/unit/client/*.js'
+    'test/unit/client/*.js',
+    'test/unit/server/*.js'
 ];
 
 // list of files to exclude

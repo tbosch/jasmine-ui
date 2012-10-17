@@ -23,7 +23,7 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
         }
         asyncSensor.afterAsync(function () {
             if (ownerLoadUiServer) {
-                pd.specs = ownerLoadUiServer.createSpecs(pd.specs);
+                ownerLoadUiServer.createAndFilterSpecs();
                 runNextSpec();
             } else {
                 // In inplace mode, we need to call the spec runner again to
@@ -138,7 +138,7 @@ jasmineui.define('client/loadUi', ['persistentData', 'globals', 'client/testAdap
         }
     }
 
-    globals.window.addEventListener('error', function (event) {
+    globals.addEventListener('error', function (event) {
         addErrorResult({
             message:event.message
         });
