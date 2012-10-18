@@ -1,4 +1,4 @@
-jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlParser'], function (globals, persistentData, scriptAccessor, urlParser) {
+jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlParser', 'instrumentor'], function (globals, persistentData, scriptAccessor, urlParser, instrumentor) {
     var pd = persistentData();
 
     var config = {
@@ -9,7 +9,8 @@ jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlP
         closeTestWindow:true,
         scripts:[],
         // Default is the url of jasmine ui
-        baseUrl: scriptAccessor.currentScriptUrl()
+        baseUrl: scriptAccessor.currentScriptUrl(),
+        instrumentUrlPatterns:[]
     };
 
     function merge(obj) {
@@ -46,6 +47,8 @@ jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlP
     addLoadSensor(config.asyncSensors);
 
     pd.config = config;
+
+    instrumentor.setInstrumentUrlPatterns(config.instrumentUrlPatterns);
 
     return config;
 });

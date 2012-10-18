@@ -1,8 +1,11 @@
 jasmineui.require(["factory!config"], function (configFactory) {
     describe("config", function () {
-        var config, persistentDataAccessor, persistentData, scriptAccessor, globals;
+        var config, persistentDataAccessor, persistentData, scriptAccessor, globals, instrumentor;
 
         beforeEach(function () {
+            instrumentor = {
+                setInstrumentUrlPatterns: jasmine.createSpy('setInstrumentUrlPatterns')
+            };
             globals = {};
             persistentData = {};
             persistentDataAccessor = function () {
@@ -17,7 +20,8 @@ jasmineui.require(["factory!config"], function (configFactory) {
             config = configFactory({
                 globals:globals,
                 persistentData:persistentDataAccessor,
-                scriptAccessor:scriptAccessor
+                scriptAccessor:scriptAccessor,
+                instrumentor:instrumentor
             });
         }
 
@@ -31,8 +35,8 @@ jasmineui.require(["factory!config"], function (configFactory) {
                 loadMode:'inplace',
                 closeTestWindow:true,
                 scripts:[],
-                // Default is the url of jasmine ui
-                baseUrl:scriptAccessor.currentScriptUrl()
+                baseUrl:scriptAccessor.currentScriptUrl(),
+                instrumentUrlPatterns:[]
             });
         });
 
@@ -77,6 +81,14 @@ jasmineui.require(["factory!config"], function (configFactory) {
             };
             createConfig();
             expect(config.scripts[0].url).toBe('/base/someUrl');
+        });
+
+        it('should set the setInstrumentUrlPatterns in the instrumentor', function() {
+            globals.jasmineuiConfig = {
+                instrumentUrlPatterns: ['.*']
+            };
+            createConfig();
+            expect(instrumentor.setInstrumentUrlPatterns).toHaveBeenCalledWith(['.*'])
         });
 
     });

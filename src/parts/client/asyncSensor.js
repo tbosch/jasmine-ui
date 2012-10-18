@@ -97,6 +97,7 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
         function changed() {
             updateSensor('load', !loadEvent || !endCall);
         }
+
         changed();
     })();
 
@@ -199,6 +200,8 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
                 self[name] = function () {
                     if (name == 'send') {
                         change(1);
+                    } else if (name == 'abort') {
+                        change(-1);
                     }
                     var res = self.origin[name].apply(self.origin, arguments);
                     copyState();

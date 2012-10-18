@@ -2711,7 +2711,7 @@ jasmine.version_= {
 
 })(window);
 
-jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlParser'], function (globals, persistentData, scriptAccessor, urlParser) {
+jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlParser', 'instrumentor'], function (globals, persistentData, scriptAccessor, urlParser, instrumentor) {
     var pd = persistentData();
 
     var config = {
@@ -2722,7 +2722,8 @@ jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlP
         closeTestWindow:true,
         scripts:[],
         // Default is the url of jasmine ui
-        baseUrl: scriptAccessor.currentScriptUrl()
+        baseUrl: scriptAccessor.currentScriptUrl(),
+        instrumentUrlPatterns:[]
     };
 
     function merge(obj) {
@@ -2759,6 +2760,8 @@ jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlP
     addLoadSensor(config.asyncSensors);
 
     pd.config = config;
+
+    instrumentor.setInstrumentUrlPatterns(config.instrumentUrlPatterns);
 
     return config;
 });
@@ -2993,7 +2996,7 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             // 1. text of all element attributes
             // 2. content of src attribute
             // 3. text content of script element.
-            var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>(.*?)<\/script>/;
+            var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>([\s\S]*?)<\/script>/g;
 
             stopLoad();
             var pageHtml = readDocument();
@@ -3036,14 +3039,16 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
                     if (textContent.indexOf('sessionStorage.jasmineui') != -1) {
                         return urlScript('JASMINEUI_SCRIPT_URL');
                     } else if (srcAttribute) {
-                        return inlineScript('jasmineui.instrumentor.urlScript("' + srcAttribute + '")');
+                        return inlineScript('jasmineui.instrumentor.onUrlScript("' + srcAttribute + '")');
                     } else {
                         textContent = textContent.replace(/"/g, '\\"');
-                        return inlineScript('jasmineui.instrumentor.inlineScript("' + textContent + '")');
+                        textContent = textContent.replace(/\r/g, '');
+                        textContent = textContent.replace(/\n/g, '\\\n');
+                        return inlineScript('jasmineui.instrumentor.onInlineScript("' + textContent + '")');
                     }
                 });
-                pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.endScripts()') +
-                    inlineScript('jasmineui.instrumentor.endCalls()')+ '</body>');
+                pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.onEndScripts()') +
+                    inlineScript('jasmineui.instrumentor.onEndCalls()')+ '</body>');
                 return pageHtml;
             }
         };
@@ -3051,16 +3056,12 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         return script.replace('JASMINEUI_SCRIPT_URL', jasmineUiScriptUrl);
     }
 
-    function urlScriptTemplate(url) {
-        return '<script type="text/javascript" src="' + url + '"></script>';
-    }
-
-    function beginScript(url) {
-        globals.document.write(urlScriptTemplate(url));
-    }
-
     var endScripts = [];
     var endCalls = [];
+
+    function beginScript(url) {
+        writeUrlScript(url);
+    }
 
     function endScript(url) {
         endScripts.push(url);
@@ -3070,51 +3071,30 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         endCalls.push(callback);
     }
 
-    var originalRequire;
-
-    function checkForRequireJs() {
-        if (originalRequire) {
-            return true;
-        }
-        if (globals.require) {
-            originalRequire = globals.require;
-            globals.require = function (deps, originalCallback) {
-                deps.push('require');
-                originalRequire(deps, function () {
-                    var originalArgs = Array.prototype.slice.call(arguments);
-                    var localRequire = originalArgs[originalArgs.length - 1];
-                    localRequire(endScripts, function () {
-                        for (i = 0; i < endCalls.length; i++) {
-                            endCalls[i]();
-                        }
-                        originalCallback.apply(globals, originalArgs.slice(0, originalArgs.length - 1));
-                    });
-                });
-            };
-            return true;
-        }
-    }
-
-    function instrumentFunction() {
-
-    }
-
     function onInlineScript(evalString) {
         checkForRequireJs();
+        evalScriptContent(evalString);
     }
 
     function onUrlScript(url) {
         checkForRequireJs();
+        if (isUrlInstrumented(url)) {
+            loadAndEval(url, function() {
+            }, function(error) {
+                throw error;
+            });
+        } else {
+            writeUrlScript(url);
+        }
     }
 
     function onEndScripts() {
         if (checkForRequireJs()) {
             return
         }
-
         var i;
         for (i = 0; i < endScripts.length; i++) {
-            globals.document.write(urlScriptTemplate(endScripts[i]));
+            writeUrlScript(endScripts[i]);
         }
     }
 
@@ -3122,12 +3102,119 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
         if (checkForRequireJs()) {
             return
         }
-
         var i;
         for (i = 0; i < endCalls.length; i++) {
             endCalls[i]();
         }
     }
+
+    // ------------- helper functions ---------
+    function writeUrlScript(url) {
+        globals.document.write('<script type="text/javascript" src="' + url + '"></script>');
+    }
+
+    var originalRequire;
+
+    function checkForRequireJs() {
+        if (originalRequire) {
+            return true;
+        }
+        if (!globals.require) {
+            return false;
+        }
+        originalRequire = globals.require;
+        globals.require = function (deps, originalCallback) {
+            deps.push('require');
+            originalRequire(deps, function () {
+                var originalArgs = Array.prototype.slice.call(arguments);
+                var localRequire = originalArgs[originalArgs.length - 1];
+                localRequire(endScripts, function () {
+                    var i;
+                    for (i = 0; i < endCalls.length; i++) {
+                        endCalls[i]();
+                    }
+                    originalCallback.apply(globals, originalArgs.slice(0, originalArgs.length - 1));
+                });
+            });
+        };
+        var _load = originalRequire.load;
+        originalRequire.load = function (context, moduleName, url) {
+            if (!isUrlInstrumented(url)) {
+                return _load.apply(this, arguments);
+            }
+            loadAndEval(url, function () {
+                context.completeLoad(moduleName);
+            }, function (error) {
+                //Set error on module, so it skips timeout checks.
+                context.registry[moduleName].error = true;
+                throw error;
+            });
+        };
+
+        return true;
+    }
+
+    function loadAndEval(url, onload, onerror) {
+        var xhr = new globals.XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                    evalScriptContent(xhr.responseText + "//@ sourceURL=" + url);
+                    onload();
+                } else {
+                    onerror(new Error("Error loading url " + url + ":" + xhr.statusText));
+                }
+            }
+        };
+        xhr.open("GET", url, true);
+        xhr.send();
+    }
+
+    var instrumentUrlPatterns = [];
+    function isUrlInstrumented(url) {
+        var i, re;
+        var patterns = instrumentUrlPatterns;
+        for (i=0; i<patterns.length; i++) {
+            re = new RegExp(patterns[i]);
+            if (url.match(re)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    function setInstrumentUrlPatterns(patterns) {
+        instrumentUrlPatterns = patterns;
+    }
+
+
+    // group 1: name of function
+    var FUNCTION_REGEX = /function\s*([^\s\(]+)[^{]*{/g;
+
+    function evalScriptContent(scriptContent) {
+        scriptContent = scriptContent.replace(FUNCTION_REGEX, function(all, fnName) {
+            if (instrumentedFunctions[fnName]) {
+                return all+'if (!'+fnName+'.delegate)return jasmineui.instrumentor.onFunctionCall("'+fnName+'", '+fnName+', this, arguments);';
+            }
+            return all;
+        });
+        globals.eval.call(globals, scriptContent);
+    }
+
+    function onFunctionCall(fnName, fn, self, args) {
+        fn.delegate = true;
+        try {
+            return instrumentedFunctions[fnName].call(globals, fnName, fn, self, args);
+        } finally {
+            fn.delegate = false;
+        }
+    }
+
+    var instrumentedFunctions = {};
+    function instrumentFunction(name, callback) {
+        instrumentedFunctions[name] = callback;
+    }
+
 
     // public API
     return {
@@ -3135,18 +3222,20 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             jasmineui: {
                 // private API as callback from loaderScript
                 instrumentor: {
-                    endScripts:onEndScripts,
-                    endCalls:onEndCalls,
-                    inlineScript:onInlineScript,
-                    urlScript:onUrlScript
-                }
+                    onEndScripts:onEndScripts,
+                    onEndCalls:onEndCalls,
+                    onInlineScript:onInlineScript,
+                    onUrlScript:onUrlScript,
+                    onFunctionCall:onFunctionCall
+                },
+                instrumentFunction: instrumentFunction
             }
         },
         loaderScript:loaderScript,
         beginScript:beginScript,
         endScript:endScript,
         endCall:endCall,
-        instrumentFunction:instrumentFunction
+        setInstrumentUrlPatterns:setInstrumentUrlPatterns
     }
 
 });
@@ -3249,6 +3338,7 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
         function changed() {
             updateSensor('load', !loadEvent || !endCall);
         }
+
         changed();
     })();
 
@@ -3351,6 +3441,8 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
                 self[name] = function () {
                     if (name == 'send') {
                         change(1);
+                    } else if (name == 'abort') {
+                        change(-1);
                     }
                     var res = self.origin[name].apply(self.origin, arguments);
                     copyState();

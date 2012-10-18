@@ -14,6 +14,7 @@
             loadMode: 'inplace',
             logEnabled: true,
             closeTestWindow: false,
+            instrumentUrlPatterns: ['.*'],
             scripts: [
                 {position: 'begin', url: '/test/ui/inject/sampleBeginScript.js'},
                 {position: 'end', url: '/test/ui/inject/sampleEndScript.js'}
@@ -29,6 +30,8 @@
     <script type="text/javascript" src="ui/injectSpec.js"></script>
     <script type="text/javascript" src="ui/nonUiSpec.js"></script>
     <script type="text/javascript" src="ui/multiLoadSpec.js"></script>
+    <script type="text/javascript" src="ui/instrumentInlineSpec.js"></script>
+    <script type="text/javascript" src="ui/instrumentUrlScriptSpec.js"></script>
 
     <!-- ################################################################################################# -->
     <script type="text/javascript">

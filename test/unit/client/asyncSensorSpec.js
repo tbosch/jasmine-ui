@@ -167,7 +167,8 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
                     send:jasmine.createSpy('send').andCallFake(function () {
                         originalXhr = this;
                     }),
-                    open:jasmine.createSpy('open')
+                    open:jasmine.createSpy('open'),
+                    abort: jasmine.createSpy('abort')
                 }
             });
             it("should forward calls from the instrumented xhr to the original xhr", function () {
@@ -200,6 +201,15 @@ jasmineui.require(["factory!client/asyncSensor"], function (asyncSensorFactory) 
                 originalXhr.readyState = 4;
                 originalXhr.onreadystatechange();
 
+                expect(isAsync()).toBe(false);
+            });
+            it("should wait for the xhr to abort", function () {
+                var xhr = new globals.XMLHttpRequest();
+                xhr.onreadystatechange = jasmine.createSpy('readyStateChange');
+                xhr.open('GET', 'someUrl');
+                xhr.send();
+                expect(isAsync()).toBe(true);
+                xhr.abort();
                 expect(isAsync()).toBe(false);
             });
         });

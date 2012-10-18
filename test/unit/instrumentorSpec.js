@@ -1,13 +1,35 @@
 jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
     describe("instrumentor", function () {
         var someScriptUrl = 'someScriptUrl';
-        var scriptAccessor, instrumentor, globals;
+        var scriptAccessor, instrumentor, globals, XMLHttpRequest, xhr;
+        var requireCallback, nestedRequire, someModule, originalRequire, originalRequireLoad;
         beforeEach(function () {
+            requireCallback = jasmine.createSpy('requireCallback');
+            nestedRequire = jasmine.createSpy('nestedRequire');
+            someModule = {};
+            originalRequire = jasmine.createSpy('originalRequire');
+            originalRequireLoad = jasmine.createSpy('originalRequireLoad');
+            originalRequire.load = originalRequireLoad;
+            xhr = {
+                open:jasmine.createSpy('open'),
+                send:jasmine.createSpy('send'),
+                status:200
+            };
+            XMLHttpRequest = function () {
+                return xhr;
+            };
             globals = {
+                XMLHttpRequest:XMLHttpRequest,
                 document:{
                     write:jasmine.createSpy('write')
                 },
-                jasmineui:{}
+                jasmineui:{},
+                eval:function (string) {
+                    // Note: These variables are used inside the eval statement!
+                    var window = globals;
+                    var jasmineui = globals.jasmineui;
+                    eval(string);
+                }
             };
             scriptAccessor = {
                 currentScriptUrl:jasmine.createSpy('scriptAccessor').andReturn(someScriptUrl)
@@ -17,6 +39,10 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                 globals:globals
             });
         });
+
+        function initRequire() {
+            globals.require = originalRequire;
+        }
 
         function urlScript(url) {
             return '<script type="text/javascript" src="' + url + '"></script>';
@@ -95,7 +121,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                 it('should add a script at the end of the body', function () {
                     xhr.responseText = '</body>';
                     execLoader();
-                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.endScripts()') + inlineScript('jasmineui.instrumentor.endCalls()')+ '</body>');
+                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onEndScripts()') + inlineScript('jasmineui.instrumentor.onEndCalls()') + '</body>');
                 });
 
                 it('should replace eval(jasmineui) by the current script url', function () {
@@ -110,18 +136,85 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                     xhr.responseText = '<script>' + someInlineScript + '</script>';
                     execLoader();
                     var expectedInlineScript = someInlineScript.replace(/"/g, '\\"');
-                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.inlineScript("' + expectedInlineScript + '")'));
+                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onInlineScript("' + expectedInlineScript + '")'));
+                });
+
+                it('should replace multiple inline scripts', function () {
+                    var someInlineScript = 'someInline+"a"';
+                    xhr.responseText = '<script>a</script><script>b</script>';
+                    execLoader();
+                    var expectedInlineScript = someInlineScript.replace(/"/g, '\\"');
+                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onInlineScript("a")')+inlineScript('jasmineui.instrumentor.onInlineScript("b")'));
+                });
+
+                it('should replace multi line inline scripts', function () {
+                    var someInlineScript = 'someInline+"a"';
+                    xhr.responseText = '<script>a\r\nb</script>';
+                    execLoader();
+                    var expectedInlineScript = someInlineScript.replace(/"/g, '\\"');
+                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onInlineScript("a\\\nb")'));
                 });
 
                 it('should replace scripts with urls', function () {
                     var someUrl = 'someUrl';
                     xhr.responseText = '<script src="' + someUrl + '"></script>';
                     execLoader();
-                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.urlScript("' + someUrl + '")'));
+                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onUrlScript("' + someUrl + '")'));
                 });
             });
+        });
 
+        describe('jasmineui.instrumentor.onInlineScript', function () {
+            it('should eval the original content in the global scope', function () {
+                globals.jasmineui.instrumentor.onInlineScript('window.test=3');
+                expect(globals.test).toBe(3);
+            });
+            it('should be able to instrument functions', function () {
+                var called;
+                globals.jasmineui.instrumentFunction('someFn', function () {
+                    called = true;
+                });
+                globals.jasmineui.instrumentor.onInlineScript('function someFn() { }; someFn();');
+                expect(called).toBe(true);
+            });
+        });
 
+        describe('jasmineui.instrumentor.onUrlScript', function () {
+            it('should create a script tag if no instrumentation is needed', function () {
+                instrumentor.setInstrumentUrlPatterns(['someUrl2']);
+                globals.jasmineui.instrumentor.onUrlScript('someUrl');
+                expect(globals.document.write).toHaveBeenCalledWith('<script type="text/javascript" src="someUrl"></script>');
+            });
+            it('should load the script with xhr, eval and instrument it', function () {
+                instrumentor.setInstrumentUrlPatterns(['.*']);
+                var called;
+                globals.jasmineui.instrumentFunction('someFn', function () {
+                    called = true;
+                });
+
+                globals.jasmineui.instrumentor.onUrlScript('someUrl');
+                expect(globals.document.write).not.toHaveBeenCalled();
+                expect(xhr.open).toHaveBeenCalledWith('GET', 'someUrl', true);
+                expect(xhr.send).toHaveBeenCalled();
+                xhr.responseText = 'function someFn() { }; someFn();'
+                xhr.readyState = 4;
+                xhr.onreadystatechange();
+                expect(called).toBe(true);
+            });
+            it('should throw an error if the xhr failed', function () {
+                instrumentor.setInstrumentUrlPatterns(['.*']);
+                globals.jasmineui.instrumentor.onUrlScript('someUrl');
+                expect(globals.document.write).not.toHaveBeenCalled();
+                xhr.readyState = 4;
+                xhr.status = 500;
+                xhr.statusText = 'someError';
+                try {
+                    xhr.onreadystatechange();
+                    throw new Error("should not be reached");
+                } catch (e) {
+                    expect(e.message).toBe('Error loading url someUrl:someError');
+                }
+            });
         });
 
         describe('beginScript', function () {
@@ -132,37 +225,67 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
             });
         });
 
-        describe('no script loader', function () {
-            describe('endScript', function () {
-                it('should add the script when jasmineui.instrumentor.endScripts() is called', function () {
+        describe('endScript', function () {
+            describe('no script loader', function () {
+                it('should add the script when jasmineui.instrumentor.onEndScripts() is called', function () {
                     var someUrl = 'someUrl';
                     instrumentor.endScript(someUrl);
-                    globals.jasmineui.instrumentor.endScripts();
+                    globals.jasmineui.instrumentor.onEndScripts();
                     expect(globals.document.write).toHaveBeenCalledWith(urlScript(someUrl));
                 });
             });
-            describe('endCall', function () {
-                it('should call the given function when jasmineui.instrumentor.endCalls() is called', function () {
-                    var callback = jasmine.createSpy('callback');
-                    instrumentor.endCall(callback);
-                    globals.jasmineui.instrumentor.endCalls();
-                    expect(callback).toHaveBeenCalled();
+            describe('with requirejs', function () {
+                beforeEach(initRequire);
+                it('should not call document.write', function () {
+                    var someScriptUrl = "someScriptUrl";
+                    instrumentor.endScript(someScriptUrl);
+                    globals.jasmineui.instrumentor.onEndScripts();
+                    expect(globals.document.write).not.toHaveBeenCalled();
+                });
+
+                it('should add the script to the nested require call', function () {
+                    var someScriptUrl = "someScriptUrl";
+                    instrumentor.endScript(someScriptUrl);
+                    globals.jasmineui.instrumentor.onEndScripts();
+
+                    globals.require(['someModule'], requireCallback);
+
+                    originalRequire.mostRecentCall.args[1](someModule, nestedRequire);
+                    expect(nestedRequire.mostRecentCall.args[0]).toEqual([someScriptUrl]);
                 });
             });
         });
 
-        describe('with requirejs', function () {
-            var requireCallback, nestedRequire, someModule, originalRequire;
-            beforeEach(function () {
-                requireCallback = jasmine.createSpy('requireCallback');
-                nestedRequire = jasmine.createSpy('nestedRequire');
-                someModule = {};
-                originalRequire = globals.require = jasmine.createSpy('originalRequire');
-
+        describe('endCall', function () {
+            describe('no script loader', function () {
+                it('should call the given function when jasmineui.instrumentor.onEndCalls() is called', function () {
+                    var callback = jasmine.createSpy('callback');
+                    instrumentor.endCall(callback);
+                    globals.jasmineui.instrumentor.onEndCalls();
+                    expect(callback).toHaveBeenCalled();
+                });
             });
+            describe('with requirejs', function () {
+                beforeEach(initRequire);
+                it('should call the callbacks when the nested require call is called', function () {
+                    var endCallback = jasmine.createSpy('endCallback');
+                    instrumentor.endCall(endCallback);
 
+                    globals.jasmineui.instrumentor.onEndScripts();
+                    globals.require(['someModule'], requireCallback);
+
+                    originalRequire.mostRecentCall.args[1](someModule, nestedRequire);
+                    expect(endCallback).not.toHaveBeenCalled();
+                    nestedRequire.mostRecentCall.args[1]();
+                    expect(endCallback).toHaveBeenCalled();
+                });
+            });
+        });
+
+        describe('requirejs', function () {
+            beforeEach(initRequire);
             it('should instrument require to do a nested require', function () {
-                globals.jasmineui.instrumentor.endScripts();
+                globals.jasmineui.instrumentor.onEndScripts();
                 globals.require(['someModule'], requireCallback);
 
                 expect(originalRequire).toHaveBeenCalled();
@@ -174,7 +297,7 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
             });
 
             it('should call the original require callback when the nested callback is called with the original arguments', function () {
-                globals.jasmineui.instrumentor.endScripts();
+                globals.jasmineui.instrumentor.onEndScripts();
                 globals.require(['someModule'], requireCallback);
 
                 originalRequire.mostRecentCall.args[1](someModule, nestedRequire);
@@ -183,44 +306,101 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                 expect(requireCallback).toHaveBeenCalledWith(someModule);
             });
 
-            describe('endScript', function () {
-                it('should not call document.write', function () {
-                    var someScriptUrl = "someScriptUrl";
-                    instrumentor.endScript(someScriptUrl);
-                    globals.jasmineui.instrumentor.endScripts();
-                    expect(globals.document.write).not.toHaveBeenCalled();
-                });
-
-                it('should add the script to the nested require call', function () {
-                    var someScriptUrl = "someScriptUrl";
-                    instrumentor.endScript(someScriptUrl);
-                    globals.jasmineui.instrumentor.endScripts();
-
-                    globals.require(['someModule'], requireCallback);
-
-                    originalRequire.mostRecentCall.args[1](someModule, nestedRequire);
-                    expect(nestedRequire.mostRecentCall.args[0]).toEqual([someScriptUrl]);
-                });
+            it('should call the original require.onload if a module is not instrumented', function() {
+                globals.jasmineui.instrumentor.onEndScripts();
+                instrumentor.setInstrumentUrlPatterns(['someUrl2']);
+                originalRequire.load('someContext', 'someModule', 'someUrl');
+                expect(originalRequireLoad).toHaveBeenCalledWith('someContext', 'someModule', 'someUrl');
             });
 
-            describe('endCall', function () {
-                it('should call the callbacks when the nested require call is called', function () {
-                    var endCallback = jasmine.createSpy('endCallback');
-                    instrumentor.endCall(endCallback);
-
-                    globals.jasmineui.instrumentor.endScripts();
-                    globals.require(['someModule'], requireCallback);
-
-                    originalRequire.mostRecentCall.args[1](someModule, nestedRequire);
-                    expect(endCallback).not.toHaveBeenCalled();
-                    nestedRequire.mostRecentCall.args[1]();
-                    expect(endCallback).toHaveBeenCalled();
+            it('should laod the script with xhr, eval and instrument it', function() {
+                var called;
+                var completeLoad = jasmine.createSpy('completeLoad');
+                instrumentor.setInstrumentUrlPatterns(['.*']);
+                globals.jasmineui.instrumentFunction('someFn', function () {
+                    called = true;
                 });
+                globals.jasmineui.instrumentor.onEndScripts();
+
+                originalRequire.load({completeLoad: completeLoad}, 'someModule', 'someUrl');
+                expect(originalRequireLoad).not.toHaveBeenCalled();
+
+                expect(xhr.open).toHaveBeenCalledWith('GET', 'someUrl', true);
+                expect(xhr.send).toHaveBeenCalled();
+                xhr.responseText = 'function someFn() { }; someFn();'
+                xhr.readyState = 4;
+                xhr.onreadystatechange();
+                expect(called).toBe(true);
+                expect(completeLoad).toHaveBeenCalledWith('someModule');
             });
 
-            // TODO instrumentFunction!
+            it('should throw an error if the xhr failed and set the error flag in the module context', function () {
+                instrumentor.setInstrumentUrlPatterns(['.*']);
+                globals.jasmineui.instrumentor.onEndScripts();
+                var context = {
+                    registry: {
+                        someModule: {}
+                    }
+                };
+                originalRequire.load(context, 'someModule', 'someUrl');
+
+                xhr.readyState = 4;
+                xhr.status = 500;
+                xhr.statusText = 'someError';
+                try {
+                    xhr.onreadystatechange();
+                    throw new Error("should not be reached");
+                } catch (e) {
+                    expect(e.message).toBe('Error loading url someUrl:someError');
+                }
+                expect(context.registry.someModule.error).toBe(true);
+            });
+
         });
 
+        describe('instrumentFunction', function () {
+            it('should get the function name, the function, this and the original arguments as arguments', function () {
+                var args;
+                globals.jasmineui.instrumentFunction('someFn', function (fnName, fn, self, originalArgs) {
+                    args = arguments;
+                });
+                globals.self = {};
+                globals.jasmineui.instrumentor.onInlineScript('function someFn(a) { return a+1; }; someFn.call(window.self, 2);');
+                expect(args[0]).toEqual('someFn');
+                expect(args[2]).toEqual(globals.self);
+                expect(args[3]).toEqual([2]);
+            });
+            it('should be able to delegate to the original function', function () {
+                globals.jasmineui.instrumentFunction('someFn', function (fnName, fn, self, originalArgs) {
+                    return fn.apply(self, originalArgs) + 1;
+                });
+                globals.jasmineui.instrumentor.onInlineScript('function someFn(a) { return a+1; }; window.result = someFn(2);');
+                expect(globals.result).toBe(4);
+            });
+            it('should be able to replace to the original function', function () {
+                globals.jasmineui.instrumentFunction('someFn', function (fnName, fn, self, originalArgs) {
+                    return -1;
+                });
+                globals.jasmineui.instrumentor.onInlineScript('function someFn(a) { return a+1; }; window.result = someFn(2);');
+                expect(globals.result).toBe(-1);
+            });
+            it('should be able to replace a function when we have multiple function definitions', function() {
+                globals.jasmineui.instrumentFunction('someFn', function (fnName, fn, self, originalArgs) {
+                    return -1;
+                });
+                globals.jasmineui.instrumentor.onInlineScript('function test1() { }; function someFn(a) { return a+1; }; window.result = someFn(2);');
+                expect(globals.result).toBe(-1);
+
+            });
+            it('should be able to replace functions in multi line scripts', function() {
+                globals.jasmineui.instrumentFunction('someFn', function (fnName, fn, self, originalArgs) {
+                    return -1;
+                });
+                globals.jasmineui.instrumentor.onInlineScript('function test1() { }; \nfunction someFn(a) { return a+1; }; window.result = someFn(2);');
+                expect(globals.result).toBe(-1);
+
+            });
+        });
     });
 });
 
