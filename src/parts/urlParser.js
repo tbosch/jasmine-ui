@@ -43,7 +43,7 @@ jasmineui.define('urlParser', [], function () {
     }
 
     function makeAbsoluteUrl(baseUrl, url) {
-        if (url.indexOf('http') === 0 || url.indexOf('/') === 0) {
+        if (!baseUrl || url.indexOf('http') === 0 || url.indexOf('/') === 0) {
             return url;
         }
         var lastSlash = baseUrl.lastIndexOf('/');

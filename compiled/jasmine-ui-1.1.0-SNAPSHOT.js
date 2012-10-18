@@ -2711,7 +2711,7 @@ jasmine.version_= {
 
 })(window);
 
-jasmineui.define('config', ['globals', 'persistentData'], function (globals, persistentData) {
+jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlParser'], function (globals, persistentData, scriptAccessor, urlParser) {
     var pd = persistentData();
 
     var config = {
@@ -2720,7 +2720,9 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
         waitsForAsyncTimeout:5000,
         loadMode:'inplace',
         closeTestWindow:true,
-        scripts:[]
+        scripts:[],
+        // Default is the url of jasmine ui
+        baseUrl: scriptAccessor.currentScriptUrl()
     };
 
     function merge(obj) {
@@ -2736,6 +2738,26 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
     if (globals.jasmineuiConfig) {
         merge(globals.jasmineuiConfig);
     }
+
+    function makeScriptUrlsAbsolute(baseUrl, scripts) {
+        var i;
+        for (i=0; i<scripts.length; i++) {
+            scripts[i].url = urlParser.makeAbsoluteUrl(baseUrl, scripts[i].url);
+        }
+    }
+    makeScriptUrlsAbsolute(config.baseUrl, config.scripts);
+
+    function addLoadSensor(sensors) {
+        var i;
+        for (i=0; i<sensors.length; i++) {
+            if (sensors[i]==='load') {
+                return;
+            }
+        }
+        sensors.push("load");
+    }
+    addLoadSensor(config.asyncSensors);
+
     pd.config = config;
 
     return config;
@@ -2785,7 +2807,7 @@ jasmineui.define('urlParser', [], function () {
     }
 
     function makeAbsoluteUrl(baseUrl, url) {
-        if (url.indexOf('http') === 0 || url.indexOf('/') === 0) {
+        if (!baseUrl || url.indexOf('http') === 0 || url.indexOf('/') === 0) {
             return url;
         }
         var lastSlash = baseUrl.lastIndexOf('/');
@@ -2799,9 +2821,7 @@ jasmineui.define('urlParser', [], function () {
         makeAbsoluteUrl:makeAbsoluteUrl
     };
 });
-jasmineui.define('urlLoader', ['persistentData', 'urlParser'], function (persistentData, urlParser) {
-
-
+jasmineui.define('urlLoader', ['persistentData', 'urlParser', 'config', 'globals'], function (persistentData, urlParser, config, globals) {
     var refreshUrlAttribute = 'juir';
 
     function navigateWithReloadTo(win, url) {
@@ -2813,8 +2833,58 @@ jasmineui.define('urlLoader', ['persistentData', 'urlParser'], function (persist
         win.location.href = urlParser.serializeUrl(parsedUrl);
     }
 
+    var remoteWindow;
+    var frameElement;
+    var windowId = 'jasmineui-testwindow';
+
+    function openTestWindow(url) {
+        if (remoteWindow) {
+            navigateWithReloadTo(remoteWindow, url);
+            return remoteWindow;
+        }
+        if (config.loadMode === 'popup') {
+            remoteWindow = globals.open(url, windowId);
+        } else if (config.loadMode === 'iframe') {
+            frameElement = globals.document.createElement("iframe");
+            frameElement.name = windowId;
+            frameElement.setAttribute("src", url);
+            frameElement.setAttribute("style", "position: absolute; bottom: 0px; z-index:100; width: " + window.innerWidth + "px; height: " + window.innerHeight + "px");
+            globals.document.body.appendChild(frameElement);
+            remoteWindow = globals.frames[windowId];
+        } else {
+            throw new Error("Unknown load mode " + config.loadMode);
+        }
+        persistentData.saveDataToWindow(remoteWindow);
+        return remoteWindow;
+    }
+
+    function closeTestWindow() {
+        if (remoteWindow && config.closeTestWindow) {
+            if (config.loadMode === 'popup') {
+                remoteWindow.close();
+            } else if (config.loadMode === 'iframe') {
+                frameElement.parentElement.removeChild(frameElement);
+            }
+        }
+        remoteWindow = null;
+    }
+
+    function checkAndNormalizeUrl(url) {
+        var url = urlParser.makeAbsoluteUrl(config.baseUrl, url);
+        var xhr = new globals.XMLHttpRequest();
+        xhr.open("GET", url, false);
+        xhr.send();
+        if (xhr.status != 200) {
+            throw new Error("Could not find url " + url);
+        }
+        return url;
+    }
+
     return {
-        navigateWithReloadTo: navigateWithReloadTo
+        navigateWithReloadTo: navigateWithReloadTo,
+        openTestWindow: openTestWindow,
+        closeTestWindow: closeTestWindow,
+        checkAndNormalizeUrl: checkAndNormalizeUrl
     };
 });
 jasmineui.define('scriptAccessor', ['globals'], function (globals) {
@@ -3725,39 +3795,19 @@ jasmineui.define('client/beforeLoad', ['persistentData', 'globals', 'instrumento
     }
 });
 
-jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor', 'globals', 'server/testAdapter', 'urlLoader'], function (config, persistentData, scriptAccessor, globals, testAdapter, urlLoader) {
+jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor', 'globals', 'server/testAdapter', 'urlLoader', 'urlParser'], function (config, persistentData, scriptAccessor, globals, testAdapter, urlLoader, urlParser) {
 
-    var firstLoadUiUrl;
-    var testScripts = [];
+    var executionData = {
+        firstLoadurl: undefined,
+        testScripts: [],
+        globalServerErrors: []
+    };
 
     var GLOBAL_ERROR_SPEC_ID = "global#errors";
 
-    var globalServerErrors = [];
-
-    globals.addEventListener("error", function (event) {
-        globalServerErrors.push({
-            message:event.message
-        });
-    }, false);
+    var collectExecutionData = true;
 
     start();
-
-    function loadUi(url) {
-        testUrl(url);
-        testScripts.push(scriptAccessor.currentScriptUrl());
-        if (!firstLoadUiUrl) {
-            firstLoadUiUrl = url;
-        }
-    }
-
-    function testUrl(url) {
-        var xhr = new globals.XMLHttpRequest();
-        xhr.open("GET", url, false);
-        xhr.send();
-        if (xhr.status != 200) {
-            throw new Error("Could not find url " + url);
-        }
-    }
 
     function start() {
         var pd = persistentData();
@@ -3776,6 +3826,31 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
         }
     }
 
+    if (collectExecutionData) {
+        globals.addEventListener("error", function (event) {
+            executionData.globalServerErrors.push({
+                message:event.message
+            });
+        }, false);
+    }
+
+    function loadUi(url) {
+        if (!collectExecutionData) {
+            return;
+        }
+        try {
+            url = urlLoader.checkAndNormalizeUrl(url);
+        } catch (e) {
+            executionData.globalServerErrors.push({
+                message:e.toString(), stack:e.stack
+            });
+        }
+        executionData.testScripts.push(scriptAccessor.currentScriptUrl());
+        if (!executionData.firstLoadUiUrl) {
+            executionData.firstLoadUiUrl = url;
+        }
+    }
+
     function runInplaceStartPhase() {
         testAdapter.interceptSpecRunner(function (runner) {
             var firstUrl = prepareExecution(runner);
@@ -3788,6 +3863,7 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
     }
 
     function runInplaceFilterPhase() {
+        collectExecutionData = false;
         var pd = persistentData();
         testAdapter.interceptSpecRunner(function (runner) {
             createAndFilterSpecs(runner);
@@ -3800,6 +3876,7 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
     }
 
     function runInplaceResultsPhase() {
+        collectExecutionData = false;
         var pd = persistentData();
         testAdapter.interceptSpecRunner(function (runner) {
             createAndFilterSpecs(runner);
@@ -3835,9 +3912,7 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
             if (!firstUrl) {
                 return;
             }
-            var win = openTestWindow(firstUrl);
-            persistentData.saveDataToWindow(win);
-
+            urlLoader.openTestWindow(firstUrl);
             globals.jasmineui.loadUiServer = {
                 createAndFilterSpecs:function () {
                     createAndFilterSpecs(runner);
@@ -3846,64 +3921,29 @@ jasmineui.define('server/loadUi', ['config', 'persistentData', 'scriptAccessor',
                     testAdapter.reportSpecResults(spec);
                 },
                 runFinished:function () {
-                    closeTestWindow();
+                    urlLoader.closeTestWindow();
                 }
             };
         });
     }
 
-    var remoteWindow;
-    var frameElement;
-
-    function openTestWindow(url) {
-        if (remoteWindow) {
-            remoteWindow.location.href = url;
-            return remoteWindow;
-        }
-        var windowId = 'jasmineui-testwindow';
-        if (config.loadMode === 'popup') {
-            remoteWindow = globals.open(url, windowId);
-        } else if (config.loadMode === 'iframe') {
-            frameElement = globals.document.createElement("iframe");
-            frameElement.name = windowId;
-            frameElement.setAttribute("src", url);
-            frameElement.setAttribute("style", "position: absolute; bottom: 0px; z-index:100; width: " + window.innerWidth + "px; height: " + window.innerHeight + "px");
-            globals.document.body.appendChild(frameElement);
-            remoteWindow = globals.frames[windowId];
-        } else {
-            throw new Error("Unknown load mode " + config.loadMode);
-        }
-        return remoteWindow;
-    }
-
-    function closeTestWindow() {
-        if (remoteWindow && config.closeTestWindow) {
-            if (config.loadMode === 'popup') {
-                remoteWindow.close();
-            } else if (config.loadMode === 'iframe') {
-                frameElement.parentElement.removeChild(frameElement);
-            }
-        }
-        remoteWindow = null;
-    }
-
     function prepareExecution(runner) {
         var pd = persistentData();
 
-        pd.analyzeScripts = testScripts;
+        pd.analyzeScripts = executionData.testScripts;
         pd.specs = [];
         pd.specIndex = -1;
-        pd.globalErrors = globalServerErrors;
-        if (!firstLoadUiUrl) {
+        pd.globalErrors = executionData.globalServerErrors;
+        if (!executionData.firstLoadUiUrl) {
             createAndFilterSpecs(runner);
             return null;
         }
-        if (globalServerErrors.length > 0) {
+        if (executionData.globalServerErrors.length > 0) {
             // abort the test execution!
             createAndFilterSpecs(runner);
             return null;
         }
-        return firstLoadUiUrl;
+        return executionData.firstLoadUiUrl;
     }
 
     return {

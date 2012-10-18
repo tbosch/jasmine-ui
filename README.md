@@ -194,22 +194,24 @@ Configuration values:
 - `closeTestWindow = boolean`: for `loadMode=iframe|popup` specifies whether the created popup/iframe should be closed after the tests.
 - `logEnabled = boolean`: Specifies if extended log output should be created
 - `waitsForAsyncTimeout = int`: Specifies the default timeout to be used by the automatic waiting in tests.
-- `scriptUrls = Array of {position: ['begin'|'end'], url: 'someUrl']}`: List of urls for utility scripts that should also be injected into the pages.
+- `scripts = Array of {position: ['begin'|'end'], url: 'someUrl']}`: List of urls for utility scripts that should also be injected into the pages.
   This can be the beginning of the html document (`position`=='begin') or the end of the document (`position`=`end`).
 - `asyncSensors`: Names of the async sensors to use in automatic waiting for async processing.
-
+- `baseUrl`: Base url for relative urls of pages loaded with `loadUi` and relative urls in `config.scripts`. By default, this is the path
+  of the jasmineui script.
 
 
 Integration with js-test-driver for Continuous Integration
 --------------
 * Use the `JasmineAdapter.js`. See the usual integration of jasmine and js-test-driver on this.
+* Do not include the `jasmine.js` from testacular, as it is already included in jasmine-ui.
 * Be sure to not use `inplace` mode (e.g. `popup` mode instead), as js-test-driver does not like applications
   that reload the page.
 * configure a js-test-driver proxy that delegates all requests to the webserver that contains
   the pages that should be tests. This is important so that the pages to be tested are
   from the same domain as the test code.
 
-Example configuration:
+Example jstd configuration:
 
     server: http://localhost:9876
     load:
@@ -228,6 +230,31 @@ With the following `jstd-jasmineui-cfg.js`:
 
 Integration with testacular for Continuous Integration
 --------------
-TODO use this in the build!
+
+* Use the `JasmineAdapter.js` of testacular. See the usual integration of jasmine and testacular on this.
+* Do not include the `jasmine.js` from testacular, as it is already included in jasmine-ui.
+* Be sure to not use `inplace` mode (e.g. `popup` mode instead), as testacular does not like applications
+  that reload the page.
+* configure a testacular proxy that delegates all requests to the webserver that contains
+  the pages that should be tests. This is important so that the pages to be tested are
+  from the same domain as the test code.
+
+Example testacular configuration:
+
+    proxies = {'/': 'http://localhost:9000/'};
+
+    files = [
+      '/test/lib/jasmineui-testacular.cfg.js',
+      '/test/lib/jasmine-ui.js',
+      JASMINE_ADAPTER,
+      'test/ui/*.js'
+    ];
+
+    ...
+
+
+With the following `jasmineui-testacular.cfg.js`:
+
+    jasmineuiConfig = { loadMode: 'popup' };
 
 

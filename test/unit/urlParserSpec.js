@@ -78,6 +78,9 @@ jasmineui.require(['factory!urlParser'], function (urlParserFactory) {
                 });
             });
             describe('relative urls', function() {
+                it('should do nothing if no baseUrl is given', function() {
+                    expect(urlParser.makeAbsoluteUrl(undefined, 'someRelativeUrl')).toBe('someRelativeUrl');
+                });
                 it("should make urls absolute by adding the path of the baseUrl if baseUrl is a file", function () {
                     expect(urlParser.makeAbsoluteUrl('someBaseUrl/someScript.js', 'someRelativeUrl')).toBe('someBaseUrl/someRelativeUrl');
                 });

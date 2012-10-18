@@ -1,4 +1,4 @@
-jasmineui.define('config', ['globals', 'persistentData'], function (globals, persistentData) {
+jasmineui.define('config', ['globals', 'persistentData', 'scriptAccessor', 'urlParser'], function (globals, persistentData, scriptAccessor, urlParser) {
     var pd = persistentData();
 
     var config = {
@@ -7,7 +7,9 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
         waitsForAsyncTimeout:5000,
         loadMode:'inplace',
         closeTestWindow:true,
-        scripts:[]
+        scripts:[],
+        // Default is the url of jasmine ui
+        baseUrl: scriptAccessor.currentScriptUrl()
     };
 
     function merge(obj) {
@@ -23,6 +25,26 @@ jasmineui.define('config', ['globals', 'persistentData'], function (globals, per
     if (globals.jasmineuiConfig) {
         merge(globals.jasmineuiConfig);
     }
+
+    function makeScriptUrlsAbsolute(baseUrl, scripts) {
+        var i;
+        for (i=0; i<scripts.length; i++) {
+            scripts[i].url = urlParser.makeAbsoluteUrl(baseUrl, scripts[i].url);
+        }
+    }
+    makeScriptUrlsAbsolute(config.baseUrl, config.scripts);
+
+    function addLoadSensor(sensors) {
+        var i;
+        for (i=0; i<sensors.length; i++) {
+            if (sensors[i]==='load') {
+                return;
+            }
+        }
+        sensors.push("load");
+    }
+    addLoadSensor(config.asyncSensors);
+
     pd.config = config;
 
     return config;

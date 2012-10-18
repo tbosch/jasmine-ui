@@ -1,7 +1,7 @@
 jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
     describe("server/loadUi", function () {
-        var config, persistentData, persistentDataAccessor, scriptAccessor, globals, serverTestAdapter, loadUi, urlLoader, xhr;
-        var saveDataToWindow, runnerCallback, createSpecs, reportSpecResults, openedWindow, openedFrame;
+        var config, persistentData, persistentDataAccessor, scriptAccessor, globals, serverTestAdapter, loadUi, urlLoader;
+        var saveDataToWindow, runnerCallback, createSpecs, reportSpecResults;
         beforeEach(function () {
             config = {};
             persistentData = {};
@@ -13,48 +13,20 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
             scriptAccessor = {
                 currentScriptUrl:jasmine.createSpy('currentScriptUrl')
             };
-            xhr = {
-                status:200,
-                open:jasmine.createSpy('open'),
-                send:jasmine.createSpy('send')
-            };
-            openedWindow = {
-                close: jasmine.createSpy('close'),
-                location: {}
-            };
-            openedFrame = {
-                element: {
-                    setAttribute: jasmine.createSpy('setAttribute'),
-                    parentElement: {
-                        removeChild: jasmine.createSpy('removeChild')
-                    }
-                },
-                object: {
-                    location: {}
-                }
-            };
             globals = {
                 addEventListener:jasmine.createSpy('addEventListener'),
                 jasmineui:{},
-                XMLHttpRequest:function () {
-                    return xhr;
-                },
                 location:{
                     href:'someOriginalRunner.html'
-                },
-                open: jasmine.createSpy('open').andReturn(openedWindow),
-                frames: {
-                    'jasmineui-testwindow': openedFrame.object
-                },
-                document: {
-                    createElement: jasmine.createSpy('createElement').andReturn(openedFrame.element),
-                    body: {
-                        appendChild: jasmine.createSpy('appendChild')
-                    }
                 }
             };
             urlLoader = {
-                navigateWithReloadTo:jasmine.createSpy('navigateWithReloadTo')
+                navigateWithReloadTo:jasmine.createSpy('navigateWithReloadTo'),
+                openTestWindow:jasmine.createSpy('openTestWindow'),
+                closeTestWindow:jasmine.createSpy('closeTestWindow'),
+                checkAndNormalizeUrl: jasmine.createSpy('checkAndNormalizeUrl').andCallFake(function(url) {
+                    return url;
+                })
             };
             createSpecs = jasmine.createSpy('createSpecs').andCallFake(function (specIds) {
                 return specIds;
@@ -66,7 +38,7 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
             serverTestAdapter = {
                 interceptSpecRunner:jasmine.createSpy('replaceSpecRunner'),
                 reportSpecResults:reportSpecResults,
-                createSpecs: createSpecs
+                createSpecs:createSpecs
             };
         });
 
@@ -95,10 +67,19 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                     expect(createSpecs).toHaveBeenCalledWith([]);
                 });
                 it('should load the first page defined by loadUi', function () {
-                    var somePage = 'somePage.html';
+                    var somePage = '/somePage.html';
                     globals.jasmineui.loadUi(somePage);
                     runnerCallback();
                     expect(urlLoader.navigateWithReloadTo).toHaveBeenCalledWith(globals, somePage);
+                });
+                it('should load the first page defined by loadUi calculating the url using urlLoader.checkAndNormalizeUrl', function () {
+                    var somePage = '/somePage.html';
+                    var someNewPage = '/someNewPage.html';
+                    urlLoader.checkAndNormalizeUrl.andReturn(someNewPage);
+                    globals.jasmineui.loadUi(somePage);
+                    runnerCallback();
+                    expect(urlLoader.checkAndNormalizeUrl).toHaveBeenCalledWith(somePage);
+                    expect(urlLoader.navigateWithReloadTo).toHaveBeenCalledWith(globals, someNewPage);
                 });
                 it('should initialize the persistentData', function () {
                     var someSpec = 'someSpec.js';
@@ -113,15 +94,22 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                         analyzeScripts:[someSpec]
                     });
                 });
-                it('should throw an error if the url cannot be loaded by xhr', function () {
-                    xhr.status = 500;
-                    try {
-                        globals.jasmineui.loadUi('someUrl.html');
-                        throw new Error("expected an error");
-                    } catch (e) {
-                        // expected
-                    }
-                    expect(xhr.open).toHaveBeenCalledWith('GET', 'someUrl.html', false);
+                it('should not start if some urls are reported invalid by urlLoader.checkAndNormalizeUrl', function () {
+                    var error = new Error('test');
+                    urlLoader.checkAndNormalizeUrl.andThrow(error);
+
+                    globals.jasmineui.loadUi('somePage.html');
+                    runnerCallback();
+                    expect(urlLoader.navigateWithReloadTo).not.toHaveBeenCalled();
+                    var errorSpec = {
+                        id:'global#errors',
+                        results:[
+                            { message:error.toString(), stack: error.stack }
+                        ]
+                    };
+                    expect(createSpecs).toHaveBeenCalledWith([ errorSpec ]);
+                    expect(reportSpecResults).toHaveBeenCalledWith(errorSpec);
+                    expect(persistentData.specs).toEqual([]);
                 });
                 it('should not start if uncatched errors exist but report an error spec', function () {
                     var errorListener = globals.addEventListener.mostRecentCall.args[1];
@@ -158,6 +146,10 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                         analyzeScripts:['someSpec.js']
                     };
                     createLoadUi();
+                });
+                it('should not check urls in loadUi', function() {
+                    globals.jasmineui.loadUi('someUrl');
+                    expect(urlLoader.checkAndNormalizeUrl).not.toHaveBeenCalled();
                 });
                 it('should filter the specs using the testAdapter', function () {
                     createSpecs.andCallFake(function (specs) {
@@ -214,6 +206,10 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                     createLoadUi();
 
                 });
+                it('should not check urls in loadUi', function() {
+                    globals.jasmineui.loadUi('someUrl');
+                    expect(urlLoader.checkAndNormalizeUrl).not.toHaveBeenCalled();
+                });
                 it('should create and report the results to the testAdapter', function () {
                     runnerCallback();
                     expect(createSpecs).toHaveBeenCalledWith(persistentData.specs);
@@ -221,7 +217,7 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                 });
             });
         });
-        describe('popup mode', function () {
+        describe('popup/iframe mode', function () {
             beforeEach(function () {
                 config.loadMode = "popup";
             });
@@ -235,23 +231,11 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                     expect(saveDataToWindow).not.toHaveBeenCalled();
                     expect(createSpecs).toHaveBeenCalledWith([]);
                 });
-                it('should load the first page defined by loadUi using window.open', function () {
+                it('should load the first page defined by loadUi', function () {
                     var somePage = 'somePage.html';
                     globals.jasmineui.loadUi(somePage);
                     runnerCallback();
-                    expect(globals.open).toHaveBeenCalled();
-                    expect(urlLoader.navigateWithReloadTo).not.toHaveBeenCalled();
-                    expect(saveDataToWindow).toHaveBeenCalledWith(openedWindow);
-                });
-                it('should reuse an existing open window', function() {
-                    var somePage = 'somePage.html';
-                    globals.jasmineui.loadUi(somePage);
-                    runnerCallback();
-                    globals.open.reset();
-                    openedWindow.location.href = '';
-                    runnerCallback();
-                    expect(globals.open).not.toHaveBeenCalled();
-                    expect(openedWindow.location.href).toBe(somePage);
+                    expect(urlLoader.openTestWindow).toHaveBeenCalledWith(somePage);
                 });
                 it('should initialize the persistentData', function () {
                     var someSpec = 'someSpec.js';
@@ -265,15 +249,22 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                         analyzeScripts:[someSpec]
                     });
                 });
-                it('should throw an error if the url cannot be loaded by xhr', function () {
-                    xhr.status = 500;
-                    try {
-                        globals.jasmineui.loadUi('someUrl.html');
-                        throw new Error("expected an error");
-                    } catch (e) {
-                        // expected
-                    }
-                    expect(xhr.open).toHaveBeenCalledWith('GET', 'someUrl.html', false);
+                it('should not start if some urls are reported invalid by urlLoader.checkAndNormalizeUrl', function () {
+                    var error = new Error('test');
+                    urlLoader.checkAndNormalizeUrl.andThrow(error);
+
+                    globals.jasmineui.loadUi('somePage.html');
+                    runnerCallback();
+                    expect(urlLoader.navigateWithReloadTo).not.toHaveBeenCalled();
+                    var errorSpec = {
+                        id:'global#errors',
+                        results:[
+                            { message:error.toString(), stack: error.stack }
+                        ]
+                    };
+                    expect(createSpecs).toHaveBeenCalledWith([ errorSpec ]);
+                    expect(reportSpecResults).toHaveBeenCalledWith(errorSpec);
+                    expect(persistentData.specs).toEqual([]);
                 });
                 it('should not start if uncatched errors exist but report an error spec', function () {
                     var errorListener = globals.addEventListener.mostRecentCall.args[1];
@@ -299,9 +290,9 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                         globals.jasmineui.loadUi("somePage.html");
                         runnerCallback();
                         persistentData.specs = [
-                                {id:'spec1', url:'page1.html'},
-                                {id:'spec2', url:'page2.html'}
-                            ];
+                            {id:'spec1', url:'page1.html'},
+                            {id:'spec2', url:'page2.html'}
+                        ];
                     });
                     it('should filter the specs using the testAdapter', function () {
                         var spec1 = persistentData.specs[0];
@@ -336,7 +327,7 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                         expect(persistentData.specs).toEqual([]);
                     });
                 });
-                describe('results phase', function() {
+                describe('results phase', function () {
                     beforeEach(function () {
                         createLoadUi();
                         globals.jasmineui.loadUi("somePage.html");
@@ -349,55 +340,15 @@ jasmineui.require(["factory!server/loadUi"], function (loadUiFactory) {
                         globals.jasmineui.loadUiServer.specFinished(persistentData.specs[0]);
                         expect(reportSpecResults).toHaveBeenCalledWith(persistentData.specs[0]);
                     });
-                    it('should close the window if specs are finished and config.closeTestWindow=true', function () {
-                        config.closeTestWindow = true;
+                    it('should close the window if specs are finished', function () {
                         globals.jasmineui.loadUiServer.runFinished();
-                        expect(openedWindow.close).toHaveBeenCalled();
-                    });
-                    it('should not close the window if specs are finished and config.closeTestWindow=false', function () {
-                        config.closeTestWindow = false;
-                        globals.jasmineui.loadUiServer.runFinished();
-                        expect(openedWindow.close).not.toHaveBeenCalled();
+                        expect(urlLoader.closeTestWindow).toHaveBeenCalled();
                     });
                 });
             });
 
         });
 
-        describe('iframe mode', function () {
-            var somePage = 'somePage.html';
-            beforeEach(function () {
-                config.loadMode = "iframe";
-                createLoadUi();
-                globals.jasmineui.loadUi(somePage);
-                runnerCallback();
-            });
-            it('should load the first page defined by loadUi using an iframe', function () {
-                expect(globals.document.createElement).toHaveBeenCalledWith('iframe');
-                expect(openedFrame.element.name).toBe('jasmineui-testwindow');
-                expect(openedFrame.element.setAttribute).toHaveBeenCalledWith('src', somePage);
-                expect(globals.document.body.appendChild).toHaveBeenCalledWith(openedFrame.element);
-                expect(urlLoader.navigateWithReloadTo).not.toHaveBeenCalled();
-                expect(saveDataToWindow).toHaveBeenCalledWith(openedFrame.object);
-            });
-            it('should reuse an existing open iframe', function() {
-                globals.document.createElement.reset();
-                openedFrame.object.location.ref = '';
-                runnerCallback();
-                expect(globals.document.createElement).not.toHaveBeenCalled();
-                expect(globals.open).not.toHaveBeenCalled();
-                expect(openedFrame.object.location.href).toBe(somePage);
-            });
-            it('should remove the iframe if specs are finished and config.closeTestWindow=true', function () {
-                config.closeTestWindow = true;
-                globals.jasmineui.loadUiServer.runFinished();
-                expect(openedFrame.element.parentElement.removeChild).toHaveBeenCalled();
-            });
-            it('should not remove the iframe if specs are finished and config.closeTestWindow=false', function () {
-                config.closeTestWindow = false;
-                globals.jasmineui.loadUiServer.runFinished();
-                expect(openedFrame.element.parentElement.removeChild).not.toHaveBeenCalled();
-            });
-        });
+
     });
 });
