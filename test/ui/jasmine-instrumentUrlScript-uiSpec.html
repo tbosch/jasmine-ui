@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script>eval(sessionStorage.jasmineui);</script>
+</head>
+<body>
+    <div id="greeting"></div>
+
+    <script>
+        try {
+        function sayHello(name) {
+            return 'Hello '+name;
+        }
+        document.getElementById("greeting").innerHTML = sayHello('Tobias');
+        } catch (e) {
+            console.log(e);
+        }
+
+    </script>
+
+</body>
+</html>
