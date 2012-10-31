@@ -8,7 +8,7 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             // 1. text of all element attributes
             // 2. content of src attribute
             // 3. text content of script element.
-            var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>(.*?)<\/script>/;
+            var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>([\s\S]*?)<\/script>/;
 
             stopLoad();
             var pageHtml = readDocument();
