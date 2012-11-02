@@ -46,7 +46,7 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             }
 
             function modifyHtml(pageHtml) {
-                pageHtml = pageHtml.replace("<html", '<html data-jasmineui="true"');
+                pageHtml = pageHtml.replace(/<html/g, '<html data-jasmineui="true"');
                 pageHtml = pageHtml.replace(SCRIPT_RE, function (match, allElements, srcAttribute, textContent) {
                     if (textContent.indexOf('sessionStorage.jasmineui') != -1) {
                         return urlScript('JASMINEUI_SCRIPT_URL');
