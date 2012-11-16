@@ -39,7 +39,6 @@ jasmineui.require(["htmlParserFactory"], function (htmlParserFactory) {
                 htmlparser.replaceScripts('<script>'+content+'</script>', callback);
                 expect(callback).toHaveBeenCalledWith(undefined, content);
             });
-
         });
 
         describe('convertScriptContentToEvalString', function() {
@@ -61,6 +60,17 @@ jasmineui.require(["htmlParserFactory"], function (htmlParserFactory) {
         describe('addAttributeToHtmlTag', function() {
             it('should add the attribute', function() {
                 expect(htmlparser.addAttributeToHtmlTag('<html></html>', 'someAttr')).toBe('<html someAttr></html>');
+            });
+            it('should be able to handle ie8 special tags', function() {
+                var input = '<!--[if IEMobile 7 ]>\
+                    <html class="no-js iem7" lang="en"> <![endif]-->\
+                        <!--[if (gt IEMobile 7)|!(IEMobile)]><!-->\
+                            <html class="no-js" lang="en"> <!--<![endif]-->';
+                var output = '<!--[if IEMobile 7 ]>\
+                    <html someAttr class="no-js iem7" lang="en"> <![endif]-->\
+                        <!--[if (gt IEMobile 7)|!(IEMobile)]><!-->\
+                            <html someAttr class="no-js" lang="en"> <!--<![endif]-->';
+                expect(htmlparser.addAttributeToHtmlTag(input, 'someAttr')).toBe(output);
             });
         });
 

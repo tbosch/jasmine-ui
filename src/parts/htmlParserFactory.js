@@ -27,7 +27,7 @@ jasmineui.define('htmlParserFactory', [], function () {
         }
 
         function addAttributeToHtmlTag(pageHtml, attribute) {
-            return pageHtml.replace("<html", '<html '+attribute);
+            return pageHtml.replace(/<html/g, '<html '+attribute);
         }
 
         return {
