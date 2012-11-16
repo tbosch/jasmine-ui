@@ -1,4 +1,4 @@
-var cfg = require("./build.cfg.js");
+var cfg = require("./package.json");
 var ejs = require('ejs');
 var fs = require('fs');
 

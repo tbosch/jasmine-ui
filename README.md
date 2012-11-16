@@ -63,9 +63,11 @@ Sample
 
 Build
 --------------
+Install the dependencies: `npm install`.
+
 Run the tests:
 
-* Run `node devserver.js` from a command line
+* Run `node server.js` from a command line
 * Use the jasmine html runner to run the tests in your browser:
     1. Unit-Tests: http://localhost:9000/test/UnitSpecRunner.html
     2. Ui-Tests: http://localhost:9000/test/UipecRunner.html
@@ -76,7 +78,7 @@ Run the tests:
 
 Create a new version:
 
-* set the version in the build.cfg.js
+* set the version in the package.json
 * execute node build.js
 
 Directory structure
