@@ -177,7 +177,7 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
     (function () {
         var jasmineWindow = window;
         var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
-        var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
+        var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHeader', 'open', 'send', 'setRequestHeader'];
 
         var oldXHR = globals.XMLHttpRequest;
         globals.openCallCount = 0;
