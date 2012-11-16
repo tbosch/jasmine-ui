@@ -2986,18 +2986,60 @@ jasmineui.define('persistentData', ['globals', 'instrumentor'], function (global
 
     return get;
 });
-jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (scriptAccessor, globals) {
+jasmineui.define('htmlParserFactory', [], function () {
+    // Attention: htmlParserFactory will be used in an eval statement,
+    // so all dependencies must be contained in this factory!
+
+    function htmlParserFactory() {
+        // Groups:
+        // 1. text of all element attributes
+        // 2. content of src attribute
+        // 3. text content of script element.
+        var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>([\s\S]*?)<\/script>/g;
+
+        function replaceScripts(html, callback) {
+            return html.replace(SCRIPT_RE, function (match, allElements, srcAttribute, textContent) {
+                var result = callback(srcAttribute, textContent);
+                if (result===undefined) {
+                    return match;
+                }
+                return result;
+            });
+        }
+
+        function convertScriptContentToEvalString(textContent) {
+            textContent = textContent.replace(/"/g, '\\"');
+            textContent = textContent.replace(/\r/g, '');
+            textContent = textContent.replace(/\n/g, '\\\n');
+            return '"'+textContent+'"';
+        }
+
+        function addAttributeToHtmlTag(pageHtml, attribute) {
+            return pageHtml.replace("<html", '<html '+attribute);
+        }
+
+        return {
+            convertScriptContentToEvalString: convertScriptContentToEvalString,
+            replaceScripts:replaceScripts,
+            addAttributeToHtmlTag:addAttributeToHtmlTag
+        };
+
+    }
+
+    return htmlParserFactory;
+
+
+});
+
+jasmineui.define('instrumentor', ['scriptAccessor', 'globals', 'htmlParserFactory'], function (scriptAccessor, globals, htmlParserFactory) {
 
     var jasmineUiScriptUrl = scriptAccessor.currentScriptUrl();
 
     function loaderScript() {
         var helper = function (window) {
-            // Groups:
-            // 1. text of all element attributes
-            // 2. content of src attribute
-            // 3. text content of script element.
-            var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>([\s\S]*?)<\/script>/g;
-
+            // Note: this will be replaced before the eval statement!
+            var htmlParserFactory = HTML_PARSER_FACTORY;
+            var htmlParser = htmlParserFactory();
             stopLoad();
             var pageHtml = readDocument();
             pageHtml = modifyHtml(pageHtml);
@@ -3034,17 +3076,15 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             }
 
             function modifyHtml(pageHtml) {
-                pageHtml = pageHtml.replace("<html", '<html data-jasmineui="true"');
-                pageHtml = pageHtml.replace(SCRIPT_RE, function (match, allElements, srcAttribute, textContent) {
+                pageHtml = htmlParser.addAttributeToHtmlTag(pageHtml, 'data-jasmineui="true"');
+                pageHtml = htmlParser.replaceScripts(pageHtml, function (srcAttribute, textContent) {
                     if (textContent.indexOf('sessionStorage.jasmineui') != -1) {
                         return urlScript('JASMINEUI_SCRIPT_URL');
                     } else if (srcAttribute) {
                         return inlineScript('jasmineui.instrumentor.onUrlScript("' + srcAttribute + '")');
                     } else {
-                        textContent = textContent.replace(/"/g, '\\"');
-                        textContent = textContent.replace(/\r/g, '');
-                        textContent = textContent.replace(/\n/g, '\\\n');
-                        return inlineScript('jasmineui.instrumentor.onInlineScript("' + textContent + '")');
+                        textContent = htmlParser.convertScriptContentToEvalString(textContent);
+                        return inlineScript('jasmineui.instrumentor.onInlineScript(' + textContent + ')');
                     }
                 });
                 pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.onEndScripts()') +
@@ -3053,7 +3093,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             }
         };
         var script = "(" + helper + ")(window) //@ instrumentor.js";
-        return script.replace('JASMINEUI_SCRIPT_URL', jasmineUiScriptUrl);
+        script = script.replace('JASMINEUI_SCRIPT_URL', jasmineUiScriptUrl).replace('HTML_PARSER_FACTORY', ""+htmlParserFactory);
+        return script;
     }
 
     var endScripts = [];
@@ -3418,7 +3459,7 @@ jasmineui.define('client/asyncSensor', ['globals', 'logger', 'instrumentor', 'co
     (function () {
         var jasmineWindow = window;
         var copyStateFields = ['readyState', 'responseText', 'responseXML', 'status', 'statusText'];
-        var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHader', 'open', 'send', 'setRequestHeader'];
+        var proxyMethods = ['abort', 'getAllResponseHeaders', 'getResponseHeader', 'open', 'send', 'setRequestHeader'];
 
         var oldXHR = globals.XMLHttpRequest;
         globals.openCallCount = 0;

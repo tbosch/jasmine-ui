@@ -1,7 +1,7 @@
 var ejs = require('ejs');
 var express = require('express');
 var app = express.createServer();
-var cfg = require("./build.cfg.js");
+var cfg = require("./package.json");
 
 app.configure('development', function(){
     app.use(express.static(__dirname));

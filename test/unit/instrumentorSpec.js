@@ -139,22 +139,6 @@ jasmineui.require(["factory!instrumentor"], function (instrumentorFactory) {
                     expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onInlineScript("' + expectedInlineScript + '")'));
                 });
 
-                it('should replace multiple inline scripts', function () {
-                    var someInlineScript = 'someInline+"a"';
-                    xhr.responseText = '<script>a</script><script>b</script>';
-                    execLoader();
-                    var expectedInlineScript = someInlineScript.replace(/"/g, '\\"');
-                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onInlineScript("a")')+inlineScript('jasmineui.instrumentor.onInlineScript("b")'));
-                });
-
-                it('should replace multi line inline scripts', function () {
-                    var someInlineScript = 'someInline+"a"';
-                    xhr.responseText = '<script>a\r\nb</script>';
-                    execLoader();
-                    var expectedInlineScript = someInlineScript.replace(/"/g, '\\"');
-                    expect(doc.write).toHaveBeenCalledWith(inlineScript('jasmineui.instrumentor.onInlineScript("a\\\nb")'));
-                });
-
                 it('should replace scripts with urls', function () {
                     var someUrl = 'someUrl';
                     xhr.responseText = '<script src="' + someUrl + '"></script>';

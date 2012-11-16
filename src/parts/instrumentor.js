@@ -1,15 +1,12 @@
-jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (scriptAccessor, globals) {
+jasmineui.define('instrumentor', ['scriptAccessor', 'globals', 'htmlParserFactory'], function (scriptAccessor, globals, htmlParserFactory) {
 
     var jasmineUiScriptUrl = scriptAccessor.currentScriptUrl();
 
     function loaderScript() {
         var helper = function (window) {
-            // Groups:
-            // 1. text of all element attributes
-            // 2. content of src attribute
-            // 3. text content of script element.
-            var SCRIPT_RE = /<script([^>]*src=\s*"([^"]+))?[^>]*>([\s\S]*?)<\/script>/g;
-
+            // Note: this will be replaced before the eval statement!
+            var htmlParserFactory = HTML_PARSER_FACTORY;
+            var htmlParser = htmlParserFactory();
             stopLoad();
             var pageHtml = readDocument();
             pageHtml = modifyHtml(pageHtml);
@@ -46,17 +43,15 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             }
 
             function modifyHtml(pageHtml) {
-                pageHtml = pageHtml.replace("<html", '<html data-jasmineui="true"');
-                pageHtml = pageHtml.replace(SCRIPT_RE, function (match, allElements, srcAttribute, textContent) {
+                pageHtml = htmlParser.addAttributeToHtmlTag(pageHtml, 'data-jasmineui="true"');
+                pageHtml = htmlParser.replaceScripts(pageHtml, function (srcAttribute, textContent) {
                     if (textContent.indexOf('sessionStorage.jasmineui') != -1) {
                         return urlScript('JASMINEUI_SCRIPT_URL');
                     } else if (srcAttribute) {
                         return inlineScript('jasmineui.instrumentor.onUrlScript("' + srcAttribute + '")');
                     } else {
-                        textContent = textContent.replace(/"/g, '\\"');
-                        textContent = textContent.replace(/\r/g, '');
-                        textContent = textContent.replace(/\n/g, '\\\n');
-                        return inlineScript('jasmineui.instrumentor.onInlineScript("' + textContent + '")');
+                        textContent = htmlParser.convertScriptContentToEvalString(textContent);
+                        return inlineScript('jasmineui.instrumentor.onInlineScript(' + textContent + ')');
                     }
                 });
                 pageHtml = pageHtml.replace("</body>", inlineScript('jasmineui.instrumentor.onEndScripts()') +
@@ -65,7 +60,8 @@ jasmineui.define('instrumentor', ['scriptAccessor', 'globals'], function (script
             }
         };
         var script = "(" + helper + ")(window) //@ instrumentor.js";
-        return script.replace('JASMINEUI_SCRIPT_URL', jasmineUiScriptUrl);
+        script = script.replace('JASMINEUI_SCRIPT_URL', jasmineUiScriptUrl).replace('HTML_PARSER_FACTORY', ""+htmlParserFactory);
+        return script;
     }
 
     var endScripts = [];
