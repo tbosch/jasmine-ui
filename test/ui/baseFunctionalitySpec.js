@@ -41,5 +41,17 @@ jasmineui.loadUi('/test/ui/jasmine-uiSpec.html#123', function () {
             expect(spyOn).toBeTruthy();
             expect(jasmine).toBeDefined();
         });
+
+        it('should automatically wait for the end of timeouts', function() {
+            var timeoutHappend;
+            runs(function() {
+                window.setTimeout(function() {
+                    timeoutHappend = true;
+                },1000);
+            });
+            runs(function() {
+                expect(timeoutHappend).toBe(true);
+            })
+        });
     });
 });

@@ -1,4 +1,4 @@
-jasmineui.define('jasmine/client/waitsForAsync', ['client/asyncSensor', 'jasmine/original'], function (asyncSensor, jasmineOriginal) {
+jasmineui.define('jasmine/client/waitsForAsync', ['client/asyncSensor', 'jasmine/original', 'config'], function (asyncSensor, jasmineOriginal, config) {
     /**
      * Waits for the end of all asynchronous actions.
      */
@@ -11,7 +11,7 @@ jasmineui.define('jasmine/client/waitsForAsync', ['client/asyncSensor', 'jasmine
         });
         jasmineOriginal.waitsFor(function() {
             return !asyncProcessing;
-        });
+        }, 'waitsForAsync', config.waitsForAsyncTimeout);
     }
 
     function runs(callback) {
