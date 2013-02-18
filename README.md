@@ -1,3 +1,10 @@
+# THIS PROJECT HAS BEEN SUPERCEDED BY UITEST.JS
+
+* Github: [https://github.com/tigbro/uitest.js](https://github.com/tigbro/uitest.js)
+* Migration-Guide and why: [https://github.com/tigbro/uitest.js/blob/master/docs/jasmineUiMigration.md](https://github.com/tigbro/uitest.js/blob/master/docs/jasmineUiMigration.md).
+
+# !!DO NOT USE ANYMORE!!
+
 Jasmine-Ui
 =====================
 
